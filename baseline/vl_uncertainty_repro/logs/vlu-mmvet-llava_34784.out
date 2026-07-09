@@ -1,0 +1,33 @@
+============================================
+VL-Uncertainty: MM-Vet + LLaVA1.5-7B
+Job started at 2026年 07月 07日 星期二 02:45:56 CST
+Node: gpu03
+GPU: NVIDIA GeForce RTX 5090
+NVIDIA GeForce RTX 5090
+NVIDIA GeForce RTX 5090
+NVIDIA GeForce RTX 5090
+NVIDIA GeForce RTX 5090
+NVIDIA GeForce RTX 5090
+NVIDIA GeForce RTX 5090
+NVIDIA GeForce RTX 5090
+LLaVA model: /opt/lexiangrui/vauq_assets/models/llava-1.5-7b-hf
+Qwen model:  /opt/lexiangrui/vauq_assets/models/Qwen2.5-3B-Instruct
+============================================
+{
+  "n": 218,
+  "n_labeled": 218,
+  "accuracy": 0.26146788990825687,
+  "metrics": {
+    "uncertainty": {
+      "auroc": 0.7881115833060914,
+      "aupr": 0.5785294514162351
+    }
+  },
+  "hallucination_detection_accuracy": 0.7981651376146789
+}
+
+============================================
+Job finished at 2026年 07月 07日 星期二 03:06:34 CST
+Results: /home/lexiangrui/vl_uncertainty_repro/results/mmvet_llava_vlu.jsonl
+Summary: /home/lexiangrui/vl_uncertainty_repro/results/mmvet_llava_vlu.summary.json
+============================================

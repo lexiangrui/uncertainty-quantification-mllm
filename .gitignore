@@ -1,0 +1,29 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.DS_Store
+.claude/
+
+# Local environments and secrets.
+*.env
+*.local
+*.secret
+*token*
+
+# Heavy generated artifacts. Curated summaries/logs under baseline are kept.
+results/
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.pkl
+*.parquet
+*.arrow
+
+# Python/build caches.
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
