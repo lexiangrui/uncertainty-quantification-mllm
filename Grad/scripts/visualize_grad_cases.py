@@ -11,6 +11,7 @@ import textwrap
 from pathlib import Path
 
 import numpy as np
+import torch
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,6 +24,7 @@ for path in (SRC, GRAD_ROOT):
 from grad_vauq.backends import build_backend
 from grad_vauq.scoring import compute_grad_vauq_scores
 from vauq.benchmarks import build_benchmark
+from vauq.backends.llava import LlavaBackend as AttentionLlavaBackend
 
 
 def parse_args() -> argparse.Namespace:
@@ -35,6 +37,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--topk-ratio", type=float, default=0.3)
     parser.add_argument("--alpha", type=float, default=1.2)
     parser.add_argument("--ablation-baseline", choices=["zero", "mean"], default="zero")
+    parser.add_argument("--layer-start", type=int, default=10)
+    parser.add_argument("--layer-end", type=int, default=25)
     parser.add_argument("--max-new-tokens", type=int, default=128)
     return parser.parse_args()
 
@@ -88,6 +92,13 @@ def make_overlay(image: Image.Image, score_grid: np.ndarray, selected: list[int]
     return overlaid.convert("RGB")
 
 
+def topk_indices(scores: np.ndarray, topk_ratio: float) -> list[int]:
+    flat = scores.reshape(-1)
+    k = max(1, int(flat.size * topk_ratio))
+    k = min(k, flat.size)
+    return np.argpartition(flat, -k)[-k:].tolist()
+
+
 def draw_text_block(draw: ImageDraw.ImageDraw, xy: tuple[int, int], text: str, width_chars: int, fill=(30, 30, 30)):
     font = ImageFont.load_default()
     x, y = xy
@@ -98,26 +109,38 @@ def draw_text_block(draw: ImageDraw.ImageDraw, xy: tuple[int, int], text: str, w
     return y
 
 
-def make_case_panel(case_id: int, sample: dict, full_row: dict, fresh_row: dict, output_dir: Path) -> Path:
+def make_case_panel(
+    case_id: int,
+    sample: dict,
+    full_row: dict,
+    grad_row: dict,
+    attention_row: dict,
+    output_dir: Path,
+) -> Path:
     image = sample["img"].convert("RGB")
-    score_grid = np.array(fresh_row["visual_scores"], dtype=np.float32).reshape(fresh_row["spatial_shape"])
-    overlay = make_overlay(image, score_grid, fresh_row["selected_indices"])
+    grad_grid = np.array(grad_row["visual_scores"], dtype=np.float32).reshape(grad_row["spatial_shape"])
+    attention_grid = np.array(attention_row["attention_scores"], dtype=np.float32).reshape(attention_row["spatial_shape"])
+    grad_overlay = make_overlay(image, grad_grid, grad_row["selected_indices"])
+    attention_overlay = make_overlay(image, attention_grid, attention_row["selected_indices"])
 
-    panel_w = 980
-    image_w = 360
+    panel_w = 1180
+    image_w = 330
     image_h = int(image.height * image_w / image.width)
     original = image.resize((image_w, image_h), Image.Resampling.LANCZOS)
-    heat = overlay.resize((image_w, image_h), Image.Resampling.LANCZOS)
+    grad_heat = grad_overlay.resize((image_w, image_h), Image.Resampling.LANCZOS)
+    attention_heat = attention_overlay.resize((image_w, image_h), Image.Resampling.LANCZOS)
     text_h = 250
     panel_h = max(image_h, 360) + text_h
     panel = Image.new("RGB", (panel_w, panel_h), "white")
     panel.paste(original, (20, 80))
-    panel.paste(heat, (400, 80))
+    panel.paste(grad_heat, (410, 80))
+    panel.paste(attention_heat, (790, 80))
 
     draw = ImageDraw.Draw(panel)
     draw.text((20, 20), f"Case {case_id} | subset={full_row['subset']} | correct={full_row['correct']}", fill=(0, 0, 0))
     draw.text((20, 55), "Original", fill=(0, 0, 0))
-    draw.text((400, 55), "Grad heatmap + selected top-k patches", fill=(0, 0, 0))
+    draw.text((410, 55), "Grad x Act top-k patches", fill=(0, 0, 0))
+    draw.text((790, 55), "Original VAUQ attention top-k patches", fill=(0, 0, 0))
 
     metrics = full_row["scores"]
     meta = (
@@ -131,6 +154,61 @@ def make_case_panel(case_id: int, sample: dict, full_row: dict, fresh_row: dict,
     out = output_dir / f"case_{case_id}.png"
     panel.save(out)
     return out
+
+
+def compute_attention_case(
+    backend: AttentionLlavaBackend,
+    sample: dict,
+    generated_ids: torch.Tensor,
+    topk_ratio: float,
+    layer_range: tuple[int, int],
+) -> dict:
+    inputs, _ = backend._prepare_inputs(sample["img"], sample["question"])
+    generated_ids = generated_ids.to(backend.device)
+    full_ids = torch.cat([inputs.input_ids, generated_ids], dim=1)
+    prompt_len = inputs.input_ids.shape[1]
+
+    with torch.no_grad():
+        outputs = backend.model(
+            input_ids=full_ids,
+            pixel_values=inputs.pixel_values,
+            output_attentions=True,
+            return_dict=True,
+        )
+
+    vision_token_id = backend.tokenizer.convert_tokens_to_ids("<image>")
+    positions = (full_ids[0] == vision_token_id).nonzero(as_tuple=True)[0]
+    first_pos, last_pos = positions[0].item(), positions[-1].item() + 1
+
+    attentions = torch.stack(outputs.attentions, dim=0).squeeze(1)
+    scores = (
+        attentions[layer_range[0] : layer_range[1]][
+            :, :, prompt_len:, first_pos:last_pos
+        ]
+        .mean(0)
+        .mean(0)
+        .mean(0)
+        .detach()
+        .float()
+        .cpu()
+        .numpy()
+    )
+    selected = topk_indices(scores, topk_ratio)
+    spatial_shape = int(scores.size**0.5)
+    if spatial_shape * spatial_shape == scores.size:
+        shape = (spatial_shape, spatial_shape)
+    else:
+        shape = (1, scores.size)
+
+    del outputs, attentions
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    return {
+        "attention_scores": scores.tolist(),
+        "selected_indices": [int(i) for i in selected],
+        "spatial_shape": shape,
+    }
 
 
 def main() -> None:
@@ -147,8 +225,7 @@ def main() -> None:
         adapter="llava",
     )
 
-    panels = []
-    details = []
+    case_cache = {}
     for case_id in args.case_ids:
         sample = benchmark.retrieve(case_id)
         answer, generated_ids = backend.generate_with_ids(
@@ -169,13 +246,42 @@ def main() -> None:
             answer=answer,
             store_visual_scores=True,
         )
-        fresh = {
-            "answer": result.answer,
-            "selected_indices": result.selected_indices,
-            "visual_scores": result.visual_scores,
-            "spatial_shape": result.spatial_shape,
+        case_cache[case_id] = {
+            "sample": sample,
+            "generated_ids": generated_ids.detach().cpu(),
+            "grad": {
+                "answer": result.answer,
+                "selected_indices": result.selected_indices,
+                "visual_scores": result.visual_scores,
+                "spatial_shape": result.spatial_shape,
+            },
         }
-        panel_path = make_case_panel(case_id, sample, rows[case_id], fresh, out_dir)
+
+    del backend
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    attention_backend = AttentionLlavaBackend(model_path=args.model_path)
+    for case_id, cached in case_cache.items():
+        cached["attention"] = compute_attention_case(
+            attention_backend,
+            cached["sample"],
+            cached["generated_ids"],
+            topk_ratio=args.topk_ratio,
+            layer_range=(args.layer_start, args.layer_end),
+        )
+    del attention_backend
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    panels = []
+    details = []
+    for case_id in args.case_ids:
+        cached = case_cache[case_id]
+        fresh = cached["grad"]
+        attention = cached["attention"]
+        sample = cached["sample"]
+        panel_path = make_case_panel(case_id, sample, rows[case_id], fresh, attention, out_dir)
         panels.append(Image.open(panel_path).convert("RGB"))
         details.append(
             {
@@ -185,6 +291,14 @@ def main() -> None:
                 "gt": rows[case_id]["gt_ans"],
                 "prediction": rows[case_id]["prediction"],
                 "scores": rows[case_id]["scores"],
+                "grad": {
+                    "selected_indices": fresh["selected_indices"],
+                    "spatial_shape": fresh["spatial_shape"],
+                },
+                "attention": {
+                    "selected_indices": attention["selected_indices"],
+                    "spatial_shape": attention["spatial_shape"],
+                },
                 "panel": str(panel_path),
             }
         )
