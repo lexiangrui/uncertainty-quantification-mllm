@@ -61,6 +61,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--judge", choices=["letter", "llm", "qwen_local", "none"], default=None,
                         help="Default is per-benchmark (cvbench->letter, free-form->qwen_local).")
     parser.add_argument("--model-path", default=os.environ.get("VAUQ_MODEL_PATH", "llava-hf/llava-1.5-7b-hf"))
+    parser.add_argument("--attn-implementation", default="eager",
+                        help="Use eager for attention-matrix VAUQ; sdpa is faster for blank-image baselines.")
     parser.add_argument("--topk-ratio", type=float, default=None)
     parser.add_argument("--alpha", type=float, default=None)
     parser.add_argument("--layer-start", type=int, default=None)
@@ -140,8 +142,12 @@ def main() -> None:
 
     topk_ratio, alpha, layer_range = resolve_scoring_params(args)
 
-    print(f"Loading backend={args.backend} model={args.model_path} ...")
-    backend = build_backend(args.backend, model_path=args.model_path)
+    print(f"Loading backend={args.backend} model={args.model_path} attn={args.attn_implementation} ...")
+    backend = build_backend(
+        args.backend,
+        model_path=args.model_path,
+        attn_implementation=args.attn_implementation,
+    )
 
     print(f"Loading benchmark={args.benchmark} ...")
     benchmark = build_benchmark(args.benchmark)
@@ -199,7 +205,9 @@ def main() -> None:
                 },
                 "config": {
                     "backend": args.backend, "benchmark": args.benchmark, "judge": judge_name,
-                    "model_path": args.model_path, "topk_ratio": topk_ratio,
+                    "model_path": args.model_path,
+                    "attn_implementation": args.attn_implementation,
+                    "topk_ratio": topk_ratio,
                     "alpha": alpha, "layer_range": list(layer_range),
                     "mask_strategy": args.mask_strategy,
                     "ablation_baseline": args.ablation_baseline,

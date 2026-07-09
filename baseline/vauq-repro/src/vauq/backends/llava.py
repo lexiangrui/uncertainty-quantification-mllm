@@ -28,14 +28,16 @@ class LlavaBackend(Backend):
         model_path: str = "llava-hf/llava-1.5-7b-hf",
         device: str | None = None,
         torch_dtype=None,
+        attn_implementation: str = "eager",
     ):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.attn_implementation = attn_implementation
         model_name = _resolve_model_name(model_path)
         self.model = LlavaForConditionalGeneration.from_pretrained(
             model_name,
             torch_dtype=torch_dtype or torch.float16,
             low_cpu_mem_usage=True,
-            attn_implementation="eager",
+            attn_implementation=attn_implementation,
         ).to(self.device)
         self.processor = AutoProcessor.from_pretrained(model_name)
         self.tokenizer = self.processor.tokenizer
