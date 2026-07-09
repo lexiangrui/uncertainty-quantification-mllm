@@ -97,6 +97,7 @@ class LlavaBackend(Backend):
         generated_ids,
         topk_ratio: float = 0.6,
         layer_range: tuple[int, int] = (10, 25),
+        ablation_baseline: str = "attention_mask",
     ):
         """Forward pass with core vision tokens masked via attention."""
         inputs, _ = self._prepare_inputs(image, question)
@@ -129,21 +130,70 @@ class LlavaBackend(Backend):
         k = max(1, int(num_tokens * topk_ratio))
         _, top_k_indices = torch.topk(selected_vis_attentions, k)
 
-        attention_mask = torch.cat(
-            [inputs.attention_mask, torch.ones_like(generated_ids)], dim=1
-        )
-        absolute_masked_indices = first_pos + top_k_indices
-        attention_mask[0, absolute_masked_indices] = 0
+        if ablation_baseline == "attention_mask":
+            attention_mask = torch.cat(
+                [inputs.attention_mask, torch.ones_like(generated_ids)], dim=1
+            )
+            absolute_masked_indices = first_pos + top_k_indices
+            attention_mask[0, absolute_masked_indices] = 0
+            ablation_context = None
+        elif ablation_baseline == "mean":
+            attention_mask = None
+            index_cpu = top_k_indices.detach().long().cpu()
+            ablation_context = self._mean_ablation(index_cpu)
+        else:
+            raise ValueError("Unsupported ablation baseline. Use 'attention_mask' or 'mean'.")
         del outputs, attentions, selected_vis_attentions, top_k_indices
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
         with torch.no_grad():
-            outputs_masked = self.model(
-                input_ids=full_ids,
-                pixel_values=inputs.pixel_values,
-                attention_mask=attention_mask,
-                return_dict=True,
-            )
+            if ablation_context is None:
+                outputs_masked = self.model(
+                    input_ids=full_ids,
+                    pixel_values=inputs.pixel_values,
+                    attention_mask=attention_mask,
+                    return_dict=True,
+                )
+            else:
+                with ablation_context:
+                    outputs_masked = self.model(
+                        input_ids=full_ids,
+                        pixel_values=inputs.pixel_values,
+                        return_dict=True,
+                    )
 
         return outputs_masked.logits[0, prompt_len - 1: -1]
+
+    def _projector(self):
+        if hasattr(self.model, "multi_modal_projector"):
+            return self.model.multi_modal_projector
+        inner = getattr(self.model, "model", None)
+        if inner is not None and hasattr(inner, "multi_modal_projector"):
+            return inner.multi_modal_projector
+        raise AttributeError(
+            "Expected LLaVA model to expose `multi_modal_projector` or "
+            "`model.multi_modal_projector`."
+        )
+
+    def _mean_ablation(self, indices: torch.Tensor):
+        from contextlib import contextmanager
+
+        @contextmanager
+        def manager():
+            projector = self._projector()
+
+            def hook(_module, _args, output):
+                modified = output.clone()
+                index = indices.to(modified.device)
+                replacement = modified.mean(dim=1, keepdim=True).expand(-1, index.numel(), -1)
+                modified[:, index, :] = replacement
+                return modified
+
+            handle = projector.register_forward_hook(hook)
+            try:
+                yield
+            finally:
+                handle.remove()
+
+        return manager()

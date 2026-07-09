@@ -68,6 +68,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--inference-temp", type=float, default=0.0)
     parser.add_argument("--max-new-tokens", type=int, default=128)
     parser.add_argument("--mask-strategy", choices=["core", "blank"], default="core")
+    parser.add_argument("--ablation-baseline", choices=["attention_mask", "mean"], default="attention_mask")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of samples.")
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--output", default="results/vauq_results.jsonl")
@@ -148,7 +149,8 @@ def main() -> None:
     judge_name = args.judge if args.judge is not None else DEFAULT_JUDGE.get(args.benchmark, "none")
     judge = build_judge(judge_name, benchmark=args.benchmark)
     print(f"Using judge={type(judge).__name__} mask={args.mask_strategy} "
-          f"topk={topk_ratio} alpha={alpha} layers={layer_range} temp={args.inference_temp}")
+          f"baseline={args.ablation_baseline} topk={topk_ratio} alpha={alpha} "
+          f"layers={layer_range} temp={args.inference_temp}")
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -175,7 +177,8 @@ def main() -> None:
             result = compute_vauq_scores(
                 backend, sample["img"], sample["question"], generated_ids,
                 topk_ratio=topk_ratio, alpha=alpha, layer_range=layer_range,
-                mask_strategy=args.mask_strategy, answer=answer,
+                mask_strategy=args.mask_strategy, ablation_baseline=args.ablation_baseline,
+                answer=answer,
             )
             correct = judge.judge(answer, sample.get("gt_ans"), sample)
             judge_result = getattr(judge, "last_result", None)
@@ -198,7 +201,9 @@ def main() -> None:
                     "backend": args.backend, "benchmark": args.benchmark, "judge": judge_name,
                     "model_path": args.model_path, "topk_ratio": topk_ratio,
                     "alpha": alpha, "layer_range": list(layer_range),
-                    "mask_strategy": args.mask_strategy, "temp": args.inference_temp,
+                    "mask_strategy": args.mask_strategy,
+                    "ablation_baseline": args.ablation_baseline,
+                    "temp": args.inference_temp,
                     "max_new_tokens": args.max_new_tokens,
                 },
             }

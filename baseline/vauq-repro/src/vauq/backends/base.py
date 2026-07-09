@@ -34,7 +34,15 @@ class Backend(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_logits_masked(self, image, question, generated_ids, topk_ratio: float, layer_range: tuple[int, int]):
+    def get_logits_masked(
+        self,
+        image,
+        question,
+        generated_ids,
+        topk_ratio: float,
+        layer_range: tuple[int, int],
+        ablation_baseline: str = "attention_mask",
+    ):
         """Like ``get_logits`` but with the top-``topk_ratio`` core visual tokens
         attention-masked out. Return ``logits[0, prompt_len - 1 : -1]``."""
         raise NotImplementedError

@@ -24,7 +24,7 @@ def compute_entropy(backend, image, question, generated_ids):
 
 
 def compute_entropy_core_masked(
-    backend, image, question, generated_ids, topk_ratio, layer_range
+    backend, image, question, generated_ids, topk_ratio, layer_range, ablation_baseline="attention_mask"
 ):
     with torch.no_grad():
         logits = backend.get_logits_masked(
@@ -33,6 +33,7 @@ def compute_entropy_core_masked(
             generated_ids,
             topk_ratio=topk_ratio,
             layer_range=tuple(layer_range),
+            ablation_baseline=ablation_baseline,
         )
         score_info = OutputScoreInfo(logits, generated_ids, backend.device)
         return score_info.compute_entropy()
@@ -54,6 +55,7 @@ def compute_vauq_scores(
     alpha=0.5,
     layer_range=(10, 25),
     mask_strategy="core",
+    ablation_baseline="attention_mask",
     answer=None,
 ) -> VAUQResult:
     """Compute VAUQ uncertainty scores for one sample.
@@ -72,7 +74,7 @@ def compute_vauq_scores(
         )
     else:
         entropy_masked = compute_entropy_core_masked(
-            backend, image, question, generated_ids, topk_ratio, layer_range
+            backend, image, question, generated_ids, topk_ratio, layer_range, ablation_baseline
         )
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
