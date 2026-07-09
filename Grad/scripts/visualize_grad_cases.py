@@ -25,6 +25,7 @@ from grad_vauq.backends import build_backend
 from grad_vauq.scoring import compute_grad_vauq_scores
 from vauq.benchmarks import build_benchmark
 from vauq.backends.llava import LlavaBackend as AttentionLlavaBackend
+from vauq.judges import build_judge
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,6 +46,8 @@ def parse_args() -> argparse.Namespace:
 
 def load_rows(path: Path) -> dict[int, dict]:
     rows = {}
+    if not path.exists():
+        return rows
     with path.open("r", encoding="utf-8") as f:
         for line in f:
             if not line.strip():
@@ -218,6 +221,7 @@ def main() -> None:
 
     rows = load_rows(Path(args.result_jsonl))
     benchmark = build_benchmark("cvbench")
+    judge = build_judge("letter", benchmark="cvbench")
     backend = build_backend(
         "llava",
         model_path=args.model_path,
@@ -245,6 +249,23 @@ def main() -> None:
             ablation_baseline=args.ablation_baseline,
             answer=answer,
             store_visual_scores=True,
+        )
+        correct = judge.judge(answer, sample.get("gt_ans"), sample)
+        rows.setdefault(
+            case_id,
+            {
+                "id": str(case_id),
+                "subset": sample.get("subset"),
+                "gt_ans": sample.get("gt_ans"),
+                "prediction": answer,
+                "correct": correct,
+                "scores": {
+                    "entropy": result.entropy,
+                    "entropy_masked": result.entropy_masked,
+                    "is_score": result.is_score,
+                    "vauq": result.vauq,
+                },
+            },
         )
         case_cache[case_id] = {
             "sample": sample,
