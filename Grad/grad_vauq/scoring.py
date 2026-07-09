@@ -24,7 +24,7 @@ def compute_grad_vauq_scores(
     topk_ratio: float = 0.3,
     alpha: float = 1.2,
     selector_name: str = "grad_x_act",
-    ablation_baseline: str = "zero",
+    ablation_baseline: str = "attention_mask",
     answer: str | None = None,
     store_visual_scores: bool = False,
 ) -> GradVAUQResult:

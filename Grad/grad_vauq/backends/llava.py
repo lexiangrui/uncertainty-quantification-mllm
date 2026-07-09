@@ -133,32 +133,25 @@ class GradLlavaBackend:
         question,
         generated_ids,
         selected_indices: torch.Tensor,
-        baseline: str = "zero",
+        baseline: str = "attention_mask",
     ):
+        if baseline != "attention_mask":
+            raise ValueError("Only attention_mask ablation is supported.")
         inputs, full_ids, attention_mask, prompt_len = self.prepare_full_inputs(
             image, question, generated_ids
         )
         with torch.no_grad():
-            if baseline == "attention_mask":
-                masked_attention = self._mask_visual_attention(
-                    full_ids,
-                    attention_mask,
-                    selected_indices,
-                )
-                outputs = self.model(
-                    input_ids=full_ids,
-                    pixel_values=inputs.pixel_values,
-                    attention_mask=masked_attention,
-                    return_dict=True,
-                )
-            else:
-                with self.adapter.ablate(self.model, selected_indices, baseline=baseline):
-                    outputs = self.model(
-                        input_ids=full_ids,
-                        pixel_values=inputs.pixel_values,
-                        attention_mask=attention_mask,
-                        return_dict=True,
-                    )
+            masked_attention = self._mask_visual_attention(
+                full_ids,
+                attention_mask,
+                selected_indices,
+            )
+            outputs = self.model(
+                input_ids=full_ids,
+                pixel_values=inputs.pixel_values,
+                attention_mask=masked_attention,
+                return_dict=True,
+            )
         return outputs.logits, prompt_len
 
     def _mask_visual_attention(

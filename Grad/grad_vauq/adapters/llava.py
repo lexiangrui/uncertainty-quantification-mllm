@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 
-import torch
-
 from .base import VisionTokenAdapter
 from ..types import VisualTokenTrace
 
@@ -48,28 +46,5 @@ class LlavaVisualTokenAdapter(VisionTokenAdapter):
         handle = projector.register_forward_hook(hook)
         try:
             yield holder
-        finally:
-            handle.remove()
-
-    @contextmanager
-    def ablate(self, model, indices: torch.Tensor, baseline: str = "zero"):
-        index_cpu = indices.detach().long().cpu()
-        projector, _ = self._projector(model)
-
-        def hook(_module, _args, output):
-            modified = output.clone()
-            index = index_cpu.to(modified.device)
-            if baseline == "zero":
-                replacement = torch.zeros_like(modified[:, index, :])
-            elif baseline == "mean":
-                replacement = modified.mean(dim=1, keepdim=True).expand(-1, index.numel(), -1)
-            else:
-                raise ValueError("Unsupported ablation baseline. Use 'zero' or 'mean'.")
-            modified[:, index, :] = replacement
-            return modified
-
-        handle = projector.register_forward_hook(hook)
-        try:
-            yield
         finally:
             handle.remove()

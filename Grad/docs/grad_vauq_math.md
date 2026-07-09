@@ -161,60 +161,25 @@ r=0.3,\quad \alpha=1.2
 
 ## 5. 视觉 token 消融与 masked forward
 
-得到关键集合 \(\mathcal{S}_K\) 后，再做一次 teacher-forced masked forward。当前实现支持两类干预：替换视觉 token 内容，或关闭对应视觉 token 的 attention 可见性。
-
-对内容替换型干预，记消融后的视觉 token 为：
-
-\[
-\tilde{v}_i =
-\begin{cases}
-b_i, & i \in \mathcal{S}_K \\
-v_i, & i \notin \mathcal{S}_K
-\end{cases}
-\]
-
-其中 \(b_i\) 是 baseline。
-
-当前实现支持三种 baseline：
-
-### zero baseline
-
-\[
-b_i = 0
-\]
-
-优点是定义简单；缺点是全零视觉 token 可能偏离训练分布，使模型进入较强的 out-of-distribution 状态。
-
-### mean baseline
-
-\[
-b_i = \bar{v}
-=
-\frac{1}{M}\sum_{m=1}^{M}v_m
-\]
-
-mean baseline 用同一张图像内部的平均视觉 token 替换关键 token，通常比 zero 更接近原始视觉 embedding 分布。
-
-### attention_mask baseline
+得到关键集合 \(\mathcal{S}_K\) 后，再做一次 teacher-forced masked forward。当前实现只保留 attention mask knockout：
 
 \[
 \operatorname{mask}_{p_i}=0,\quad p_i=p_{\text{image start}}+i,\quad i\in\mathcal{S}_K
 \]
 
-attention mask baseline 不改 \(v_i\) 的数值，而是在语言模型 forward 时关闭被选视觉 token 的 attention 可见性。它和原 VAUQ 的 knockout 干预方式一致，区别在于 token 集合 \(\mathcal{S}_K\) 由梯度而不是 attention 权重选出。
+attention mask knockout 不改 \(v_i\) 的数值，而是在语言模型 forward 时关闭被选视觉 token 的 attention 可见性。它和原 VAUQ 的 knockout 干预方式一致，区别在于 token 集合 \(\mathcal{S}_K\) 由梯度而不是 attention 权重选出。
 
 消融后的响应熵为：
 
 \[
-H_{\text{mask}}(I,q,Y;\mathcal{S}_K,b)
+H_{\text{mask}}(I,q,Y;\mathcal{S}_K)
 =
 \frac{1}{T}\sum_{t=1}^{T}
-H_t(\tilde{V},q,Y)
+H_t(I,q,Y;\operatorname{mask}_{\mathcal{S}_K})
 \]
 
 代码映射：
 
-- `Grad/grad_vauq/adapters/llava.py::LlavaVisualTokenAdapter.ablate`
 - `Grad/grad_vauq/backends/llava.py::forward_logits_with_ablation`
 
 ## 6. IS 与 Grad-VAUQ 分数
@@ -274,12 +239,10 @@ Grad-VAUQ 不需要 attention matrix。它只需要：
 - 梯度选出的视觉 token 集合 \(\mathcal{S}_K\)：`grad.selected_indices`
 - 正误标签与 judge 结果
 
-### 更换 ablation baseline 时只需重算
-
-若只从 `zero` baseline 换成 `mean` baseline，且 \(Y\) 与 \(\mathcal{S}_K\) 不变，则不需要重新生成答案，也不需要重新计算梯度。只需重算：
+### 更换 knockout 策略时只需重算
 
 \[
-H_{\text{mask}}(I,q,Y;\mathcal{S}_K,b_{\text{new}})
+H_{\text{mask}}(I,q,Y;\mathcal{S}_K)
 \]
 
 然后更新：
@@ -294,15 +257,6 @@ H_{\text{mask}} - H_{\text{org}}
 =
 H_{\text{org}} - \alpha \cdot \operatorname{IS}_{\text{grad}}
 \]
-
-对应脚本：
-
-```bash
-python Grad/scripts/recompute_ablation_from_cache.py \
-  --input results/grad_with_generated_ids.jsonl \
-  --output results/grad_mean_recomputed.jsonl \
-  --ablation-baseline mean
-```
 
 注意：旧结果如果没有保存 `generated_ids`，无法走这个快速路径，需要用更新后的 runner 重新跑一次以生成缓存。
 

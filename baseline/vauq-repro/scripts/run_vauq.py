@@ -26,7 +26,7 @@ if str(SRC) not in sys.path:
 
 from vauq.backends import build_backend
 from vauq.benchmarks import build_benchmark
-from vauq.eval import compute_metrics
+from vauq.eval import compute_conformal_metrics, compute_metrics
 from vauq.judges import DEFAULT_JUDGE, build_judge
 from vauq.scoring import compute_vauq_scores
 
@@ -70,7 +70,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--inference-temp", type=float, default=0.0)
     parser.add_argument("--max-new-tokens", type=int, default=128)
     parser.add_argument("--mask-strategy", choices=["core", "blank"], default="core")
-    parser.add_argument("--ablation-baseline", choices=["attention_mask", "mean"], default="attention_mask")
+    parser.add_argument("--ablation-baseline", choices=["attention_mask"], default="attention_mask")
+    parser.add_argument("--conformal-calibration-fraction", type=float, default=0.3)
     parser.add_argument("--limit", type=int, default=None, help="Limit number of samples.")
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--output", default="results/vauq_results.jsonl")
@@ -223,16 +224,16 @@ def main() -> None:
         with out_path.open("r", encoding="utf-8") as f:
             records = [json.loads(line) for line in f if line.strip()]
 
-    summary = _summarize(records)
+    summary = _summarize(records, args.conformal_calibration_fraction, args.seed)
     summary_path = Path(args.summary_output) if args.summary_output else out_path.with_suffix(".summary.json")
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(summary, indent=2, ensure_ascii=False))
 
 
-def _summarize(records: list[dict]) -> dict:
+def _summarize(records: list[dict], conformal_calibration_fraction: float = 0.3, seed: int = 42) -> dict:
     if not records:
         return {"n": 0}
-    summary = _summarize_group(records)
+    summary = _summarize_group(records, conformal_calibration_fraction, seed)
     summary["n"] = len(records)
 
     # per-subset breakdown (e.g. CV-Bench 2D / 3D)
@@ -240,22 +241,31 @@ def _summarize(records: list[dict]) -> dict:
     for r in records:
         groups.setdefault(r.get("subset") or "all", []).append(r)
     if len(groups) > 1:
-        summary["per_subset"] = {s: _summarize_group(rs) for s, rs in sorted(groups.items())}
+        summary["per_subset"] = {
+            s: _summarize_group(rs, conformal_calibration_fraction, seed)
+            for s, rs in sorted(groups.items())
+        }
     return summary
 
 
-def _summarize_group(records: list[dict]) -> dict:
+def _summarize_group(records: list[dict], conformal_calibration_fraction: float = 0.3, seed: int = 42) -> dict:
     labeled = [r for r in records if r.get("correct") is not None]
     labels = [int(r["correct"]) for r in labeled]
     vauq = [r["scores"]["vauq"] for r in labeled]
     entropy = [r["scores"]["entropy"] for r in labeled]
     is_score = [r["scores"]["is_score"] for r in labeled]
     metrics = compute_metrics(labels, vauq, entropy, is_score)
+    conformal = compute_conformal_metrics(
+        labeled,
+        calibration_fraction=conformal_calibration_fraction,
+        seed=seed,
+    )
     return {
         "n": len(records),
         "n_labeled": len(labels),
         "accuracy": metrics["accuracy"],
         "metrics": metrics["metrics"],
+        "conformal": conformal,
     }
 
 

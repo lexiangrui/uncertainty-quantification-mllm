@@ -32,7 +32,7 @@ export TRANSFORMERS_OFFLINE=1
 
 LIMIT="${LIMIT:-4}"
 ATTN_IMPL="${ATTN_IMPL:-sdpa}"
-BASELINE="${BASELINE:-zero}"
+BASELINE="${BASELINE:-attention_mask}"
 SELECTOR="${SELECTOR:-grad_x_act}"
 
 LIMIT_SUFFIX="full"
