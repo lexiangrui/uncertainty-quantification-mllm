@@ -75,19 +75,29 @@ def integrated_gradients_scores(
     features: torch.Tensor,
     baseline: str = "mean",
     steps: int = 16,
+    batch_size: int = 1,
 ) -> torch.Tensor:
     """Approximate integrated gradients over visual token embeddings."""
 
     if steps <= 0:
         raise ValueError("Integrated gradients steps must be positive.")
+    if batch_size <= 0:
+        raise ValueError("Integrated gradients batch size must be positive.")
 
     original = features.detach()
     start = make_feature_baseline(original, baseline)
     delta = original - start
     total_grad = torch.zeros_like(original)
 
-    for step in range(1, steps + 1):
-        scaled = (start + delta * (float(step) / float(steps))).detach()
+    for start_step in range(1, steps + 1, batch_size):
+        end_step = min(start_step + batch_size - 1, steps)
+        alphas = torch.arange(
+            start_step,
+            end_step + 1,
+            device=original.device,
+            dtype=original.dtype,
+        ).view(-1, 1, 1) / float(steps)
+        scaled = (start + delta * alphas).detach()
         scaled.requires_grad_(True)
         logits, prompt_len = backend.forward_logits_with_visual_features(
             image,
@@ -95,10 +105,13 @@ def integrated_gradients_scores(
             generated_ids,
             scaled,
         )
-        loss = response_nll_loss(logits, generated_ids, prompt_len)
+        target_ids = generated_ids.expand(scaled.shape[0], -1)
+        loss = response_nll_loss(logits, target_ids, prompt_len)
         grad = torch.autograd.grad(loss, scaled, retain_graph=False)[0]
-        total_grad = total_grad + grad.detach()
-        del logits, loss, grad, scaled
+        # The loss is averaged over the step batch, so rescale gradients before
+        # summing to match one-by-one integrated gradients.
+        total_grad = total_grad + grad.detach().sum(dim=0, keepdim=True) * float(scaled.shape[0])
+        del logits, loss, grad, scaled, alphas, target_ids
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 

@@ -36,6 +36,7 @@ BASELINE="${BASELINE:-zero}"
 SELECTOR="${SELECTOR:-grad_x_act}"
 ATTR_BASELINE="${ATTR_BASELINE:-mean}"
 IG_STEPS="${IG_STEPS:-16}"
+IG_BATCH_SIZE="${IG_BATCH_SIZE:-1}"
 
 LIMIT_SUFFIX="full"
 LIMIT_ARGS=()
@@ -44,7 +45,7 @@ if [[ "${LIMIT}" != "0" ]]; then
     LIMIT_ARGS=(--limit "${LIMIT}")
 fi
 
-OUT="results/grad_cvbench_llava-1.5-7b-hf_${ATTN_IMPL}_${SELECTOR}_${BASELINE}_${LIMIT_SUFFIX}.jsonl"
+OUT="results/grad_cvbench_llava-1.5-7b-hf_${ATTN_IMPL}_${SELECTOR}_${BASELINE}_igb${IG_BATCH_SIZE}_${LIMIT_SUFFIX}.jsonl"
 
 echo "============================================"
 echo "Grad-VAUQ: CVBench + LLaVA1.5-7B"
@@ -57,6 +58,7 @@ echo "Attention implementation: ${ATTN_IMPL}"
 echo "Selector: ${SELECTOR}"
 echo "Attribution baseline: ${ATTR_BASELINE}"
 echo "Integrated gradients steps: ${IG_STEPS}"
+echo "Integrated gradients batch size: ${IG_BATCH_SIZE}"
 echo "Ablation baseline: ${BASELINE}"
 echo "Limit: ${LIMIT}"
 echo "Output: ${OUT}"
@@ -72,6 +74,7 @@ echo "============================================"
     --selector "${SELECTOR}" \
     --attribution-baseline "${ATTR_BASELINE}" \
     --ig-steps "${IG_STEPS}" \
+    --ig-batch-size "${IG_BATCH_SIZE}" \
     --ablation-baseline "${BASELINE}" \
     --max-new-tokens 128 \
     --output "${OUT}" \

@@ -52,6 +52,8 @@ def parse_args() -> argparse.Namespace:
                         help="Baseline used by attribution methods such as integrated gradients.")
     parser.add_argument("--ig-steps", type=int, default=16,
                         help="Number of interpolation steps for integrated gradients.")
+    parser.add_argument("--ig-batch-size", type=int, default=1,
+                        help="Number of integrated-gradient interpolation steps per forward/backward.")
     parser.add_argument("--ablation-baseline", choices=["zero", "mean"], default="zero")
     parser.add_argument("--topk-ratio", type=float, default=None)
     parser.add_argument("--alpha", type=float, default=None)
@@ -172,6 +174,7 @@ def main() -> None:
                 ablation_baseline=args.ablation_baseline,
                 attribution_baseline=args.attribution_baseline,
                 ig_steps=args.ig_steps,
+                ig_batch_size=args.ig_batch_size,
                 answer=answer,
                 store_visual_scores=args.store_visual_scores,
             )
@@ -209,6 +212,7 @@ def main() -> None:
                     "selector": args.selector,
                     "attribution_baseline": args.attribution_baseline,
                     "ig_steps": args.ig_steps,
+                    "ig_batch_size": args.ig_batch_size,
                     "ablation_baseline": args.ablation_baseline,
                     "topk_ratio": topk_ratio,
                     "alpha": alpha,

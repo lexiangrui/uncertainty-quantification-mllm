@@ -27,6 +27,7 @@ def compute_grad_vauq_scores(
     ablation_baseline: str = "zero",
     attribution_baseline: str = "mean",
     ig_steps: int = 16,
+    ig_batch_size: int = 1,
     answer: str | None = None,
     store_visual_scores: bool = False,
 ) -> GradVAUQResult:
@@ -54,6 +55,7 @@ def compute_grad_vauq_scores(
             trace.features,
             baseline=attribution_baseline,
             steps=ig_steps,
+            batch_size=ig_batch_size,
         )
         num_tokens = visual_scores.numel()
         k = max(1, int(num_tokens * topk_ratio))
