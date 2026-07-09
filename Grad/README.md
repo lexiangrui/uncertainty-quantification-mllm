@@ -23,6 +23,12 @@ s       = H(y | v, t) - alpha * IS_grad
 Unlike the original attention-based implementation, this path does not call
 `output_attentions=True`, so the backend can use Flash Attention 2.
 
+## Mathematical Model
+
+See `Grad/docs/grad_vauq_math.md` for the full derivation from multimodal input
+to teacher-forced entropy, gradient visual-token selection, masked forward, IS,
+and the final Grad-VAUQ score.
+
 ## Structure
 
 ```text
