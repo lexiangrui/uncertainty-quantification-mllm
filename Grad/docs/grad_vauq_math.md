@@ -161,7 +161,9 @@ r=0.3,\quad \alpha=1.2
 
 ## 5. 视觉 token 消融与 masked forward
 
-得到关键集合 \(\mathcal{S}_K\) 后，只替换这些视觉 token，再做一次 teacher-forced forward。记消融后的视觉 token 为：
+得到关键集合 \(\mathcal{S}_K\) 后，再做一次 teacher-forced masked forward。当前实现支持两类干预：替换视觉 token 内容，或关闭对应视觉 token 的 attention 可见性。
+
+对内容替换型干预，记消融后的视觉 token 为：
 
 \[
 \tilde{v}_i =
@@ -173,7 +175,7 @@ v_i, & i \notin \mathcal{S}_K
 
 其中 \(b_i\) 是 baseline。
 
-当前实现支持两种 baseline：
+当前实现支持三种 baseline：
 
 ### zero baseline
 
@@ -192,6 +194,14 @@ b_i = \bar{v}
 \]
 
 mean baseline 用同一张图像内部的平均视觉 token 替换关键 token，通常比 zero 更接近原始视觉 embedding 分布。
+
+### attention_mask baseline
+
+\[
+\operatorname{mask}_{p_i}=0,\quad p_i=p_{\text{image start}}+i,\quad i\in\mathcal{S}_K
+\]
+
+attention mask baseline 不改 \(v_i\) 的数值，而是在语言模型 forward 时关闭被选视觉 token 的 attention 可见性。它和原 VAUQ 的 knockout 干预方式一致，区别在于 token 集合 \(\mathcal{S}_K\) 由梯度而不是 attention 权重选出。
 
 消融后的响应熵为：
 

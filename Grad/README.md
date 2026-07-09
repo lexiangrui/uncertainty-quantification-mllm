@@ -65,6 +65,7 @@ Useful options:
 ```bash
 --attn-implementation flash_attention_2
 --selector grad_x_act
+--ablation-baseline attention_mask
 --ablation-baseline zero
 --topk-ratio 0.3
 --alpha 1.2

@@ -139,11 +139,40 @@ class GradLlavaBackend:
             image, question, generated_ids
         )
         with torch.no_grad():
-            with self.adapter.ablate(self.model, selected_indices, baseline=baseline):
+            if baseline == "attention_mask":
+                masked_attention = self._mask_visual_attention(
+                    full_ids,
+                    attention_mask,
+                    selected_indices,
+                )
                 outputs = self.model(
                     input_ids=full_ids,
                     pixel_values=inputs.pixel_values,
-                    attention_mask=attention_mask,
+                    attention_mask=masked_attention,
                     return_dict=True,
                 )
+            else:
+                with self.adapter.ablate(self.model, selected_indices, baseline=baseline):
+                    outputs = self.model(
+                        input_ids=full_ids,
+                        pixel_values=inputs.pixel_values,
+                        attention_mask=attention_mask,
+                        return_dict=True,
+                    )
         return outputs.logits, prompt_len
+
+    def _mask_visual_attention(
+        self,
+        full_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        selected_indices: torch.Tensor,
+    ) -> torch.Tensor:
+        vision_token_id = self.tokenizer.convert_tokens_to_ids("<image>")
+        positions = (full_ids[0] == vision_token_id).nonzero(as_tuple=True)[0]
+        if positions.numel() == 0:
+            raise RuntimeError("Could not find LLaVA <image> token positions for attention masking.")
+        first_pos = positions[0]
+        masked_attention = attention_mask.clone()
+        index = selected_indices.detach().long().to(masked_attention.device)
+        masked_attention[0, first_pos + index] = 0
+        return masked_attention

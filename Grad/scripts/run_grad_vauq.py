@@ -48,7 +48,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--attn-implementation", default="flash_attention_2",
                         help="Use flash_attention_2 by default; pass sdpa if flash-attn is unavailable.")
     parser.add_argument("--selector", choices=["grad_x_act"], default="grad_x_act")
-    parser.add_argument("--ablation-baseline", choices=["zero", "mean"], default="zero")
+    parser.add_argument("--ablation-baseline", choices=["zero", "mean", "attention_mask"], default="zero")
     parser.add_argument("--topk-ratio", type=float, default=None)
     parser.add_argument("--alpha", type=float, default=None)
     parser.add_argument("--inference-temp", type=float, default=0.0)
