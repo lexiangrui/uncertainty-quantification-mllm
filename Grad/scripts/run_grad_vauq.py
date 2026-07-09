@@ -177,6 +177,7 @@ def main() -> None:
                 "question": sample["question"],
                 "gt_ans": sample.get("gt_ans"),
                 "prediction": answer,
+                "generated_ids": generated_ids.detach().cpu().tolist()[0],
                 "correct": correct,
                 "judge": judge_name,
                 "judge_result": judge_result,
