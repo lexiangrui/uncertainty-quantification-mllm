@@ -159,6 +159,62 @@ r=0.3,\quad \alpha=1.2
 
 直观上，attention 是“模型在序列混合时看向哪里”的统计关联，而 \(|\nabla V \odot V|\) 衡量的是“如果这个视觉 token 的激活发生局部扰动，固定答案似然的一阶变化幅度”。它仍不是严格因果效应，但比 attention 更接近对当前答案损失的局部敏感性。
 
+### 4.4 Integrated Gradients 选点
+
+单点梯度只描述当前激活点附近的局部线性变化。如果模型在该点附近梯度饱和，或者局部曲率较大，\(|\nabla V \odot V|\) 会低估或高估某些 token 的贡献。更稳健的替代方法是 Integrated Gradients。
+
+先定义视觉 token 的 attribution baseline：
+
+\[
+V' = [v'_1,\ldots,v'_M]
+\]
+
+当前实现支持：
+
+- zero baseline：\(v'_i=0\)
+- mean baseline：\(v'_i=\frac{1}{M}\sum_{m=1}^{M}v_m\)
+
+对从 baseline 到原始视觉 token 的直线路径积分：
+
+\[
+\operatorname{IG}_{i,j}
+=
+(v_{i,j}-v'_{i,j})
+\int_0^1
+\frac{\partial \mathcal{L}(V' + \beta(V-V'))}
+{\partial v_{i,j}}
+d\beta
+\]
+
+实际代码用 \(m\) 个插值点做 Riemann 近似：
+
+\[
+\operatorname{IG}_{i,j}
+\approx
+(v_{i,j}-v'_{i,j})
+\cdot
+\frac{1}{m}\sum_{s=1}^{m}
+\frac{\partial \mathcal{L}(V' + \frac{s}{m}(V-V'))}
+{\partial v_{i,j}}
+\]
+
+视觉 token 级别分数为：
+
+\[
+a_i^{\operatorname{IG}}
+=
+\sum_{j=1}^{d}
+\left|\operatorname{IG}_{i,j}\right|
+\]
+
+相比 \(|\nabla V \odot V|\)，Integrated Gradients 的优势是考虑了从 baseline 到当前激活的累计变化，减少单点梯度饱和带来的误差；代价是每个样本需要额外 \(m\) 次 forward/backward。当前 runner 暴露：
+
+```bash
+--selector integrated_gradients
+--attribution-baseline mean
+--ig-steps 16
+```
+
 ## 5. 视觉 token 消融与 masked forward
 
 得到关键集合 \(\mathcal{S}_K\) 后，只替换这些视觉 token，再做一次 teacher-forced forward。记消融后的视觉 token 为：

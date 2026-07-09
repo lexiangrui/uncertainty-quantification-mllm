@@ -6,7 +6,7 @@ import torch
 
 from vauq.metrics import OutputScoreInfo
 
-from .selectors import build_selector, response_nll_loss
+from .selectors import build_selector, integrated_gradients_scores, response_nll_loss
 from .types import GradVAUQResult
 
 
@@ -25,6 +25,8 @@ def compute_grad_vauq_scores(
     alpha: float = 1.2,
     selector_name: str = "grad_x_act",
     ablation_baseline: str = "zero",
+    attribution_baseline: str = "mean",
+    ig_steps: int = 16,
     answer: str | None = None,
     store_visual_scores: bool = False,
 ) -> GradVAUQResult:
@@ -40,10 +42,30 @@ def compute_grad_vauq_scores(
         image, question, generated_ids
     )
     spatial_shape = trace.spatial_shape
-    loss = response_nll_loss(grad_logits, generated_ids, grad_prompt_len)
-    selector = build_selector(selector_name)
-    selected_indices, visual_scores = selector.select(loss, trace, topk_ratio=topk_ratio)
-    del grad_logits, loss, trace
+    if selector_name == "integrated_gradients":
+        del grad_logits
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        visual_scores = integrated_gradients_scores(
+            backend,
+            image,
+            question,
+            generated_ids,
+            trace.features,
+            baseline=attribution_baseline,
+            steps=ig_steps,
+        )
+        num_tokens = visual_scores.numel()
+        k = max(1, int(num_tokens * topk_ratio))
+        k = min(k, num_tokens)
+        _, selected_indices = torch.topk(visual_scores, k)
+        selected_indices = selected_indices.detach()
+    else:
+        loss = response_nll_loss(grad_logits, generated_ids, grad_prompt_len)
+        selector = build_selector(selector_name)
+        selected_indices, visual_scores = selector.select(loss, trace, topk_ratio=topk_ratio)
+        del grad_logits, loss
+    del trace
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 

@@ -33,6 +33,11 @@ class VisionTokenAdapter(ABC):
     def ablate(self, model, indices: torch.Tensor, baseline: str = "zero") -> Any:
         """Temporarily replace selected visual tokens during model forward."""
 
+    @contextmanager
+    @abstractmethod
+    def override(self, model, features: torch.Tensor) -> Any:
+        """Temporarily replace all visual tokens with `features` during forward."""
+
     def infer_spatial_shape(self, num_tokens: int) -> tuple[int, int] | None:
         side = int(num_tokens**0.5)
         if side * side == num_tokens:

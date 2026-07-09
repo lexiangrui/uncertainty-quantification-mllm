@@ -57,3 +57,51 @@ def build_selector(name: str):
     if name not in SELECTOR_MAP:
         raise ValueError(f"Unknown selector {name!r}; choose from {sorted(SELECTOR_MAP)}")
     return SELECTOR_MAP[name]()
+
+
+def make_feature_baseline(features: torch.Tensor, baseline: str) -> torch.Tensor:
+    if baseline == "zero":
+        return torch.zeros_like(features)
+    if baseline == "mean":
+        return features.mean(dim=1, keepdim=True).expand_as(features).clone()
+    raise ValueError("Unsupported attribution baseline. Use 'zero' or 'mean'.")
+
+
+def integrated_gradients_scores(
+    backend,
+    image,
+    question,
+    generated_ids,
+    features: torch.Tensor,
+    baseline: str = "mean",
+    steps: int = 16,
+) -> torch.Tensor:
+    """Approximate integrated gradients over visual token embeddings."""
+
+    if steps <= 0:
+        raise ValueError("Integrated gradients steps must be positive.")
+
+    original = features.detach()
+    start = make_feature_baseline(original, baseline)
+    delta = original - start
+    total_grad = torch.zeros_like(original)
+
+    for step in range(1, steps + 1):
+        scaled = (start + delta * (float(step) / float(steps))).detach()
+        scaled.requires_grad_(True)
+        logits, prompt_len = backend.forward_logits_with_visual_features(
+            image,
+            question,
+            generated_ids,
+            scaled,
+        )
+        loss = response_nll_loss(logits, generated_ids, prompt_len)
+        grad = torch.autograd.grad(loss, scaled, retain_graph=False)[0]
+        total_grad = total_grad + grad.detach()
+        del logits, loss, grad, scaled
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    avg_grad = total_grad / float(steps)
+    scores = (delta * avg_grad).abs().sum(dim=-1)
+    return scores[0].detach()
