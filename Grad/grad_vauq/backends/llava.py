@@ -147,27 +147,3 @@ class GradLlavaBackend:
                     return_dict=True,
                 )
         return outputs.logits, prompt_len
-
-    def forward_logits_with_visual_features(
-        self,
-        image,
-        question,
-        generated_ids,
-        features: torch.Tensor,
-    ):
-        inputs, full_ids, attention_mask, prompt_len = self.prepare_full_inputs(
-            image, question, generated_ids
-        )
-        if features.shape[0] != full_ids.shape[0]:
-            batch_size = features.shape[0]
-            full_ids = full_ids.expand(batch_size, -1)
-            attention_mask = attention_mask.expand(batch_size, -1)
-            inputs.pixel_values = inputs.pixel_values.expand(batch_size, *inputs.pixel_values.shape[1:])
-        with self.adapter.override(self.model, features):
-            outputs = self.model(
-                input_ids=full_ids,
-                pixel_values=inputs.pixel_values,
-                attention_mask=attention_mask,
-                return_dict=True,
-            )
-        return outputs.logits, prompt_len

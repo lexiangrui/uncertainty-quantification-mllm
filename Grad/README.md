@@ -65,9 +65,6 @@ Useful options:
 ```bash
 --attn-implementation flash_attention_2
 --selector grad_x_act
---selector integrated_gradients
---attribution-baseline mean
---ig-steps 16
 --ablation-baseline zero
 --topk-ratio 0.3
 --alpha 1.2

@@ -47,13 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model-path", default=os.environ.get("VAUQ_MODEL_PATH", "llava-hf/llava-1.5-7b-hf"))
     parser.add_argument("--attn-implementation", default="flash_attention_2",
                         help="Use flash_attention_2 by default; pass sdpa if flash-attn is unavailable.")
-    parser.add_argument("--selector", choices=["grad_x_act", "integrated_gradients"], default="grad_x_act")
-    parser.add_argument("--attribution-baseline", choices=["zero", "mean"], default="mean",
-                        help="Baseline used by attribution methods such as integrated gradients.")
-    parser.add_argument("--ig-steps", type=int, default=16,
-                        help="Number of interpolation steps for integrated gradients.")
-    parser.add_argument("--ig-batch-size", type=int, default=1,
-                        help="Number of integrated-gradient interpolation steps per forward/backward.")
+    parser.add_argument("--selector", choices=["grad_x_act"], default="grad_x_act")
     parser.add_argument("--ablation-baseline", choices=["zero", "mean"], default="zero")
     parser.add_argument("--topk-ratio", type=float, default=None)
     parser.add_argument("--alpha", type=float, default=None)
@@ -172,9 +166,6 @@ def main() -> None:
                 alpha=alpha,
                 selector_name=args.selector,
                 ablation_baseline=args.ablation_baseline,
-                attribution_baseline=args.attribution_baseline,
-                ig_steps=args.ig_steps,
-                ig_batch_size=args.ig_batch_size,
                 answer=answer,
                 store_visual_scores=args.store_visual_scores,
             )
@@ -210,9 +201,6 @@ def main() -> None:
                     "model_path": args.model_path,
                     "attn_implementation": args.attn_implementation,
                     "selector": args.selector,
-                    "attribution_baseline": args.attribution_baseline,
-                    "ig_steps": args.ig_steps,
-                    "ig_batch_size": args.ig_batch_size,
                     "ablation_baseline": args.ablation_baseline,
                     "topk_ratio": topk_ratio,
                     "alpha": alpha,

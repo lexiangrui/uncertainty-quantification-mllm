@@ -73,22 +73,3 @@ class LlavaVisualTokenAdapter(VisionTokenAdapter):
             yield
         finally:
             handle.remove()
-
-    @contextmanager
-    def override(self, model, features: torch.Tensor):
-        replacement = features
-        projector, _ = self._projector(model)
-
-        def hook(_module, _args, output):
-            if replacement.shape != output.shape:
-                raise ValueError(
-                    "Override visual features must match projector output shape: "
-                    f"got {tuple(replacement.shape)}, expected {tuple(output.shape)}"
-                )
-            return replacement.to(device=output.device, dtype=output.dtype)
-
-        handle = projector.register_forward_hook(hook)
-        try:
-            yield
-        finally:
-            handle.remove()
