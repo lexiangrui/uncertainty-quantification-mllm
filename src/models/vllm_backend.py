@@ -17,14 +17,14 @@ class VLLMMultimodalBackend(GenerationBackend):
         family: str,
         model_path: Path,
         *,
-        adapter_path: Path,
+        adapter_path: Path | None,
         max_num_seqs: int,
         gpu_memory_utilization: float = 0.9,
         max_model_len: int = 4096,
     ) -> None:
         if not model_path.is_dir():
             raise NotADirectoryError(model_path)
-        if not adapter_path.is_dir():
+        if adapter_path is not None and not adapter_path.is_dir():
             raise NotADirectoryError(adapter_path)
         if max_num_seqs < 1:
             raise ValueError("max_num_seqs must be positive")
@@ -56,13 +56,15 @@ class VLLMMultimodalBackend(GenerationBackend):
             max_num_seqs=max_num_seqs,
             max_model_len=max_model_len,
             gpu_memory_utilization=gpu_memory_utilization,
-            enable_lora=True,
+            enable_lora=adapter_path is not None,
             max_lora_rank=8,
             limit_mm_per_prompt={"image": 1},
             generation_config="vllm",
         )
-        self.lora_request = LoRARequest(
-            "format-adapter", 1, str(adapter_path)
+        self.lora_request = (
+            LoRARequest("format-adapter", 1, str(adapter_path))
+            if adapter_path is not None
+            else None
         )
 
     @property
@@ -76,7 +78,7 @@ class VLLMMultimodalBackend(GenerationBackend):
         return {
             "engine": "vllm",
             "engine_version": version,
-            "adapter_path": str(self.adapter_path),
+            "adapter_path": str(self.adapter_path) if self.adapter_path else None,
             "local_files_only": True,
             "max_num_seqs": self.max_num_seqs,
             "gpu_memory_utilization": self.gpu_memory_utilization,

@@ -47,3 +47,12 @@ def test_chosen_log_probs_follow_generated_token_ids() -> None:
         ],
     )
     assert VLLMMultimodalBackend._chosen_log_probs(completion) == (-0.1, -0.2)
+
+
+def test_runtime_config_represents_base_model_without_adapter() -> None:
+    value = backend()
+    value.adapter_path = None
+    value.max_num_seqs = 5
+    value.gpu_memory_utilization = 0.85
+    value.max_model_len = 4096
+    assert value.runtime_config["adapter_path"] is None
