@@ -56,6 +56,7 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
             "adapter_path": str(self.adapter_path) if self.adapter_path else None,
             "local_files_only": True,
             "adaptive_oom_split": True,
+            "modality_batch_split": True,
         }
 
     def decode_generated_tokens(self, token_ids: tuple[int, ...]) -> str:
@@ -146,6 +147,21 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         roles = {request.role for request in requests}
         if len(roles) != 1:
             raise ValueError("Transformers batches must contain one decoding role")
+        modality_groups = {
+            has_image: [
+                request
+                for request in requests
+                if (request.image is not None) == has_image
+            ]
+            for has_image in {request.image is not None for request in requests}
+        }
+        if len(modality_groups) > 1:
+            generated: dict[str, GeneratedResponse] = {}
+            for group in modality_groups.values():
+                generated.update(
+                    self.generate_requests(group, max_new_tokens=max_new_tokens)
+                )
+            return generated
         try:
             return self._generate_batch(requests, max_new_tokens=max_new_tokens)
         except torch.OutOfMemoryError:
