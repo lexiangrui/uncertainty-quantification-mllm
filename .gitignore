@@ -6,12 +6,17 @@ __pycache__/
 
 # Local environments and secrets.
 *.env
+configs/judges/openai.env.example
+!LoRA/configs/qwen_teacher.env.example
 *.local
 *.secret
 *token*
 
-# Heavy generated artifacts. Curated summaries/logs under baseline are kept.
+# Heavy generated artifacts.
+logs/
 results/
+slurm/
+GASP/cache/
 *.pt
 *.pth
 *.bin
@@ -27,3 +32,14 @@ build/
 .mypy_cache/
 .ruff_cache/
 
+# LaTeX build artifacts.
+report/*.aux
+report/*.bbl
+report/*.blg
+report/*.log
+report/*.out
+report/*.toc
+report/*.synctex.gz
+report/*.fdb_latexmk
+report/*.fls
+report/*.pdf
