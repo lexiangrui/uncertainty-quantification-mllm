@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import torch
@@ -50,9 +51,11 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
     @property
     def runtime_config(self) -> dict:
         return {
+            "engine": "transformers",
             "attn_implementation": self.attn_implementation,
             "adapter_path": str(self.adapter_path) if self.adapter_path else None,
             "local_files_only": True,
+            "adaptive_oom_split": True,
         }
 
     def decode_generated_tokens(self, token_ids: tuple[int, ...]) -> str:
@@ -138,23 +141,151 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
     def generate_requests(
         self, requests: list[GenerationRequest], *, max_new_tokens: int
     ) -> dict[str, GeneratedResponse]:
-        """Compatibility path used by tests and hidden-state validation.
+        if not requests:
+            return {}
+        roles = {request.role for request in requests}
+        if len(roles) != 1:
+            raise ValueError("Transformers batches must contain one decoding role")
+        try:
+            return self._generate_batch(requests, max_new_tokens=max_new_tokens)
+        except torch.OutOfMemoryError:
+            if len(requests) == 1:
+                raise
+            torch.cuda.empty_cache()
+            middle = len(requests) // 2
+            return {
+                **self.generate_requests(requests[:middle], max_new_tokens=max_new_tokens),
+                **self.generate_requests(requests[middle:], max_new_tokens=max_new_tokens),
+            }
 
-        Operational generation uses the vLLM backend because Transformers
-        cannot mix greedy and sampled rows in one native ``generate`` batch.
-        """
-        generated: dict[str, GeneratedResponse] = {}
+    @staticmethod
+    def _batch_seed(requests: list[GenerationRequest]) -> int:
+        value = ":".join(str(request.seed) for request in requests)
+        return int.from_bytes(
+            hashlib.sha256(value.encode()).digest()[:8], "big"
+        ) % (2**63 - 1)
+
+    def _batch_inputs(self, requests: list[GenerationRequest]):
+        self._load()
+        assert self.processor is not None and self.device is not None
+        rendered: list[str] = []
+        images = []
+        has_images = {request.image is not None for request in requests}
+        if len(has_images) != 1:
+            raise ValueError("a Transformers batch cannot mix image and text-only requests")
         for request in requests:
-            response = self.generate(
-                request.image,
-                request.prompt,
-                do_sample=request.role == "sample",
-                temperature=1.0 if request.role == "sample" else None,
-                max_new_tokens=max_new_tokens,
-                num_return_sequences=1,
-            )[0]
-            generated[request.request_id] = response
-        return generated
+            content: list[dict] = []
+            if request.image is not None:
+                content.append({"type": "image"})
+                images.append(request.image)
+            content.append({"type": "text", "text": request.prompt.user})
+            messages = [{"role": "user", "content": content}]
+            if request.prompt.system:
+                messages.insert(
+                    0,
+                    {
+                        "role": "system",
+                        "content": [{"type": "text", "text": request.prompt.system}],
+                    },
+                )
+            rendered.append(
+                self.processor.apply_chat_template(
+                    messages, add_generation_prompt=True, tokenize=False
+                )
+            )
+        tokenizer = getattr(self.processor, "tokenizer", self.processor)
+        tokenizer.padding_side = "left"
+        kwargs = {"text": rendered, "padding": True, "return_tensors": "pt"}
+        if images:
+            kwargs["images"] = images
+        inputs = self.processor(**kwargs)
+        return {name: value.to(self.device) for name, value in inputs.items()}
+
+    @torch.inference_mode()
+    def _generate_batch(
+        self, requests: list[GenerationRequest], *, max_new_tokens: int
+    ) -> dict[str, GeneratedResponse]:
+        inputs = self._batch_inputs(requests)
+        assert self.model is not None and self.processor is not None
+        do_sample = requests[0].role == "sample"
+        batch_seed = self._batch_seed(requests)
+        torch.manual_seed(batch_seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(batch_seed)
+        prompt_width = int(inputs["input_ids"].shape[1])
+        tokenizer = getattr(self.processor, "tokenizer", self.processor)
+        generation_kwargs = {
+            "do_sample": do_sample,
+            "max_new_tokens": max_new_tokens,
+            "num_return_sequences": 1,
+            "use_cache": True,
+            "return_dict_in_generate": True,
+            "output_logits": True,
+            "output_scores": True,
+            "stop_strings": ["</answer>"],
+            "tokenizer": tokenizer,
+        }
+        if do_sample:
+            generation_kwargs["temperature"] = 1.0
+        outputs = self.model.generate(
+            **inputs,
+            **generation_kwargs,
+        )
+        if outputs.logits is None or outputs.scores is None:
+            raise RuntimeError("Transformers generation did not return token scores")
+        step_count = len(outputs.logits)
+        generated = outputs.sequences[:, prompt_width : prompt_width + step_count]
+        raw_log_probs = torch.stack(
+            [
+                torch.log_softmax(step_logits.float(), dim=-1)
+                .gather(1, generated[:, step].to(step_logits.device).unsqueeze(-1))
+                .squeeze(-1)
+                for step, step_logits in enumerate(outputs.logits)
+            ],
+            dim=1,
+        )
+        sampling_log_probs = torch.stack(
+            [
+                torch.log_softmax(step_scores.float(), dim=-1)
+                .gather(1, generated[:, step].to(step_scores.device).unsqueeze(-1))
+                .squeeze(-1)
+                for step, step_scores in enumerate(outputs.scores)
+            ],
+            dim=1,
+        )
+        pad_id = tokenizer.pad_token_id
+        eos_ids = tokenizer.eos_token_id
+        if isinstance(eos_ids, int):
+            eos_ids = [eos_ids]
+        eos_ids = set(eos_ids or [])
+        values: dict[str, GeneratedResponse] = {}
+        for index, request in enumerate(requests):
+            ids = [int(value) for value in generated[index].tolist()]
+            length = len(ids)
+            for position, token_id in enumerate(ids):
+                if token_id in eos_ids:
+                    length = position + 1
+                    break
+                if pad_id is not None and token_id == pad_id:
+                    length = position
+                    break
+            ids = ids[:length]
+            text = self.processor.decode(
+                ids,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=False,
+            ).strip()
+            values[request.request_id] = GeneratedResponse(
+                text=text,
+                token_ids=tuple(ids),
+                token_log_probs=tuple(raw_log_probs[index, :length].cpu().tolist()),
+                sampling_token_log_probs=tuple(
+                    sampling_log_probs[index, :length].cpu().tolist()
+                ),
+                finish_reason="length" if length == max_new_tokens else "stop",
+                rng_seed=batch_seed,
+            )
+        return values
 
     @torch.inference_mode()
     def generate(

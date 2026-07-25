@@ -17,6 +17,7 @@ class GeneratedResponse:
     sampling_token_log_probs: tuple[float, ...]
     final_hidden: tuple[float, ...] = ()
     finish_reason: str | None = None
+    rng_seed: int | None = None
 
 
 @dataclass(frozen=True)

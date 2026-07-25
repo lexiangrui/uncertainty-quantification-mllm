@@ -25,13 +25,7 @@ def parse_args() -> argparse.Namespace:
         choices=("llava_1_5", "qwen2_5_vl", "internvl3_5"),
     )
     parser.add_argument("--model-path", required=True, type=Path)
-    adapter = parser.add_mutually_exclusive_group(required=True)
-    adapter.add_argument("--adapter-path", type=Path)
-    adapter.add_argument(
-        "--no-adapter",
-        action="store_true",
-        help="Run the base model without LoRA (intended for compatibility diagnostics).",
-    )
+    parser.add_argument("--adapter-path", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--max-new-tokens", type=int, default=256)
     parser.add_argument("--num-samples", type=int, default=5)
@@ -39,8 +33,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reject-resample-k", type=int, default=10)
     parser.add_argument("--max-batch-size", type=int, default=5)
     parser.add_argument("--request-window-samples", type=int, default=16)
-    parser.add_argument("--gpu-memory-utilization", type=float, default=0.9)
-    parser.add_argument("--max-model-len", type=int, default=4096)
+    parser.add_argument(
+        "--attn-implementation",
+        choices=("flash_attention_2", "sdpa", "eager"),
+        default="flash_attention_2",
+    )
     parser.add_argument(
         "--prompt-style",
         choices=("xml_lora",),
@@ -70,18 +67,12 @@ def main() -> None:
         raise ValueError("max-batch-size must be positive")
     if args.request_window_samples <= 0:
         raise ValueError("request-window-samples must be positive")
-    if not 0 < args.gpu_memory_utilization < 1:
-        raise ValueError("gpu-memory-utilization must be between zero and one")
-    if args.max_model_len <= 0:
-        raise ValueError("max-model-len must be positive")
     backend = load_backend(
         args.model_family,
         args.model_path,
         adapter_path=args.adapter_path,
-        engine="vllm",
-        max_num_seqs=args.max_batch_size,
-        gpu_memory_utilization=args.gpu_memory_utilization,
-        max_model_len=args.max_model_len,
+        engine="huggingface",
+        attn_implementation=args.attn_implementation,
     )
     written, skipped = run_generation(
         backend=backend,

@@ -120,6 +120,7 @@ def _response_record(
     base = {
         "raw_response": response.text,
         "finish_reason": response.finish_reason,
+        "generation_seed": response.rng_seed,
     }
     try:
         parsed = parse_structured_response(response.text, response_format)
@@ -360,10 +361,11 @@ def run_generation(
             "reject_resample_k": reject_resample_k,
         },
         "scheduler": {
-            "type": "vllm_continuous_batching",
+            "type": "transformers_role_separated_dynamic_batching",
             "max_batch_size": max_batch_size,
             "request_window_samples": request_window_samples,
-            "mixed_greedy_and_sampling": True,
+            "mixed_greedy_and_sampling": False,
+            "adaptive_oom_split": True,
         },
         "max_new_tokens": max_new_tokens,
         "seed": seed,
@@ -379,7 +381,8 @@ def run_generation(
         if sample.sample_id not in completed
     )
     active: dict[str, SampleState] = {}
-    pending: list[GenerationRequest] = []
+    pending_greedy: list[GenerationRequest] = []
+    pending_sample: list[GenerationRequest] = []
     exhausted = False
     written = 0
     skipped = len(completed)
@@ -396,14 +399,20 @@ def run_generation(
                 break
             state = _new_state(sample, num_samples)
             active[sample.sample_id] = state
-            pending.extend(
-                _initial_requests(state, seed=seed, prompt_style=prompt_style)
-            )
+            for request in _initial_requests(
+                state, seed=seed, prompt_style=prompt_style
+            ):
+                (pending_greedy if request.role == "greedy" else pending_sample).append(
+                    request
+                )
 
     fill_window()
     while active:
-        if not pending:
+        if not pending_greedy and not pending_sample:
             raise RuntimeError("dynamic generation queue stalled with active samples")
+        queue = pending_greedy if pending_greedy else pending_sample
+        pending = queue[:max_batch_size]
+        del queue[: len(pending)]
         started = time.perf_counter()
         generated = backend.generate_requests(
             pending, max_new_tokens=max_new_tokens
@@ -461,14 +470,15 @@ def run_generation(
             del active[sample_id]
             written += 1
         write_seconds += time.perf_counter() - started
-        pending = retries
+        pending_sample.extend(retries)
         fill_window()
         if written and written % 10 == 0:
             print(
                 "generation_timing "
                 f"written={written} generation={generation_seconds:.3f}s "
                 f"write={write_seconds:.3f}s active={len(active)} "
-                f"queued_requests={len(pending)}",
+                f"queued_greedy={len(pending_greedy)} "
+                f"queued_sample={len(pending_sample)}",
                 flush=True,
             )
     print(

@@ -91,6 +91,16 @@ def _collate_inputs(backend, sample, token_sequences: list[tuple[int, ...]]):
         values = [item[key] for item in prepared]
         if not all(isinstance(value, torch.Tensor) for value in values):
             raise TypeError(f"unsupported multimodal input type for {key}")
+        if key == "mm_token_type_ids":
+            # Qwen2.5-VL requires one modality id per sequence token. Generated
+            # answer tokens are ordinary text (type 0), so extend the prompt's
+            # modality ids across the teacher-forced response and padding.
+            token_types = torch.zeros_like(input_ids)
+            for index, value in enumerate(values):
+                prompt_length = prompt_lengths[index]
+                token_types[index, :prompt_length] = value[0, :prompt_length]
+            batch[key] = token_types
+            continue
         # The supported LLaVA/Qwen/InternVL processors represent image data as
         # a concatenation of per-request rows or patches.
         batch[key] = torch.cat(values, dim=0)

@@ -47,6 +47,8 @@ class FakeDynamicBackend(GenerationBackend):
 
     def generate_requests(self, requests, *, max_new_tokens):
         assert max_new_tokens == 256
+        assert len(requests) <= 5
+        assert len({request.role for request in requests}) == 1
         self.calls.append(list(requests))
         values = {}
         for request in requests:
@@ -109,6 +111,8 @@ def test_dynamic_generation_writes_answers_tokens_and_resumes(monkeypatch, tmp_p
     run, records = read(options["output"])
     record = records[0]
     assert run["scheduler"]["max_batch_size"] == 5
+    assert run["scheduler"]["type"] == "transformers_role_separated_dynamic_batching"
+    assert run["scheduler"]["mixed_greedy_and_sampling"] is False
     assert run["greedy"]["retry"] is False
     assert run["hidden_state_execution"] == "separate"
     assert "hidden_states" not in record
@@ -148,7 +152,7 @@ def test_only_sampled_responses_are_retried(monkeypatch, tmp_path):
     assert record["reject_resample_summary"]["rejected_attempts"] == 1
 
 
-def test_request_window_mixes_samples_and_decoding_roles(monkeypatch, tmp_path):
+def test_request_window_separates_decoding_roles_into_dynamic_batches(monkeypatch, tmp_path):
     backend = FakeDynamicBackend()
     values = [sample("one"), sample("two")]
     monkeypatch.setattr("src.generation.runner.iter_dataset", lambda *args: iter(values))
@@ -158,4 +162,7 @@ def test_request_window_mixes_samples_and_decoding_roles(monkeypatch, tmp_path):
     assert run_generation(**options) == (2, 0)
     first = backend.calls[0]
     assert {request.sample_id for request in first} == {"one", "two"}
-    assert {request.role for request in first} == {"greedy", "sample"}
+    assert {request.role for request in first} == {"greedy"}
+    assert all(len(call) <= 5 for call in backend.calls)
+    assert all(len({request.role for request in call}) == 1 for call in backend.calls)
+    assert sum(len(call) for call in backend.calls if call[0].role == "sample") == 10
