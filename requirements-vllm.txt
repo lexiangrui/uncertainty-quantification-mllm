@@ -1,0 +1,7 @@
+# Dedicated generation environment. Keep separate from the Transformers
+# training/hidden-extraction environment because vLLM pins its CUDA stack.
+vllm==0.25.1
+peft==0.19.1
+pandas
+pillow
+pyarrow
