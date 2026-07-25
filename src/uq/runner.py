@@ -55,15 +55,36 @@ def _signal(record: dict, hidden: tuple[float, ...] = ()) -> ResponseSignals | N
     )
 
 
-def _load_sample_signals(generation_input: Path, record: dict) -> list[ResponseSignals | None]:
-    descriptor = record.get("hidden_states")
+def _load_hidden_manifest(path: Path) -> tuple[dict, dict[str, dict]]:
+    run, records = _load_generation(path)
+    values: dict[str, dict] = {}
+    for record in records:
+        sample_id = record.get("sample", {}).get("sample_id")
+        descriptor = record.get("hidden_states")
+        if not isinstance(sample_id, str) or not isinstance(descriptor, dict):
+            raise ValueError(f"invalid hidden-state manifest record: {path}")
+        if sample_id in values:
+            raise ValueError(f"duplicate hidden-state sample_id in {path}: {sample_id}")
+        values[sample_id] = descriptor
+    return run, values
+
+
+def _load_sample_signals(
+    generation_input: Path,
+    record: dict,
+    *,
+    hidden_root: Path | None = None,
+    hidden_descriptor: dict | None = None,
+) -> list[ResponseSignals | None]:
+    external_hidden = hidden_descriptor is not None
+    descriptor = hidden_descriptor or record.get("hidden_states")
     samples = record.get("samples", [])
     if descriptor is None:
         return [_signal(sample) for sample in samples]
     relative = Path(descriptor["path"])
     if relative.is_absolute():
         raise ValueError("hidden-state path must be relative")
-    root = generation_input.parent.resolve()
+    root = (hidden_root or generation_input.parent).resolve()
     path = (root / relative).resolve()
     if not path.is_relative_to(root):
         raise ValueError("hidden-state path escapes the generation directory")
@@ -73,8 +94,8 @@ def _load_sample_signals(generation_input: Path, record: dict) -> list[ResponseS
     if list(tensor.shape) != descriptor.get("shape"):
         raise ValueError(f"hidden-state shape mismatch: {path}")
     values: list[ResponseSignals | None] = []
-    for sample in samples:
-        index = sample.get("hidden_state_index")
+    for position, sample in enumerate(samples):
+        index = sample.get("hidden_state_index", position if external_hidden else None)
         if not isinstance(index, int) or not 0 <= index < tensor.shape[0]:
             raise ValueError(f"invalid hidden_state_index in {path}")
         values.append(_signal(sample, tuple(tensor[index].float().tolist())))
@@ -107,13 +128,23 @@ def _finalize(output: Path, methods: tuple[UQMethod, ...]) -> None:
 
 
 def run_deferred_uq(
-    *, generation_input: Path, output: Path, methods: tuple[UQMethod, ...]
+    *,
+    generation_input: Path,
+    output: Path,
+    methods: tuple[UQMethod, ...],
+    hidden_input: Path | None = None,
 ) -> tuple[int, int]:
     generation_run, generation_records = _load_generation(generation_input)
+    hidden_run = None
+    hidden_records: dict[str, dict] = {}
+    if hidden_input is not None:
+        hidden_run, hidden_records = _load_hidden_manifest(hidden_input)
     run = {
         "uq_output_version": "deferred-uq-v1",
         "generation_input": str(generation_input.resolve()),
         "generation_run": generation_run,
+        "hidden_input": str(hidden_input.resolve()) if hidden_input else None,
+        "hidden_run": hidden_run,
         "uq_methods": [method.runtime_config for method in methods],
     }
     completed = completed_sample_ids(output, run)
@@ -127,8 +158,15 @@ def run_deferred_uq(
         if sample_id in completed:
             skipped += 1
             continue
+        if hidden_input is not None and sample_id not in hidden_records:
+            raise ValueError(f"hidden-state manifest lacks sample_id: {sample_id}")
         greedy = _signal(record.get("greedy", {}))
-        samples = _load_sample_signals(generation_input, record)
+        samples = _load_sample_signals(
+            generation_input,
+            record,
+            hidden_root=hidden_input.parent if hidden_input else None,
+            hidden_descriptor=hidden_records.get(sample_id),
+        )
         uq = {}
         for method in methods:
             missing = None

@@ -77,3 +77,35 @@ def test_deferred_uq_rejects_hidden_path_escape(tmp_path: Path) -> None:
             output=tmp_path / "uq.jsonl",
             methods=(FakeMethod(),),
         )
+
+
+def test_deferred_uq_reads_separate_hidden_manifest(tmp_path: Path) -> None:
+    generation = generation_file(tmp_path)
+    rows = [json.loads(line) for line in generation.read_text().splitlines()]
+    descriptor = rows[1].pop("hidden_states")
+    for sample in rows[1]["samples"]:
+        sample.pop("hidden_state_index")
+    generation.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    hidden = tmp_path / "hidden.jsonl"
+    hidden.write_text(
+        json.dumps({"record_type": "run", "run": {"version": "hidden-v1"}})
+        + "\n"
+        + json.dumps(
+            {
+                "record_type": "sample",
+                "sample": {"sample_id": "one"},
+                "hidden_states": descriptor,
+            }
+        )
+        + "\n"
+    )
+
+    output = tmp_path / "uq-separate.jsonl"
+    assert run_deferred_uq(
+        generation_input=generation,
+        hidden_input=hidden,
+        output=output,
+        methods=(FakeMethod(),),
+    ) == (1, 0)
+    result = [json.loads(line) for line in output.read_text().splitlines()][1]
+    assert result["uq"]["fake"]["score"] == pytest.approx(-0.2)

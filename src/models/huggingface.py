@@ -7,7 +7,7 @@ from PIL import Image
 
 from src.generation.prompt import GenerationPrompt
 
-from .base import GeneratedResponse, GenerationBackend
+from .base import GeneratedResponse, GenerationBackend, GenerationRequest
 
 
 class HuggingFaceMultimodalBackend(GenerationBackend):
@@ -133,6 +133,28 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         # separately (for example LlamaForCausalLM.model).
         decoder = getattr(language_model, "model", None)
         return decoder if decoder is not None else language_model
+
+    @torch.inference_mode()
+    def generate_requests(
+        self, requests: list[GenerationRequest], *, max_new_tokens: int
+    ) -> dict[str, GeneratedResponse]:
+        """Compatibility path used by tests and hidden-state validation.
+
+        Operational generation uses the vLLM backend because Transformers
+        cannot mix greedy and sampled rows in one native ``generate`` batch.
+        """
+        generated: dict[str, GeneratedResponse] = {}
+        for request in requests:
+            response = self.generate(
+                request.image,
+                request.prompt,
+                do_sample=request.role == "sample",
+                temperature=1.0 if request.role == "sample" else None,
+                max_new_tokens=max_new_tokens,
+                num_return_sequences=1,
+            )[0]
+            generated[request.request_id] = response
+        return generated
 
     @torch.inference_mode()
     def generate(

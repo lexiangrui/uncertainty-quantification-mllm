@@ -23,6 +23,7 @@ from umpire_uq import UmpireMethod
 def main() -> None:
     parser = argparse.ArgumentParser(description="Compute UQ from saved generation features.")
     parser.add_argument("--generation-input", required=True, type=Path)
+    parser.add_argument("--hidden-input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--entailment-model-path", required=True, type=Path)
     parser.add_argument("--entailment-batch-size", type=int, default=32)
@@ -40,6 +41,7 @@ def main() -> None:
     methods = (PerplexityMethod(), SemanticEntropyMethod(entailment), UmpireMethod())
     written, skipped = run_deferred_uq(
         generation_input=args.generation_input,
+        hidden_input=args.hidden_input,
         output=args.output,
         methods=methods,
     )

@@ -31,16 +31,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-samples", type=int, default=5)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--reject-resample-k", type=int, default=10)
-    parser.add_argument("--greedy-reject-resample-k", type=int, default=10)
-    parser.add_argument("--greedy-recovery-temperature", type=float, default=0.2)
-    parser.add_argument("--sampling-batch-size", type=int, default=5)
+    parser.add_argument("--max-batch-size", type=int, default=5)
+    parser.add_argument("--request-window-samples", type=int, default=16)
+    parser.add_argument("--gpu-memory-utilization", type=float, default=0.9)
+    parser.add_argument("--max-model-len", type=int, default=4096)
     parser.add_argument(
         "--prompt-style",
         choices=("xml_lora",),
         default="xml_lora",
     )
     parser.add_argument("--limit", type=int)
-    parser.add_argument("--attn-implementation")
     return parser.parse_args()
 
 
@@ -60,17 +60,22 @@ def main() -> None:
         raise ValueError("num-samples must be positive")
     if args.reject_resample_k <= 0:
         raise ValueError("reject-resample-k must be positive")
-    if args.greedy_reject_resample_k <= 0:
-        raise ValueError("greedy-reject-resample-k must be positive")
-    if args.greedy_recovery_temperature <= 0:
-        raise ValueError("greedy-recovery-temperature must be positive")
-    if args.sampling_batch_size <= 0:
-        raise ValueError("sampling-batch-size must be positive")
+    if args.max_batch_size <= 0:
+        raise ValueError("max-batch-size must be positive")
+    if args.request_window_samples <= 0:
+        raise ValueError("request-window-samples must be positive")
+    if not 0 < args.gpu_memory_utilization < 1:
+        raise ValueError("gpu-memory-utilization must be between zero and one")
+    if args.max_model_len <= 0:
+        raise ValueError("max-model-len must be positive")
     backend = load_backend(
         args.model_family,
         args.model_path,
-        attn_implementation=args.attn_implementation,
         adapter_path=args.adapter_path,
+        engine="vllm",
+        max_num_seqs=args.max_batch_size,
+        gpu_memory_utilization=args.gpu_memory_utilization,
+        max_model_len=args.max_model_len,
     )
     written, skipped = run_generation(
         backend=backend,
@@ -83,12 +88,10 @@ def main() -> None:
         num_samples=args.num_samples,
         seed=args.seed,
         limit=args.limit,
-        uq_methods=(),
         prompt_style=args.prompt_style,
         reject_resample_k=args.reject_resample_k,
-        greedy_reject_resample_k=args.greedy_reject_resample_k,
-        greedy_recovery_temperature=args.greedy_recovery_temperature,
-        sampling_batch_size=args.sampling_batch_size,
+        max_batch_size=args.max_batch_size,
+        request_window_samples=args.request_window_samples,
     )
     print(f"completed: written={written} skipped={skipped} output={args.output}")
 

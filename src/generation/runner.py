@@ -1,20 +1,21 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import math
 import os
 import tempfile
 import time
-from dataclasses import dataclass
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Protocol
 
 import torch
 
 from src.datasets import BenchmarkSample, iter_dataset
-from src.models import GeneratedResponse, GenerationBackend
+from src.models import (
+    GeneratedResponse,
+    GenerationBackend,
+    GenerationRequest,
+)
 from src.utils import completed_sample_ids, write_sample_json_line
 
 from .parser import answer_character_span, parse_structured_response
@@ -28,7 +29,30 @@ class ResponseSignals:
     sequence_log_prob: float
     mean_log_prob: float
     sampling_sequence_log_prob: float
-    final_hidden: tuple[float, ...]
+    final_hidden: tuple[float, ...] = ()
+
+
+@dataclass
+class DrawState:
+    attempts_used: int = 0
+    attempt_seeds: list[int] = field(default_factory=list)
+    record: dict | None = None
+    signals: ResponseSignals | None = None
+    response: GeneratedResponse | None = None
+    done: bool = False
+
+
+@dataclass
+class SampleState:
+    sample: BenchmarkSample
+    greedy_record: dict | None = None
+    greedy_signals: ResponseSignals | None = None
+    greedy_response: GeneratedResponse | None = None
+    draws: list[DrawState] = field(default_factory=list)
+
+    @property
+    def done(self) -> bool:
+        return self.greedy_record is not None and all(draw.done for draw in self.draws)
 
 
 def _serialized_signals(signals: ResponseSignals | None) -> dict | None:
@@ -42,64 +66,8 @@ def _serialized_signals(signals: ResponseSignals | None) -> dict | None:
     }
 
 
-def _hidden_directory(output: Path) -> Path:
-    return output.with_suffix(".hidden")
-
-
-def _hidden_filename(sample_id: str) -> str:
-    digest = hashlib.sha256(sample_id.encode()).hexdigest()[:16]
-    return f"{digest}.pt"
-
-
-def _write_hidden_states(
-    output: Path, sample_id: str, signals: list[ResponseSignals | None]
-) -> dict | None:
-    if any(value is None for value in signals):
-        return None
-    tensor = torch.tensor(
-        [value.final_hidden for value in signals if value is not None],
-        dtype=torch.float16,
-    )
-    directory = _hidden_directory(output)
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / _hidden_filename(sample_id)
-    descriptor, temporary = tempfile.mkstemp(
-        prefix=path.name + ".", suffix=".tmp", dir=directory
-    )
-    os.close(descriptor)
-    try:
-        torch.save(tensor, temporary)
-        os.replace(temporary, path)
-    except BaseException:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
-        raise
-    return {
-        "path": str(path.relative_to(output.parent)),
-        "shape": list(tensor.shape),
-        "dtype": "float16",
-    }
-
-
-class OnlineUQMethod(Protocol):
-    required_responses: str
-
-    @property
-    def runtime_config(self) -> dict: ...
-
-    def compute(
-        self,
-        *,
-        question: str,
-        greedy: ResponseSignals,
-        samples: list[ResponseSignals],
-    ) -> dict: ...
-
-
 def _derived_seed(seed: int, sample_id: str, draw: int, attempt: int = 0) -> int:
-    value = f"{seed}:{sample_id}:{draw}"
-    if attempt:
-        value = f"{value}:{attempt}"
+    value = f"{seed}:{sample_id}:{draw}:{attempt}"
     digest = hashlib.sha256(value.encode()).digest()
     return int.from_bytes(digest[:8], "big") % (2**63 - 1)
 
@@ -120,14 +88,23 @@ def _token_span_for_characters(
 ) -> tuple[int, int]:
     decoded_lengths = [0]
     for end in range(1, len(response.token_ids) + 1):
-        decoded = backend.decode_generated_tokens(response.token_ids[:end])
-        decoded_lengths.append(len(decoded))
+        decoded_lengths.append(
+            len(backend.decode_generated_tokens(response.token_ids[:end]))
+        )
     token_start = next(
-        (index - 1 for index, length in enumerate(decoded_lengths[1:], start=1) if length > character_start),
+        (
+            index - 1
+            for index, length in enumerate(decoded_lengths[1:], start=1)
+            if length > character_start
+        ),
         len(response.token_ids),
     )
     token_end = next(
-        (index for index, length in enumerate(decoded_lengths[1:], start=1) if length >= character_end),
+        (
+            index
+            for index, length in enumerate(decoded_lengths[1:], start=1)
+            if length >= character_end
+        ),
         len(response.token_ids),
     )
     if token_start >= token_end:
@@ -140,92 +117,205 @@ def _response_record(
     response: GeneratedResponse,
     response_format: str,
 ) -> tuple[dict, ResponseSignals | None]:
-    text = response.text
+    base = {
+        "raw_response": response.text,
+        "finish_reason": response.finish_reason,
+    }
     try:
-        parsed = parse_structured_response(text, response_format)
+        parsed = parse_structured_response(response.text, response_format)
     except ValueError as error:
         return (
             {
-                "raw_response": text,
+                **base,
                 "sections_valid": False,
                 "section_error": str(error),
                 "vision": None,
                 "reasoning": None,
                 "answer": None,
+                "signals": None,
             },
             None,
         )
-    character_start, character_end = answer_character_span(text, response_format)
+    character_start, character_end = answer_character_span(
+        response.text, response_format
+    )
     token_start, token_end = _token_span_for_characters(
         backend, response, character_start, character_end
     )
     answer_log_probs = response.token_log_probs[token_start:token_end]
-    sampling_answer_log_probs = response.sampling_token_log_probs[
-        token_start:token_end
-    ]
+    sampling_log_probs = response.sampling_token_log_probs[token_start:token_end]
+    if not answer_log_probs or not sampling_log_probs:
+        raise ValueError("answer has no aligned token log probabilities")
     sequence_log_prob = float(sum(answer_log_probs))
-    mean_log_prob = float(sum(answer_log_probs) / len(answer_log_probs))
-    if not math.isfinite(sequence_log_prob) or not math.isfinite(mean_log_prob):
+    mean_log_prob = sequence_log_prob / len(answer_log_probs)
+    sampling_sequence_log_prob = float(sum(sampling_log_probs))
+    if not all(
+        math.isfinite(value)
+        for value in (
+            sequence_log_prob,
+            mean_log_prob,
+            sampling_sequence_log_prob,
+        )
+    ):
         raise ValueError("answer log probability is not finite")
-    sampling_sequence_log_prob = float(sum(sampling_answer_log_probs))
-    if not math.isfinite(sampling_sequence_log_prob):
-        raise ValueError("answer sampling log probability is not finite")
+    signals = ResponseSignals(
+        answer=parsed.answer,
+        token_count=len(answer_log_probs),
+        sequence_log_prob=sequence_log_prob,
+        mean_log_prob=mean_log_prob,
+        sampling_sequence_log_prob=sampling_sequence_log_prob,
+    )
     return (
         {
-            "raw_response": text,
+            **base,
             "sections_valid": True,
             "section_error": None,
             **parsed.to_dict(),
+            "signals": _serialized_signals(signals),
         },
-        ResponseSignals(
-            answer=parsed.answer,
-            token_count=len(answer_log_probs),
-            sequence_log_prob=sequence_log_prob,
-            mean_log_prob=mean_log_prob,
-            sampling_sequence_log_prob=sampling_sequence_log_prob,
-            final_hidden=response.final_hidden,
-        ),
+        signals,
     )
 
 
-def _finalize_uq_output(output: Path, uq_methods: tuple[OnlineUQMethod, ...]) -> None:
-    finalizers = [method for method in uq_methods if hasattr(method, "finalize")]
-    if not finalizers or not output.exists():
-        return
-    header = None
-    records = []
-    with output.open(encoding="utf-8") as handle:
-        for line in handle:
-            record = json.loads(line)
-            if record.get("record_type") == "run":
-                header = record
-            else:
-                records.append(record)
-    for method in finalizers:
-        name = method.runtime_config["name"]
-        method.finalize([record["uq"][name] for record in records])
+def _token_directory(output: Path) -> Path:
+    return output.with_suffix(".tokens")
+
+
+def _sidecar_filename(sample_id: str) -> str:
+    return hashlib.sha256(sample_id.encode()).hexdigest()[:16] + ".pt"
+
+
+def _write_token_sidecar(output: Path, state: SampleState) -> dict:
+    if state.greedy_response is None or any(draw.response is None for draw in state.draws):
+        raise RuntimeError(f"incomplete token state for {state.sample.sample_id}")
+    directory = _token_directory(output)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / _sidecar_filename(state.sample.sample_id)
+    payload = {
+        "greedy": torch.tensor(state.greedy_response.token_ids, dtype=torch.int32),
+        **{
+            f"sample_{index}": torch.tensor(draw.response.token_ids, dtype=torch.int32)
+            for index, draw in enumerate(state.draws)
+            if draw.response is not None
+        },
+    }
     descriptor, temporary = tempfile.mkstemp(
-        prefix=output.name + ".", suffix=".tmp", dir=output.parent
+        prefix=path.name + ".", suffix=".tmp", dir=directory
     )
+    os.close(descriptor)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            if header is not None:
-                handle.write(
-                    json.dumps(header, ensure_ascii=False, separators=(",", ":"))
-                    + "\n"
-                )
-            for record in records:
-                handle.write(
-                    json.dumps(record, ensure_ascii=False, separators=(",", ":"))
-                    + "\n"
-                )
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, output)
+        torch.save(payload, temporary)
+        os.replace(temporary, path)
     except BaseException:
         if os.path.exists(temporary):
             os.unlink(temporary)
         raise
+    return {
+        "path": str(path.relative_to(output.parent)),
+        "format": "generated-token-ids-v1",
+        "keys": ["greedy"] + [f"sample_{index}" for index in range(len(state.draws))],
+    }
+
+
+def _new_state(sample: BenchmarkSample, num_samples: int) -> SampleState:
+    return SampleState(sample=sample, draws=[DrawState() for _ in range(num_samples)])
+
+
+def _request(
+    state: SampleState,
+    *,
+    role: str,
+    draw_index: int | None,
+    attempt: int,
+    seed: int,
+    prompt_style: str,
+) -> GenerationRequest:
+    draw_label = "greedy" if draw_index is None else f"sample-{draw_index}"
+    return GenerationRequest(
+        request_id=f"{state.sample.sample_id}:{draw_label}:attempt-{attempt}",
+        sample_id=state.sample.sample_id,
+        role=role,  # type: ignore[arg-type]
+        draw_index=draw_index,
+        seed=seed,
+        image=state.sample.image,
+        prompt=build_prompt(
+            state.sample.question,
+            state.sample.image is not None,
+            style=prompt_style,
+        ),
+    )
+
+
+def _initial_requests(
+    state: SampleState, *, seed: int, prompt_style: str
+) -> list[GenerationRequest]:
+    requests = [
+        _request(
+            state,
+            role="greedy",
+            draw_index=None,
+            attempt=1,
+            seed=_derived_seed(seed, state.sample.sample_id, -1),
+            prompt_style=prompt_style,
+        )
+    ]
+    for index in range(len(state.draws)):
+        requests.append(
+            _request(
+                state,
+                role="sample",
+                draw_index=index,
+                attempt=1,
+                seed=_derived_seed(seed, state.sample.sample_id, index),
+                prompt_style=prompt_style,
+            )
+        )
+    return requests
+
+
+def _record(state: SampleState, output: Path, reject_resample_k: int) -> dict:
+    if not state.done or state.greedy_record is None:
+        raise RuntimeError(f"sample is incomplete: {state.sample.sample_id}")
+    samples: list[dict] = []
+    accepted_samples = 0
+    total_attempts = 0
+    rejected_attempts = 0
+    for index, draw in enumerate(state.draws):
+        assert draw.record is not None
+        accepted = bool(draw.record["sections_valid"])
+        accepted_samples += int(accepted)
+        total_attempts += draw.attempts_used
+        rejected_attempts += draw.attempts_used - int(accepted)
+        samples.append(
+            {
+                "index": index,
+                "role": "sample",
+                "temperature": 1.0,
+                "seed": draw.attempt_seeds[-1],
+                "attempt_seeds": draw.attempt_seeds,
+                **draw.record,
+                "reject_resample": {
+                    "max_attempts": reject_resample_k,
+                    "attempts_used": draw.attempts_used,
+                    "rejected_count": draw.attempts_used - int(accepted),
+                    "accepted": accepted,
+                },
+            }
+        )
+    return {
+        "sample": _serialize_sample(state.sample),
+        "greedy": state.greedy_record,
+        "samples": samples,
+        "generation_tokens": _write_token_sidecar(output, state),
+        "reject_resample_summary": {
+            "max_attempts": reject_resample_k,
+            "retained_samples": len(state.draws),
+            "accepted_samples": accepted_samples,
+            "failed_samples": len(state.draws) - accepted_samples,
+            "total_attempts": total_attempts,
+            "rejected_attempts": rejected_attempts,
+        },
+    }
 
 
 def run_generation(
@@ -240,21 +330,19 @@ def run_generation(
     num_samples: int,
     seed: int,
     limit: int | None,
-    uq_methods: tuple[OnlineUQMethod, ...],
     prompt_style: str = "xml_lora",
     reject_resample_k: int = 10,
-    greedy_reject_resample_k: int = 10,
-    greedy_recovery_temperature: float = 0.2,
-    sampling_batch_size: int = 1,
+    max_batch_size: int = 5,
+    request_window_samples: int = 16,
 ) -> tuple[int, int]:
+    if num_samples < 1:
+        raise ValueError("num_samples must be positive")
     if reject_resample_k < 1:
         raise ValueError("reject_resample_k must be positive")
-    if greedy_reject_resample_k < 1:
-        raise ValueError("greedy_reject_resample_k must be positive")
-    if greedy_recovery_temperature <= 0:
-        raise ValueError("greedy_recovery_temperature must be positive")
-    if sampling_batch_size < 1:
-        raise ValueError("sampling_batch_size must be positive")
+    if max_batch_size < 1:
+        raise ValueError("max_batch_size must be positive")
+    if request_window_samples < 1:
+        raise ValueError("request_window_samples must be positive")
     prompt_spec = get_prompt_spec(prompt_style)
     run = {
         "dataset": dataset,
@@ -264,214 +352,129 @@ def run_generation(
         "model_path": str(model_path.resolve()),
         "model_runtime": backend.runtime_config,
         "prompt_version": prompt_spec.version,
-        "greedy": {
-            "do_sample": False,
-            "temperature": 0,
-            "reject_resample_k": greedy_reject_resample_k,
-            "recovery_strategy": "low_temperature_sampling",
-            "recovery_temperature": greedy_recovery_temperature,
-        },
+        "greedy": {"do_sample": False, "temperature": 0.0, "retry": False},
         "sampling": {
             "do_sample": True,
             "temperature": 1.0,
-            "top_p": None,
-            "top_k": None,
             "num_samples": num_samples,
             "reject_resample_k": reject_resample_k,
-            "batch_size": sampling_batch_size,
+        },
+        "scheduler": {
+            "type": "vllm_continuous_batching",
+            "max_batch_size": max_batch_size,
+            "request_window_samples": request_window_samples,
+            "mixed_greedy_and_sampling": True,
         },
         "max_new_tokens": max_new_tokens,
         "seed": seed,
         "limit": limit,
-        "generation_output_version": "responses-jsonl-hidden-pt-v1",
-        "uq_execution": (
-            "online-compatibility" if uq_methods else "deferred"
-        ),
-        "uq_methods": [method.runtime_config for method in uq_methods],
+        "generation_output_version": "responses-jsonl-token-ids-v2",
+        "hidden_state_execution": "separate",
+        "uq_execution": "deferred",
     }
     completed = completed_sample_ids(output, run)
+    source = (
+        sample
+        for sample in iter_dataset(dataset, dataset_source, limit)
+        if sample.sample_id not in completed
+    )
+    active: dict[str, SampleState] = {}
+    pending: list[GenerationRequest] = []
+    exhausted = False
     written = 0
-    skipped = 0
-    timing = {"greedy": 0.0, "sampling": 0.0, "uq": 0.0, "write": 0.0}
-    for sample in iter_dataset(dataset, dataset_source, limit):
-        if sample.sample_id in completed:
-            skipped += 1
-            continue
-        prompt = build_prompt(
-            sample.question, sample.image is not None, style=prompt_style
-        )
-        stage_started = time.perf_counter()
-        greedy = None
-        greedy_signals = None
-        greedy_seed = None
-        greedy_attempts_used = 0
-        for attempt in range(greedy_reject_resample_k):
-            recovery = attempt > 0
-            if recovery:
-                greedy_seed = _derived_seed(seed, sample.sample_id, -1, attempt)
-                torch.manual_seed(greedy_seed)
-                if torch.cuda.is_available():
-                    torch.cuda.manual_seed_all(greedy_seed)
-            greedy_response = backend.generate(
-                sample.image,
-                prompt,
-                do_sample=recovery,
-                temperature=greedy_recovery_temperature if recovery else None,
-                max_new_tokens=max_new_tokens,
-                num_return_sequences=1,
-            )[0]
-            greedy, greedy_signals = _response_record(
-                backend, greedy_response, prompt_spec.response_format
-            )
-            greedy_attempts_used = attempt + 1
-            if greedy["sections_valid"]:
+    skipped = len(completed)
+    generation_seconds = 0.0
+    write_seconds = 0.0
+
+    def fill_window() -> None:
+        nonlocal exhausted
+        while not exhausted and len(active) < request_window_samples:
+            try:
+                sample = next(source)
+            except StopIteration:
+                exhausted = True
                 break
-        greedy_accepted = bool(greedy["sections_valid"])
-        greedy["reject_resample"] = {
-            "max_attempts": greedy_reject_resample_k,
-            "attempts_used": greedy_attempts_used,
-            "rejected_count": greedy_attempts_used - int(greedy_accepted),
-            "accepted": greedy_accepted,
-            "initial_strategy": "greedy",
-            "accepted_strategy": (
-                "greedy"
-                if greedy_accepted and greedy_attempts_used == 1
-                else "low_temperature_sampling"
-                if greedy_accepted
-                else None
-            ),
-        }
-        if greedy_seed is not None:
-            greedy["recovery_seed"] = greedy_seed
-        greedy["signals"] = _serialized_signals(greedy_signals)
-        timing["greedy"] += time.perf_counter() - stage_started
-
-        stage_started = time.perf_counter()
-        sampled_records = []
-        sampled_signals = []
-        accepted_samples = 0
-        total_attempts = 0
-        rejected_attempts = 0
-        pending = list(range(num_samples))
-        attempts = [0] * num_samples
-        while pending:
-            batch_indexes = pending[:sampling_batch_size]
-            pending = pending[sampling_batch_size:]
-            batch_seed = _derived_seed(
-                seed,
-                sample.sample_id,
-                batch_indexes[0],
-                attempts[batch_indexes[0]],
+            state = _new_state(sample, num_samples)
+            active[sample.sample_id] = state
+            pending.extend(
+                _initial_requests(state, seed=seed, prompt_style=prompt_style)
             )
-            torch.manual_seed(batch_seed)
-            if torch.cuda.is_available():
-                torch.cuda.manual_seed_all(batch_seed)
-            responses = backend.generate(
-                    sample.image,
-                    prompt,
-                    do_sample=True,
-                    temperature=1.0,
-                    max_new_tokens=max_new_tokens,
-                    num_return_sequences=len(batch_indexes),
-                )
-            for index, response in zip(batch_indexes, responses, strict=True):
-                attempts[index] += 1
-                response_record, signals = _response_record(
-                    backend, response, prompt_spec.response_format
-                )
-                accepted = bool(response_record["sections_valid"])
-                if not accepted:
-                    rejected_attempts += 1
-                    if attempts[index] < reject_resample_k:
-                        pending.append(index)
-                        continue
-                accepted_samples += int(accepted)
-                total_attempts += attempts[index]
-                sampled_records.append({
-                    "index": index,
-                    "seed": batch_seed,
-                    **response_record,
-                    "reject_resample": {
-                        "max_attempts": reject_resample_k,
-                        "attempts_used": attempts[index],
-                        "rejected_count": attempts[index] - int(accepted),
-                        "accepted": accepted,
-                    },
-                })
-                sampled_signals.append((index, signals))
-        sampled_records.sort(key=lambda value: value["index"])
-        sampled_signals.sort(key=lambda value: value[0])
-        ordered_sampled_signals = [value for _, value in sampled_signals]
-        for response_record, signals in zip(
-            sampled_records, ordered_sampled_signals, strict=True
-        ):
-            response_record["signals"] = _serialized_signals(signals)
-        hidden_states = _write_hidden_states(
-            output, sample.sample_id, ordered_sampled_signals
+
+    fill_window()
+    while active:
+        if not pending:
+            raise RuntimeError("dynamic generation queue stalled with active samples")
+        started = time.perf_counter()
+        generated = backend.generate_requests(
+            pending, max_new_tokens=max_new_tokens
         )
-        if hidden_states is not None:
-            for index, response_record in enumerate(sampled_records):
-                response_record["hidden_state_index"] = index
-        timing["sampling"] += time.perf_counter() - stage_started
-
-        stage_started = time.perf_counter()
-        uq = {}
-        for method in uq_methods:
-            missing = None
-            if method.required_responses in {"greedy", "greedy_and_samples"}:
-                if greedy_signals is None:
-                    missing = "greedy response cannot be separated into three parts"
-            if method.required_responses in {"samples", "greedy_and_samples"}:
-                if any(value is None for value in ordered_sampled_signals):
-                    missing = "one or more sampled responses cannot be separated into three parts"
-            if missing is not None:
-                uq[method.runtime_config["name"]] = {
-                    "valid": False,
-                    "error": missing,
-                    "score": None,
-                }
-            else:
-                uq[method.runtime_config["name"]] = method.compute(
-                    question=sample.question,
-                    greedy=greedy_signals,
-                    samples=[value for value in ordered_sampled_signals if value is not None],
+        generation_seconds += time.perf_counter() - started
+        retries: list[GenerationRequest] = []
+        for request in pending:
+            response = generated.get(request.request_id)
+            if response is None:
+                raise RuntimeError(f"missing generated response: {request.request_id}")
+            state = active[request.sample_id]
+            record, signals = _response_record(
+                backend, response, prompt_spec.response_format
+            )
+            if request.role == "greedy":
+                state.greedy_record = record
+                state.greedy_signals = signals
+                state.greedy_response = response
+                continue
+            assert request.draw_index is not None
+            draw = state.draws[request.draw_index]
+            draw.attempts_used += 1
+            draw.attempt_seeds.append(request.seed)
+            accepted = bool(record["sections_valid"])
+            if not accepted and draw.attempts_used < reject_resample_k:
+                next_attempt = draw.attempts_used + 1
+                retries.append(
+                    _request(
+                        state,
+                        role="sample",
+                        draw_index=request.draw_index,
+                        attempt=next_attempt,
+                        seed=_derived_seed(
+                            seed,
+                            state.sample.sample_id,
+                            request.draw_index,
+                            draw.attempts_used,
+                        ),
+                        prompt_style=prompt_style,
+                    )
                 )
-        timing["uq"] += time.perf_counter() - stage_started
+                continue
+            draw.record = record
+            draw.signals = signals
+            draw.response = response
+            draw.done = True
 
-        record = {
-            "sample": _serialize_sample(sample),
-            "greedy": greedy,
-            "samples": sampled_records,
-            "hidden_states": hidden_states,
-            "reject_resample_summary": {
-                "max_attempts": reject_resample_k,
-                "retained_samples": num_samples,
-                "accepted_samples": accepted_samples,
-                "failed_samples": num_samples - accepted_samples,
-                "total_attempts": total_attempts,
-                "rejected_attempts": rejected_attempts,
-            },
-        }
-        if uq_methods:
-            record["uq"] = uq
-        stage_started = time.perf_counter()
-        write_sample_json_line(output, run, record)
-        timing["write"] += time.perf_counter() - stage_started
-        written += 1
-        if written % 10 == 0:
-            elapsed = sum(timing.values())
+        started = time.perf_counter()
+        for sample_id, state in list(active.items()):
+            if not state.done:
+                continue
+            write_sample_json_line(
+                output, run, _record(state, output, reject_resample_k)
+            )
+            del active[sample_id]
+            written += 1
+        write_seconds += time.perf_counter() - started
+        pending = retries
+        fill_window()
+        if written and written % 10 == 0:
             print(
                 "generation_timing "
-                f"written={written} elapsed={elapsed:.3f}s "
-                + " ".join(f"{name}={value:.3f}s" for name, value in timing.items()),
+                f"written={written} generation={generation_seconds:.3f}s "
+                f"write={write_seconds:.3f}s active={len(active)} "
+                f"queued_requests={len(pending)}",
                 flush=True,
             )
-    _finalize_uq_output(output, uq_methods)
-    elapsed = sum(timing.values())
     print(
         "generation_timing_final "
-        f"written={written} skipped={skipped} elapsed={elapsed:.3f}s "
-        + " ".join(f"{name}={value:.3f}s" for name, value in timing.items()),
+        f"written={written} skipped={skipped} generation={generation_seconds:.3f}s "
+        f"write={write_seconds:.3f}s",
         flush=True,
     )
     return written, skipped
