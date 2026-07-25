@@ -166,3 +166,5 @@ def test_request_window_separates_decoding_roles_into_dynamic_batches(monkeypatc
     assert all(len(call) <= 5 for call in backend.calls)
     assert all(len({request.role for request in call}) == 1 for call in backend.calls)
     assert sum(len(call) for call in backend.calls if call[0].role == "sample") == 10
+    first_sampled = next(call for call in backend.calls if call[0].role == "sample")
+    assert {request.sample_id for request in first_sampled} == {"one", "two"}

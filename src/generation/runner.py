@@ -391,6 +391,7 @@ def run_generation(
 
     def fill_window() -> None:
         nonlocal exhausted
+        new_request_sets: list[list[GenerationRequest]] = []
         while not exhausted and len(active) < request_window_samples:
             try:
                 sample = next(source)
@@ -399,12 +400,18 @@ def run_generation(
                 break
             state = _new_state(sample, num_samples)
             active[sample.sample_id] = state
-            for request in _initial_requests(
+            requests = _initial_requests(
                 state, seed=seed, prompt_style=prompt_style
-            ):
-                (pending_greedy if request.role == "greedy" else pending_sample).append(
-                    request
-                )
+            )
+            pending_greedy.append(requests[0])
+            new_request_sets.append(requests[1:])
+        # Round-robin sampled draws across newly admitted samples. This keeps
+        # a batch from being dominated by five copies of the same image while
+        # preserving separate greedy and temperature=1 generate calls.
+        for draw_index in range(num_samples):
+            pending_sample.extend(
+                requests[draw_index] for requests in new_request_sets
+            )
 
     fill_window()
     while active:
