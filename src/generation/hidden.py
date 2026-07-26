@@ -14,6 +14,7 @@ from src.utils import completed_sample_ids, write_sample_json_line
 
 from .parser import answer_character_span
 from .prompt import build_prompt
+from .records import FORMAT_SKIP_POLICY, has_valid_response_format
 
 
 def _load_generation(path: Path) -> tuple[dict, dict[str, dict]]:
@@ -201,9 +202,15 @@ def extract_hidden_states(
         "model_path": str(model_path.resolve()),
         "adapter_path": str(adapter_path.resolve()),
         "position": "answer_last_token",
+        "invalid_format_policy": FORMAT_SKIP_POLICY,
     }
     completed = completed_sample_ids(output, run)
-    pending = set(records) - completed
+    invalid = {
+        sample_id
+        for sample_id, record in records.items()
+        if not has_valid_response_format(record)
+    }
+    pending = set(records) - completed - invalid
     backend = HuggingFaceMultimodalBackend(
         family,
         model_path,
@@ -238,4 +245,4 @@ def extract_hidden_states(
             break
     if pending:
         raise ValueError(f"dataset lacks {len(pending)} generated sample ids")
-    return written, len(completed)
+    return written, len(completed) + len(invalid)

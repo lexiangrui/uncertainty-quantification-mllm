@@ -9,6 +9,7 @@ from typing import Protocol
 import torch
 
 from src.generation.runner import ResponseSignals
+from src.generation.records import FORMAT_SKIP_POLICY, has_valid_response_format
 from src.utils import completed_sample_ids, write_sample_json_line
 
 
@@ -146,6 +147,7 @@ def run_deferred_uq(
         "hidden_input": str(hidden_input.resolve()) if hidden_input else None,
         "hidden_run": hidden_run,
         "uq_methods": [method.runtime_config for method in methods],
+        "invalid_format_policy": FORMAT_SKIP_POLICY,
     }
     completed = completed_sample_ids(output, run)
     written = 0
@@ -156,6 +158,9 @@ def run_deferred_uq(
         if not isinstance(sample_id, str):
             raise ValueError("generation record lacks sample_id")
         if sample_id in completed:
+            skipped += 1
+            continue
+        if not has_valid_response_format(record):
             skipped += 1
             continue
         if hidden_input is not None and sample_id not in hidden_records:

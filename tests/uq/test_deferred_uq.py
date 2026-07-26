@@ -36,10 +36,20 @@ def generation_file(tmp_path: Path) -> Path:
         {
             "record_type": "sample",
             "sample": {"sample_id": "one", "question": "Question"},
-            "greedy": {"answer": "yes", "signals": signal},
+            "greedy": {"answer": "yes", "signals": signal, "sections_valid": True},
             "samples": [
-                {"answer": "one", "signals": signal, "hidden_state_index": 0},
-                {"answer": "two", "signals": signal, "hidden_state_index": 1},
+                {
+                    "answer": "one",
+                    "signals": signal,
+                    "hidden_state_index": 0,
+                    "sections_valid": True,
+                },
+                {
+                    "answer": "two",
+                    "signals": signal,
+                    "hidden_state_index": 1,
+                    "sections_valid": True,
+                },
             ],
             "hidden_states": {"path": "generation.hidden/one.pt", "shape": [2, 2], "dtype": "float16"},
         },
@@ -58,6 +68,9 @@ def test_deferred_uq_reads_hidden_sidecar_and_resumes(tmp_path: Path) -> None:
     ) == (1, 0)
     rows = [json.loads(line) for line in output.read_text().splitlines()]
     assert rows[0]["run"]["uq_output_version"] == "deferred-uq-v1"
+    assert rows[0]["run"]["invalid_format_policy"] == (
+        "skip_record_if_any_response_sections_invalid"
+    )
     assert rows[1]["sample"] == {"sample_id": "one"}
     assert rows[1]["uq"]["fake"]["score"] == pytest.approx(-0.2)
     assert run_deferred_uq(
@@ -109,3 +122,27 @@ def test_deferred_uq_reads_separate_hidden_manifest(tmp_path: Path) -> None:
     ) == (1, 0)
     result = [json.loads(line) for line in output.read_text().splitlines()][1]
     assert result["uq"]["fake"]["score"] == pytest.approx(-0.2)
+
+
+def test_deferred_uq_skips_invalid_response_format_before_hidden_lookup(
+    tmp_path: Path,
+) -> None:
+    generation = generation_file(tmp_path)
+    rows = [json.loads(line) for line in generation.read_text().splitlines()]
+    rows[1]["greedy"]["sections_valid"] = False
+    rows[1].pop("hidden_states")
+    generation.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    hidden = tmp_path / "hidden.jsonl"
+    hidden.write_text(
+        json.dumps({"record_type": "run", "run": {"version": "hidden-v1"}})
+        + "\n"
+    )
+
+    output = tmp_path / "uq-invalid.jsonl"
+    assert run_deferred_uq(
+        generation_input=generation,
+        hidden_input=hidden,
+        output=output,
+        methods=(FakeMethod(),),
+    ) == (0, 1)
+    assert not output.exists()
