@@ -1,93 +1,55 @@
-"""Entailment models for semantic clustering.
-
-Uses DeBERTa-v2-xlarge-mnli as the default local entailment model.
-GPT and LLaMA-based entailment are reserved as optional extensions.
-"""
-
 from __future__ import annotations
 
-import logging
-import os
-
-import torch
-import torch.nn.functional as F
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
-
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-logger = logging.getLogger(__name__)
+from pathlib import Path
+from typing import Protocol
 
 
-class EntailmentModel:
-    """Base class for entailment checking."""
+class EntailmentModel(Protocol):
+    model_id: str
 
-    def check_implication(self, text1: str, text2: str) -> int:
-        """Return 2=entailment, 1=neutral, 0=contradiction."""
-        raise NotImplementedError
-
-    def save_cache(self) -> None:
-        """Save any prediction cache (no-op by default)."""
-        pass
+    def check_pairs(self, pairs: list[tuple[str, str]]) -> list[bool]: ...
 
 
-# ------------------------------------------------------------------
-# DeBERTa entailment
-# ------------------------------------------------------------------
-class EntailmentDeberta(EntailmentModel):
-    """DeBERTa-v2-xlarge-mnli fine-tuned on MNLI.
+class DebertaEntailment:
+    def __init__(
+        self, model_path: Path, *, batch_size: int = 32, device: str = "cpu"
+    ) -> None:
+        if not model_path.is_dir():
+            raise NotADirectoryError(model_path)
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        import torch
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-    Parameters
-    ----------
-    model_id:
-        HuggingFace repo id or local directory path.
-    """
-
-    def __init__(self, model_id: str = "microsoft/deberta-v2-xlarge-mnli"):
-        # Support env-var override for offline cluster usage.
-        model_id = os.environ.get("DEBERTA_MNLI_MODEL", model_id)
-        logger.info("Loading DeBERTa entailment model: %s", model_id)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_id)
+        self.model_id = model_path.name
+        self.batch_size = batch_size
+        self.device = torch.device(device)
+        if self.device.type == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError("CUDA was requested for entailment but is unavailable")
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
         self.model = AutoModelForSequenceClassification.from_pretrained(
-            model_id
-        ).to(DEVICE)
-        self.model.eval()
-        logger.info("DeBERTa entailment model loaded on %s.", DEVICE)
+            model_path, local_files_only=True
+        ).to(self.device).eval()
+        label_map = {str(name).lower(): int(index) for index, name in self.model.config.id2label.items()}
+        matches = [index for name, index in label_map.items() if "entail" in name]
+        if len(matches) != 1:
+            raise ValueError(f"cannot identify entailment label from {label_map}")
+        self.entailment_label = matches[0]
 
-    @torch.no_grad()
-    def check_implication(self, text1: str, text2: str) -> int:
-        """Check if text1 semantically entails text2."""
-        inputs = self.tokenizer(
-            text1, text2, return_tensors="pt", truncation=True
-        ).to(DEVICE)
-        outputs = self.model(**inputs)
-        logits = outputs.logits
-        # DeBERTa MNLI: 0=contradiction, 1=neutral, 2=entailment
-        prediction = torch.argmax(F.softmax(logits, dim=1)).cpu().item()
-        return prediction
+    def check_pairs(self, pairs: list[tuple[str, str]]) -> list[bool]:
+        import torch
 
-
-# ------------------------------------------------------------------
-# Factory
-# ------------------------------------------------------------------
-_ENTAILMENT_REGISTRY = {
-    "deberta": EntailmentDeberta,
-}
-
-
-def build_entailment_model(name: str = "deberta", **kwargs) -> EntailmentModel:
-    """Instantiate an entailment model.
-
-    Parameters
-    ----------
-    name:
-        ``"deberta"`` (default).  GPT / LLaMA slots are reserved.
-    **kwargs:
-        Forwarded to the constructor.
-    """
-    cls = _ENTAILMENT_REGISTRY.get(name)
-    if cls is None:
-        raise KeyError(
-            f"Unknown entailment model '{name}'. "
-            f"Available: {list(_ENTAILMENT_REGISTRY)}"
-        )
-    return cls(**kwargs)
+        results: list[bool] = []
+        for start in range(0, len(pairs), self.batch_size):
+            batch = pairs[start : start + self.batch_size]
+            encoded = self.tokenizer(
+                [premise for premise, _ in batch],
+                [hypothesis for _, hypothesis in batch],
+                padding=True,
+                truncation=True,
+                return_tensors="pt",
+            ).to(self.device)
+            with torch.inference_mode():
+                labels = self.model(**encoded).logits.argmax(dim=-1).tolist()
+            results.extend(label == self.entailment_label for label in labels)
+        return results

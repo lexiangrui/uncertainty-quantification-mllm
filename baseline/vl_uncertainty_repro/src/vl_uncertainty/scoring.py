@@ -37,12 +37,8 @@ logger = logging.getLogger(__name__)
 
 # Default perturbation config matching the paper's optimal settings.
 DEFAULT_PERT_CONFIG = PerturbationConfig(
-    visual_perturbation="blurring",
     blur_radius_list=(0.6, 0.8, 1.0, 1.2, 1.4),
-    textual_perturbation="llm_rephrasing",
     textual_temps=(0.1, 0.2, 0.3, 0.4, 0.5),
-    sampling_time=5,
-    pair_order="progressively",
 )
 
 # Entailment prompt from official VL-Uncertainty code.
@@ -62,7 +58,7 @@ def compute_vl_uncertainty(
     benchmark_type: str,
     pert_config: PerturbationConfig | None = None,
     sampling_temp: float = 1.0,
-    max_new_tokens: int = 64,
+    max_new_tokens: int = 32,
 ) -> VLUncertaintyResult:
     """Compute VL-Uncertainty score for one sample.
 
@@ -90,7 +86,7 @@ def compute_vl_uncertainty(
     cfg = pert_config or DEFAULT_PERT_CONFIG
 
     # ---- 1. Low-temperature most-likely answer ----
-    ml_answer, _ml_log_liks, _ml_emb = backend.generate(
+    ml_answer = backend.generate(
         sample["img"],
         sample["question"],
         temp=0.1,
@@ -105,19 +101,16 @@ def compute_vl_uncertainty(
 
     # ---- 4. Pair progressively (I_i ↔ T_i) ----
     pert_prompts = combine_perturbed_prompts(
-        sample, pert_images, pert_questions, cfg.pair_order
+        sample, pert_images, pert_questions
     )
 
     # ---- 5. Generate 1 answer per perturbed prompt ----
-    answers: list[str] = []
-    for pp in pert_prompts:
-        ans, _log_liks, _emb = backend.generate(
-            pp["img"],
-            pp["question"],
-            temp=sampling_temp,
-            max_new_tokens=max_new_tokens,
-        )
-        answers.append(ans)
+    answers = backend.generate_batch(
+        [pp["img"] for pp in pert_prompts],
+        [pp["question"] for pp in pert_prompts],
+        temp=sampling_temp,
+        max_new_tokens=max_new_tokens,
+    )
 
     # ---- 6. Semantic clustering ----
     if benchmark_type == "multi_choice":
@@ -160,40 +153,33 @@ def _cluster_free_form(answers: list[str], text_model: TextModel) -> list[int]:
         if semantic_ids[i] != -1:
             continue
         semantic_ids[i] = next_id
-        for j in range(i + 1, n):
-            if semantic_ids[j] != -1:
-                continue
-            if _bidirectional_entailment(answers[i], answers[j], text_model):
-                semantic_ids[j] = next_id
+        candidates = [j for j in range(i + 1, n) if semantic_ids[j] == -1]
+        if candidates:
+            forward_prompts = [
+                ENTAILMENT_PROMPT.format(text1=answers[i], text2=answers[j])
+                for j in candidates
+            ]
+            forward = text_model.generate_batch(
+                forward_prompts, [0.1] * len(forward_prompts), max_new_tokens=256
+            )
+            forward_candidates = [
+                j for j, response in zip(candidates, forward) if _is_yes(response)
+            ]
+            if forward_candidates:
+                reverse_prompts = [
+                    ENTAILMENT_PROMPT.format(text1=answers[j], text2=answers[i])
+                    for j in forward_candidates
+                ]
+                reverse = text_model.generate_batch(
+                    reverse_prompts, [0.1] * len(reverse_prompts), max_new_tokens=256
+                )
+                for j, response in zip(forward_candidates, reverse):
+                    if _is_yes(response):
+                        semantic_ids[j] = next_id
         next_id += 1
 
     assert -1 not in semantic_ids, f"Unassigned answers remain: {semantic_ids}"
     return semantic_ids
-
-
-def _bidirectional_entailment(
-    text1: str, text2: str, text_model: TextModel
-) -> bool:
-    """Check if text1 and text2 are semantically equivalent.
-
-    Two directions must both return "Yes":
-      - Does text1 entail text2?
-      - Does text2 entail text1?
-    """
-    fwd = _llm_entailment_check(text1, text2, text_model)
-    if not fwd:
-        return False
-    rev = _llm_entailment_check(text2, text1, text_model)
-    return rev
-
-
-def _llm_entailment_check(
-    text1: str, text2: str, text_model: TextModel
-) -> bool:
-    """Single-direction entailment via LLM."""
-    prompt = ENTAILMENT_PROMPT.format(text1=text1, text2=text2)
-    response = text_model.generate(prompt, temp=0.1, max_new_tokens=8)
-    return _is_yes(response)
 
 
 def _is_yes(text: str) -> bool:

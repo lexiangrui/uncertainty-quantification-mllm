@@ -1,12 +1,4 @@
-"""VAUQ scoring: predictive entropy + Image-Information Score (IS).
-
-Two masking strategies:
-
-- ``"core"`` (default): mask the top-k_ratio most-attended visual tokens via
-  ``backend.get_logits_masked`` (attention-mask knockout).
-- ``"blank"``: feed a blank image to ``backend.get_logits``. Fallback for
-  backends whose core-attention knockout is unsupported on the current runtime.
-"""
+"""VAUQ scoring: predictive entropy + core visual Image-Information Score."""
 
 from __future__ import annotations
 
@@ -14,6 +6,8 @@ import torch
 
 from .metrics import OutputScoreInfo
 from .types import VAUQResult
+
+MASK_STRATEGIES = ("core", "blank", "random")
 
 
 def compute_entropy(backend, image, question, generated_ids):
@@ -24,7 +18,8 @@ def compute_entropy(backend, image, question, generated_ids):
 
 
 def compute_entropy_core_masked(
-    backend, image, question, generated_ids, topk_ratio, layer_range, ablation_baseline="attention_mask"
+    backend, image, question, generated_ids, topk_ratio, layer_range,
+    mask_strategy="core", mask_seed=None,
 ):
     with torch.no_grad():
         logits = backend.get_logits_masked(
@@ -33,17 +28,11 @@ def compute_entropy_core_masked(
             generated_ids,
             topk_ratio=topk_ratio,
             layer_range=tuple(layer_range),
-            ablation_baseline=ablation_baseline,
+            mask_strategy=mask_strategy,
+            mask_seed=mask_seed,
         )
         score_info = OutputScoreInfo(logits, generated_ids, backend.device)
         return score_info.compute_entropy()
-
-
-def compute_entropy_blank(backend, image, question, generated_ids):
-    from .images import blank_like
-
-    blank = blank_like(image) if image is not None else None
-    return compute_entropy(backend, blank, question, generated_ids)
 
 
 def compute_vauq_scores(
@@ -55,7 +44,7 @@ def compute_vauq_scores(
     alpha=0.5,
     layer_range=(10, 25),
     mask_strategy="core",
-    ablation_baseline="attention_mask",
+    mask_seed=None,
     answer=None,
 ) -> VAUQResult:
     """Compute VAUQ uncertainty scores for one sample.
@@ -65,19 +54,10 @@ def compute_vauq_scores(
     (lower VAUQ => more likely correct).
     """
     entropy_org = compute_entropy(backend, image, question, generated_ids)
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-
-    if mask_strategy == "blank":
-        entropy_masked = compute_entropy_blank(
-            backend, image, question, generated_ids
-        )
-    else:
-        entropy_masked = compute_entropy_core_masked(
-            backend, image, question, generated_ids, topk_ratio, layer_range, ablation_baseline
-        )
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
+    entropy_masked = compute_entropy_core_masked(
+        backend, image, question, generated_ids, topk_ratio, layer_range,
+        mask_strategy=mask_strategy, mask_seed=mask_seed,
+    )
 
     is_score = entropy_masked - entropy_org
     vauq = entropy_org - alpha * is_score
@@ -89,3 +69,81 @@ def compute_vauq_scores(
         is_score=is_score,
         vauq=vauq,
     )
+
+
+def compute_mask_comparison_scores(
+    backend,
+    image,
+    question,
+    generated_ids,
+    topk_ratio=0.6,
+    alpha=0.5,
+    layer_range=(10, 25),
+    mask_seed=None,
+    answer=None,
+) -> dict[str, VAUQResult]:
+    """Compute core/blank/random scores from one answer and one base entropy."""
+    entropy_org = compute_entropy(backend, image, question, generated_ids)
+    results = {}
+    for strategy in MASK_STRATEGIES:
+        entropy_masked = compute_entropy_core_masked(
+            backend,
+            image,
+            question,
+            generated_ids,
+            topk_ratio,
+            layer_range,
+            mask_strategy=strategy,
+            mask_seed=mask_seed if strategy == "random" else None,
+        )
+        is_score = entropy_masked - entropy_org
+        results[strategy] = VAUQResult(
+            answer=answer,
+            entropy=entropy_org,
+            entropy_masked=entropy_masked,
+            is_score=is_score,
+            vauq=entropy_org - alpha * is_score,
+        )
+    return results
+
+
+def compute_multi_seed_comparison_scores(
+    backend,
+    image,
+    question,
+    generated_ids,
+    random_seeds,
+    topk_ratio=0.6,
+    alpha=0.5,
+    layer_range=(10, 25),
+    sample_index=0,
+    answer=None,
+) -> dict[str, VAUQResult]:
+    """Compute core, blank and multiple random masks with one base entropy."""
+    entropy_org = compute_entropy(backend, image, question, generated_ids)
+    strategies = [("core", "core", None), ("blank", "blank", None)]
+    strategies.extend(
+        (f"random_seed{seed}", "random", seed + sample_index)
+        for seed in random_seeds
+    )
+    results = {}
+    for name, strategy, mask_seed in strategies:
+        entropy_masked = compute_entropy_core_masked(
+            backend,
+            image,
+            question,
+            generated_ids,
+            topk_ratio,
+            layer_range,
+            mask_strategy=strategy,
+            mask_seed=mask_seed,
+        )
+        is_score = entropy_masked - entropy_org
+        results[name] = VAUQResult(
+            answer=answer,
+            entropy=entropy_org,
+            entropy_masked=entropy_masked,
+            is_score=is_score,
+            vauq=entropy_org - alpha * is_score,
+        )
+    return results

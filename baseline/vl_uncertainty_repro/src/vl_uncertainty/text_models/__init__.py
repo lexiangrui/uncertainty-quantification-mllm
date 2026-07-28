@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from importlib import import_module
 
-from .base import EntailmentModel, TextModel
-from .entailment import DebertaEntailment
+from .base import TextModel
 
 TEXT_MODEL_MAP: dict[str, str] = {
     "qwen": "vl_uncertainty.text_models.qwen:QwenTextModel",
-    "echo": "vl_uncertainty.text_models.rule:EchoTextModel",
 }
 
 
@@ -28,7 +26,6 @@ def _load_class(path: str):
 def __getattr__(name: str):
     class_to_key = {
         "QwenTextModel": "qwen",
-        "EchoTextModel": "echo",
     }
     if name in class_to_key:
         return _load_class(TEXT_MODEL_MAP[class_to_key[name]])
@@ -36,11 +33,8 @@ def __getattr__(name: str):
 
 
 __all__ = [
-    "EntailmentModel",
     "TextModel",
-    "DebertaEntailment",
     "QwenTextModel",
-    "EchoTextModel",
     "TEXT_MODEL_MAP",
     "build_text_model",
 ]

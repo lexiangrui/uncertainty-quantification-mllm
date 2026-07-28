@@ -7,19 +7,9 @@ from importlib import import_module
 from .base import Benchmark
 
 BENCHMARK_MAP: dict[str, str] = {
+    "cvbench": "vl_uncertainty.benchmarks.cvbench:CVBench",
     "mmvet": "vl_uncertainty.benchmarks.mmvet:MMVet",
-    "llavabench": "vl_uncertainty.benchmarks.llavabench:LLaVABench",
-    "mmmu": "vl_uncertainty.benchmarks.mmmu:MMMU",
-    "scienceqa": "vl_uncertainty.benchmarks.scienceqa:ScienceQA",
-    "trivia_qa": "vl_uncertainty.benchmarks.text_qa:TriviaQABenchmark",
-}
-
-DEFAULT_JUDGE: dict[str, str] = {
-    "mmvet": "llm",
-    "llavabench": "llm",
-    "mmmu": "choice",
-    "scienceqa": "choice",
-    "trivia_qa": "none",
+    "vilp": "vl_uncertainty.benchmarks.vilp:VILP",
 }
 
 
@@ -38,9 +28,8 @@ def _load_class(path: str):
 def __getattr__(name: str):
     class_to_key = {
         "MMVet": "mmvet",
-        "LLaVABench": "llavabench",
-        "MMMU": "mmmu",
-        "ScienceQA": "scienceqa",
+        "CVBench": "cvbench",
+        "VILP": "vilp",
     }
     if name in class_to_key:
         return _load_class(BENCHMARK_MAP[class_to_key[name]])
@@ -50,10 +39,8 @@ def __getattr__(name: str):
 __all__ = [
     "Benchmark",
     "MMVet",
-    "LLaVABench",
-    "MMMU",
-    "ScienceQA",
+    "CVBench",
+    "VILP",
     "BENCHMARK_MAP",
-    "DEFAULT_JUDGE",
     "build_benchmark",
 ]

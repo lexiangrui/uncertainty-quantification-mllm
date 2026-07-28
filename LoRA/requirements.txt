@@ -1,0 +1,5 @@
+openai
+peft
+Pillow
+torch
+transformers

@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import json
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
+
+_API_MAX_RETRIES = 3
+_API_RETRY_BACKOFF_SECONDS = 15
 
 from src.datasets import iter_dataset
 from src.utils import completed_sample_ids, write_sample_json_line
@@ -37,6 +42,69 @@ def _load_generation_records(path: Path) -> tuple[dict[str, Any], dict[str, dict
     return generation_run, records
 
 
+_INVALID_FORMAT_VALUE = {
+    "valid": False,
+    "error": "greedy response cannot be separated into three parts",
+    "raw_response": None,
+    "analysis": None,
+    "correct": None,
+    "rating": None,
+    "hallucination": None,
+    "hallucination_types": None,
+}
+
+
+def _judge_one(judge, sample, greedy: dict) -> dict:
+    """Judge a single sample; thread-safe except for last_raw_response debugging."""
+    if greedy.get("sections_valid") is not True:
+        return dict(_INVALID_FORMAT_VALUE)
+    result = None
+    api_error: Exception | None = None
+    for _attempt in range(_API_MAX_RETRIES):
+        try:
+            result = judge.judge(
+                dataset=sample.dataset,
+                question=sample.question,
+                references=list(sample.references),
+                vision=greedy["vision"],
+                reasoning=greedy["reasoning"],
+                answer=greedy["answer"],
+                image=sample.image,
+            )
+            api_error = None
+            break
+        except ValueError as error:
+            api_error = error
+            break
+        except Exception as error:  # noqa: BLE001 — retry any API/transport error
+            api_error = error
+            time.sleep(_API_RETRY_BACKOFF_SECONDS)
+    raw = judge.last_raw_response
+    if result is not None:
+        return {"valid": True, "error": None, "raw_response": raw, **result.to_dict()}
+    if isinstance(api_error, ValueError):
+        return {
+            "valid": False,
+            "error": str(api_error),
+            "raw_response": raw,
+            "analysis": None,
+            "correct": None,
+            "rating": None,
+            "hallucination": None,
+            "hallucination_types": None,
+        }
+    return {
+        "valid": False,
+        "error": f"{type(api_error).__name__}: {api_error}",
+        "raw_response": raw,
+        "analysis": None,
+        "correct": None,
+        "rating": None,
+        "hallucination": None,
+        "hallucination_types": None,
+    }
+
+
 def run_openai_judging(
     *,
     judge: OpenAIChatJudge,
@@ -45,6 +113,7 @@ def run_openai_judging(
     generation_input: Path,
     output: Path,
     limit: int | None,
+    concurrency: int = 1,
 ) -> tuple[int, int]:
     generation_run, generation_records = _load_generation_records(generation_input)
     run = {
@@ -61,59 +130,9 @@ def run_openai_judging(
     written = 0
     skipped = 0
     seen: set[str] = set()
-    matched = 0
-    for sample in iter_dataset(dataset, dataset_source):
-        record = generation_records.get(sample.sample_id)
-        if record is None:
-            continue
-        if limit is not None and matched >= limit:
-            break
-        matched += 1
-        seen.add(sample.sample_id)
-        if sample.sample_id in completed:
-            skipped += 1
-            continue
-        greedy = record.get("greedy", {})
-        if greedy.get("sections_valid") is not True:
-            judge_value = {
-                "valid": False,
-                "error": "greedy response cannot be separated into three parts",
-                "raw_response": None,
-                "analysis": None,
-                "correct": None,
-                "rating": None,
-                "hallucination": None,
-                "hallucination_types": None,
-            }
-        else:
-            try:
-                result = judge.judge(
-                    dataset=sample.dataset,
-                    question=sample.question,
-                    references=list(sample.references),
-                    vision=greedy["vision"],
-                    reasoning=greedy["reasoning"],
-                    answer=greedy["answer"],
-                    image=sample.image,
-                )
-            except ValueError as error:
-                judge_value = {
-                    "valid": False,
-                    "error": str(error),
-                    "raw_response": judge.last_raw_response,
-                    "analysis": None,
-                    "correct": None,
-                    "rating": None,
-                    "hallucination": None,
-                    "hallucination_types": None,
-                }
-            else:
-                judge_value = {
-                    "valid": True,
-                    "error": None,
-                    "raw_response": judge.last_raw_response,
-                    **result.to_dict(),
-                }
+
+    def _record(sample, greedy, judge_value: dict) -> None:
+        nonlocal written
         write_sample_json_line(
             output,
             run,
@@ -136,6 +155,42 @@ def run_openai_judging(
             },
         )
         written += 1
+
+    batch_size = max(concurrency * 4, 4)
+
+    def _flush(batch: list[tuple[Any, dict]]) -> None:
+        if not batch:
+            return
+        if concurrency <= 1 or len(batch) == 1:
+            for sample, greedy in batch:
+                _record(sample, greedy, _judge_one(judge, sample, greedy))
+        else:
+            with ThreadPoolExecutor(max_workers=concurrency) as pool:
+                futures = {
+                    pool.submit(_judge_one, judge, sample, greedy): (sample, greedy)
+                    for sample, greedy in batch
+                }
+                for future in as_completed(futures):
+                    sample, greedy = futures[future]
+                    _record(sample, greedy, future.result())
+        batch.clear()
+
+    batch: list[tuple[Any, dict]] = []
+    for sample in iter_dataset(dataset, dataset_source):
+        record = generation_records.get(sample.sample_id)
+        if record is None:
+            continue
+        seen.add(sample.sample_id)
+        if limit is not None and written + skipped + len(batch) >= limit:
+            break
+        if sample.sample_id in completed:
+            skipped += 1
+            continue
+        batch.append((sample, record.get("greedy", {})))
+        if len(batch) >= batch_size:
+            _flush(batch)
+    _flush(batch)
+
     missing = set(generation_records) - seen
     if limit is None and missing:
         raise ValueError(f"generation records not found in dataset: {sorted(missing)[:3]}")

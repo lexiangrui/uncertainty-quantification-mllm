@@ -1,0 +1,20 @@
+{
+  "family": "llava_1_5",
+  "base_model": "/opt/lexiangrui/models/llava-1.5-7b-hf",
+  "end_token": "</s>",
+  "dataset_root": "/opt/lexiangrui/datasets/vqav2_xml_sft/final",
+  "output_dir": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/lora/vqav2_5000_4to1/llava-1.5-7b",
+  "epochs": 1,
+  "learning_rate": 0.0002,
+  "weight_decay": 0.0,
+  "warmup_ratio": 0.03,
+  "gradient_accumulation_steps": 16,
+  "checkpoint_interval_updates": 25,
+  "lora_r": 8,
+  "lora_alpha": 16,
+  "lora_dropout": 0.05,
+  "target_modules": ".*language_model.*\\.(q_proj|v_proj)$",
+  "max_length": 1024,
+  "max_validation_samples": 1000,
+  "seed": 42
+}

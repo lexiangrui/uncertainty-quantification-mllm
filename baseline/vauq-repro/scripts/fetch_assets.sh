@@ -10,9 +10,8 @@
 set -euo pipefail
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-VAUQ_ASSETS_DIR="${VAUQ_ASSETS_DIR:-/opt/lexiangrui/vauq_assets}"
-VAUQ_MODELS_DIR="${VAUQ_MODELS_DIR:-${VAUQ_ASSETS_DIR}/models}"
-VAUQ_DATASETS_DIR="${VAUQ_DATASETS_DIR:-${VAUQ_ASSETS_DIR}/datasets}"
+VAUQ_MODELS_DIR="${VAUQ_MODELS_DIR:-/opt/lexiangrui/models}"
+VAUQ_DATASETS_DIR="${VAUQ_DATASETS_DIR:-/opt/lexiangrui/datasets}"
 
 LLAVA_7B_REPO="${LLAVA_7B_REPO:-llava-hf/llava-1.5-7b-hf}"
 LLAVA_7B_DIR="${LLAVA_7B_DIR:-${VAUQ_MODELS_DIR}/llava-1.5-7b-hf}"

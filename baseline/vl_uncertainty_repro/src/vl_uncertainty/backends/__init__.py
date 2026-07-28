@@ -8,7 +8,6 @@ from .base import Backend
 
 BACKEND_MAP: dict[str, str] = {
     "llava": "vl_uncertainty.backends.llava:LlavaBackend",
-    "huggingface_llm": "vl_uncertainty.backends.huggingface_llm:HuggingFaceLLMBackend",
 }
 
 
@@ -25,10 +24,10 @@ def _load_class(path: str):
 
 
 def __getattr__(name: str):
-    mapping = {"LlavaBackend": "llava", "HuggingFaceLLMBackend": "huggingface_llm"}
+    mapping = {"LlavaBackend": "llava"}
     if name in mapping:
         return _load_class(BACKEND_MAP[mapping[name]])
     raise AttributeError(name)
 
 
-__all__ = ["Backend", "LlavaBackend", "HuggingFaceLLMBackend", "BACKEND_MAP", "build_backend"]
+__all__ = ["Backend", "LlavaBackend", "BACKEND_MAP", "build_backend"]

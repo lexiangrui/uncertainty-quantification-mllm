@@ -21,7 +21,7 @@ class Backend(ABC):
     device: str
 
     @abstractmethod
-    def generate_with_ids(self, image, question, temp: float = 0.1, max_new_tokens: int = 64):
+    def generate_with_ids(self, image, question, max_new_tokens: int = 128):
         """Return ``(answer: str, generated_ids: Tensor[1, L])``."""
         raise NotImplementedError
 
@@ -41,8 +41,13 @@ class Backend(ABC):
         generated_ids,
         topk_ratio: float,
         layer_range: tuple[int, int],
-        ablation_baseline: str = "attention_mask",
+        mask_strategy: str = "core",
+        mask_seed: int | None = None,
     ):
-        """Like ``get_logits`` but with the top-``topk_ratio`` core visual tokens
-        attention-masked out. Return ``logits[0, prompt_len - 1 : -1]``."""
+        """Teacher-forced logits after visual-token masking.
+
+        ``core`` masks the attention-ranked top-k tokens, ``random`` masks the
+        same number uniformly without replacement, and ``blank`` masks every
+        visual token.  Return ``logits[0, prompt_len - 1 : -1]``.
+        """
         raise NotImplementedError

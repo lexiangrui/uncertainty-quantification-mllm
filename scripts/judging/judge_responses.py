@@ -24,6 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", required=True)
     parser.add_argument("--max-tokens", type=int, default=512)
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--concurrency", type=int, default=1)
     return parser.parse_args()
 
 
@@ -37,6 +38,7 @@ def main() -> None:
         generation_input=args.generation_input,
         output=args.output,
         limit=args.limit,
+        concurrency=args.concurrency,
     )
     print(f"completed: written={written} skipped={skipped} output={args.output}")
 

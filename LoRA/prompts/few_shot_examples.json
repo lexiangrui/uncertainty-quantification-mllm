@@ -1,0 +1,29 @@
+[
+  {
+    "image_description": "A yellow raincoat hangs from a hook beside a front door.",
+    "question": "What color is the raincoat?",
+    "response": {
+      "vision": "A yellow raincoat is hanging beside the door.",
+      "reasoning": "The raincoat is visibly yellow.",
+      "answer": "yellow"
+    }
+  },
+  {
+    "image_description": "At an outdoor market, three green apples sit in a shallow wooden crate. A small handwritten price card is tucked into the crate, and several oranges are visible in a neighboring crate behind it.",
+    "question": "How many apples are in the crate?",
+    "response": {
+      "vision": "The front wooden crate contains three green apples. The oranges are in a separate crate behind it and are not part of the apple count.",
+      "reasoning": "Counting only the green apples inside the specified crate gives three.",
+      "answer": "3"
+    }
+  },
+  {
+    "image_description": "A library study table is viewed from above. An open book lies in the center, with a pair of reading glasses resting across its right-hand page. To the left is a paper cup printed with the word 'COFFEE'; a closed laptop and a pencil case sit along the upper edge of the table. No one is seated at the table.",
+    "question": "What is resting on the open book?",
+    "response": {
+      "vision": "The open book is in the middle of the table. A pair of reading glasses lies directly across the page on the book's right side. The cup, laptop, and pencil case are nearby but are on the table rather than on the book.",
+      "reasoning": "The glasses are the item visibly placed on top of the open book.",
+      "answer": "glasses"
+    }
+  }
+]

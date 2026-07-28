@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 import torch
@@ -44,13 +45,21 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         self.processor_class = AutoProcessor
         self.attn_implementation = attn_implementation
         self.adapter_path = adapter_path
+        self.device_map_name = os.environ.get("QWEN_DEVICE_MAP")
+        if self.device_map_name is not None:
+            if family != "qwen2_5_vl":
+                raise ValueError("QWEN_DEVICE_MAP is only supported for qwen2_5_vl")
+            if self.device_map_name != "vision_language_split":
+                raise ValueError(
+                    "QWEN_DEVICE_MAP must be vision_language_split when set"
+                )
         self.processor = None
         self.model = None
         self.device = None
 
     @property
     def runtime_config(self) -> dict:
-        return {
+        config = {
             "engine": "transformers",
             "attn_implementation": self.attn_implementation,
             "adapter_path": str(self.adapter_path) if self.adapter_path else None,
@@ -58,6 +67,9 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
             "adaptive_oom_split": True,
             "modality_batch_split": True,
         }
+        if self.device_map_name is not None:
+            config["device_map"] = self.device_map_name
+        return config
 
     def decode_generated_tokens(self, token_ids: tuple[int, ...]) -> str:
         self._load()
@@ -74,8 +86,17 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         self.processor = self.processor_class.from_pretrained(
             self.model_path, local_files_only=True
         )
+        device_map = (
+            {
+                "model.visual": 0,
+                "model.language_model": 1,
+                "lm_head": 1,
+            }
+            if self.device_map_name == "vision_language_split"
+            else "auto"
+        )
         model_kwargs = {
-            "device_map": "auto",
+            "device_map": device_map,
             "low_cpu_mem_usage": True,
             "local_files_only": True,
         }

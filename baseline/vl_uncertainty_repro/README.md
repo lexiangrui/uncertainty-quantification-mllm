@@ -39,7 +39,7 @@ source configs/vl_uncertainty.env
 ### 集群提交
 
 ```bash
-sbatch slurm/run_vl_uncertainty_mmvet.sbatch
+sbatch ../../slurm/vl_uncertainty/run_full_all_datasets.sbatch
 ```
 
 ### 冒烟测试
@@ -68,8 +68,8 @@ MiliLab 集群校外入口 `mg01-out` 检查结果：
 
 成功重跑配置：
 
-- 模型：`/opt/lexiangrui/vauq_assets/models/llava-1.5-7b-hf`
-- 文本扰动模型：`/opt/lexiangrui/vauq_assets/models/Qwen2.5-3B-Instruct`
+- 模型：`/opt/lexiangrui/models/llava-1.5-7b-hf`
+- 文本扰动模型：`/opt/lexiangrui/models/Qwen2.5-3B-Instruct`
 - 远端日志：`~/vl_uncertainty_repro/logs/vlu-mmvet-llava_34784.out`
 - 远端结果：`~/vl_uncertainty_repro/results/mmvet_llava_vlu.{jsonl,summary.json}`
 - 本地 summary：`results/mmvet_llava_vlu.summary.json`

@@ -5,6 +5,7 @@ import io
 import json
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from PIL import Image
@@ -61,11 +62,29 @@ class JudgeResult:
         }
 
 
+_JUDGE_MAX_IMAGE_EDGE = 1024
+
+
 def _image_data_url(image: Image.Image) -> str:
+    """Encode an image as a data URL, downscaled to fit within a bounding box.
+
+    Large images cause upstream timeouts on some OpenAI-compatible proxies;
+    resizing to a bounded edge keeps the payload and visual-token count
+    manageable while preserving enough detail for hallucination judging.
+    """
+    resized = image
+    if max(image.size) > _JUDGE_MAX_IMAGE_EDGE:
+        ratio = _JUDGE_MAX_IMAGE_EDGE / max(image.size)
+        resized = image.resize(
+            (max(1, int(image.size[0] * ratio)), max(1, int(image.size[1] * ratio))),
+            Image.LANCZOS,
+        )
+    if resized.mode in ("RGBA", "LA", "P"):
+        resized = resized.convert("RGB")
     buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
+    resized.save(buffer, format="JPEG", quality=85)
     payload = base64.b64encode(buffer.getvalue()).decode("ascii")
-    return f"data:image/png;base64,{payload}"
+    return f"data:image/jpeg;base64,{payload}"
 
 
 def build_openai_judge_messages(
@@ -111,6 +130,44 @@ def build_openai_judge_messages(
     ]
 
 
+def _build_responses_input(
+    *,
+    dataset: str,
+    question: str,
+    references: list[str],
+    vision: str,
+    reasoning: str,
+    answer: str,
+    image: Image.Image | None,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Build (system_prompt, user_content_blocks) for the OpenAI Responses API."""
+    payload = {
+        "dataset": dataset,
+        "question": question,
+        "accepted_reference_answers": references,
+        "candidate_response": {
+            "visual_observations": vision,
+            "reasoning": reasoning,
+            "answer": answer,
+        },
+    }
+    blocks: list[dict[str, Any]] = []
+    if image is not None:
+        blocks.append(
+            {"type": "input_image", "image_url": _image_data_url(image)}
+        )
+    blocks.append(
+        {
+            "type": "input_text",
+            "text": (
+                json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+                + "\n\nReturn the requested json object only."
+            ),
+        }
+    )
+    return JUDGE_SYSTEM_PROMPT, blocks
+
+
 def parse_openai_judge_response(text: str) -> JudgeResult:
     try:
         value = json.loads(text.strip())
@@ -145,6 +202,36 @@ def parse_openai_judge_response(text: str) -> JudgeResult:
     )
 
 
+def _load_codex_credentials() -> tuple[str, str]:
+    """Resolve base_url and api_key from the local Codex CLI configuration."""
+    auth_path = Path.home() / ".codex" / "auth.json"
+    config_path = Path.home() / ".codex" / "config.toml"
+    api_key = ""
+    if auth_path.is_file():
+        try:
+            auth = json.loads(auth_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            auth = {}
+        api_key = str(auth.get("OPENAI_API_KEY", "")).strip()
+    base_url = ""
+    if config_path.is_file():
+        try:
+            import tomllib
+
+            with config_path.open("rb") as handle:
+                config = tomllib.load(handle)
+        except (OSError, Exception):
+            config = {}
+        providers = config.get("model_providers", {})
+        for provider in providers.values():
+            if isinstance(provider, dict):
+                candidate = str(provider.get("base_url", "")).strip()
+                if candidate:
+                    base_url = candidate
+                    break
+    return base_url, api_key
+
+
 class OpenAIChatJudge:
     def __init__(
         self,
@@ -161,12 +248,17 @@ class OpenAIChatJudge:
             base_url = os.environ.get("OPENAI_BASE_URL", "").strip()
             api_key = os.environ.get("OPENAI_API_KEY", "").strip()
             if not base_url or not api_key:
+                fallback_url, fallback_key = _load_codex_credentials()
+                base_url = base_url or fallback_url
+                api_key = api_key or fallback_key
+            if not base_url or not api_key:
                 raise RuntimeError(
-                    "OPENAI_BASE_URL and OPENAI_API_KEY must be non-empty environment variables"
+                    "OPENAI_BASE_URL and OPENAI_API_KEY must be set as environment "
+                    "variables or available in ~/.codex (auth.json + config.toml)"
                 )
             from openai import OpenAI
 
-            client = OpenAI(base_url=base_url, api_key=api_key)
+            client = OpenAI(base_url=base_url, api_key=api_key, timeout=30.0)
         self.model = model
         self.max_tokens = max_tokens
         self.client = client
@@ -174,17 +266,20 @@ class OpenAIChatJudge:
 
     def judge(self, **message_inputs: Any) -> JudgeResult:
         self.last_raw_response = None
-        messages = build_openai_judge_messages(**message_inputs)
-        completion = self.client.chat.completions.create(
+        system_prompt, user_content = _build_responses_input(**message_inputs)
+        response = self.client.responses.create(
             model=self.model,
-            messages=messages,
-            temperature=0,
-            max_tokens=self.max_tokens,
-            response_format={"type": "json_object"},
+            instructions=system_prompt,
+            input=[
+                {
+                    "role": "user",
+                    "content": user_content,
+                }
+            ],
+            text={"format": {"type": "json_object"}},
+            max_output_tokens=self.max_tokens,
         )
-        if len(completion.choices) != 1:
-            raise RuntimeError("judge returned an unexpected number of choices")
-        content = completion.choices[0].message.content
+        content = response.output_text
         if not isinstance(content, str) or not content.strip():
             raise RuntimeError("judge returned empty content")
         self.last_raw_response = content

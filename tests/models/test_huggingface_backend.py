@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 from PIL import Image
@@ -13,6 +14,19 @@ class PeftLikeModel:
 
     def get_base_model(self):
         return self.base_model
+
+
+def test_qwen_split_device_map_is_recorded(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("QWEN_DEVICE_MAP", "vision_language_split")
+
+    backend = HuggingFaceMultimodalBackend(
+        "qwen2_5_vl",
+        tmp_path,
+        attn_implementation="flash_attention_2",
+        adapter_path=None,
+    )
+
+    assert backend.runtime_config["device_map"] == "vision_language_split"
 
 
 def backend_with(model):

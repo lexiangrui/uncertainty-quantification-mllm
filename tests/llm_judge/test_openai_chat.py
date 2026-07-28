@@ -31,21 +31,19 @@ def test_prompt_explicitly_requests_lowercase_json() -> None:
     assert "json" in JUDGE_SYSTEM_PROMPT
 
 
-class FakeCompletions:
+class FakeResponses:
     def __init__(self, response: str = VALID_RESPONSE) -> None:
         self.response = response
         self.kwargs = None
 
     def create(self, **kwargs):
         self.kwargs = kwargs
-        message = SimpleNamespace(content=self.response)
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+        return SimpleNamespace(output_text=self.response)
 
 
 class FakeClient:
     def __init__(self, response: str = VALID_RESPONSE) -> None:
-        self.completions = FakeCompletions(response)
-        self.chat = SimpleNamespace(completions=self.completions)
+        self.responses = FakeResponses(response)
 
 
 def test_messages_include_data_url_only_when_image_exists() -> None:
@@ -62,7 +60,7 @@ def test_messages_include_data_url_only_when_image_exists() -> None:
     )
     content = with_image[1]["content"]
     assert content[0]["type"] == "image_url"
-    assert content[0]["image_url"]["url"].startswith("data:image/png;base64,")
+    assert content[0]["image_url"]["url"].startswith("data:image/jpeg;base64,")
     assert content[1]["type"] == "text"
     assert "json" in content[1]["text"]
 
@@ -70,7 +68,7 @@ def test_messages_include_data_url_only_when_image_exists() -> None:
     assert [item["type"] for item in without_image[1]["content"]] == ["text"]
 
 
-def test_client_uses_chat_completions_json_mode() -> None:
+def test_client_uses_responses_json_mode() -> None:
     client = FakeClient()
     judge = OpenAIChatJudge("judge-model", client=client)
     result = judge.judge(
@@ -84,9 +82,8 @@ def test_client_uses_chat_completions_json_mode() -> None:
     )
     assert result.correct is True
     assert result.hallucination is False
-    assert client.completions.kwargs["model"] == "judge-model"
-    assert client.completions.kwargs["temperature"] == 0
-    assert client.completions.kwargs["response_format"] == {"type": "json_object"}
+    assert client.responses.kwargs["model"] == "judge-model"
+    assert client.responses.kwargs["text"] == {"format": {"type": "json_object"}}
 
 
 def test_response_validation() -> None:
@@ -101,6 +98,10 @@ def test_response_validation() -> None:
 def test_environment_is_required(monkeypatch) -> None:
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(
+        "src.llm_judge.openai_chat._load_codex_credentials",
+        lambda: ("", ""),
+    )
     with pytest.raises(RuntimeError, match="OPENAI_BASE_URL"):
         OpenAIChatJudge("judge-model")
 
@@ -205,6 +206,6 @@ def test_runner_records_unseparated_input_without_api_call(monkeypatch, tmp_path
         output=output,
         limit=None,
     ) == (1, 0)
-    assert client.completions.kwargs is None
+    assert client.responses.kwargs is None
     rows = [json.loads(line) for line in output.read_text().splitlines()]
     assert rows[1]["judge"]["valid"] is False

@@ -12,10 +12,12 @@ class TextModel(ABC):
     def generate(self, prompt: str, temp: float = 0.1, max_new_tokens: int = 256) -> str:
         raise NotImplementedError
 
-
-class EntailmentModel(ABC):
-    """Semantic equivalence helper."""
-
-    @abstractmethod
-    def entails(self, premise: str, hypothesis: str) -> bool:
-        raise NotImplementedError
+    def generate_batch(
+        self, prompts: list[str], temps: list[float], max_new_tokens: int = 256
+    ) -> list[str]:
+        if len(prompts) != len(temps):
+            raise ValueError("prompts and temps must have the same length")
+        return [
+            self.generate(prompt, temp=temp, max_new_tokens=max_new_tokens)
+            for prompt, temp in zip(prompts, temps)
+        ]

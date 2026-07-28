@@ -8,6 +8,7 @@ import torch
 from PIL import Image
 from transformers import AutoProcessor, LlavaForConditionalGeneration
 
+from ..masking import choose_masked_offsets
 from .base import Backend
 
 
@@ -35,7 +36,7 @@ class LlavaBackend(Backend):
         model_name = _resolve_model_name(model_path)
         self.model = LlavaForConditionalGeneration.from_pretrained(
             model_name,
-            torch_dtype=torch_dtype or torch.float16,
+            dtype=torch_dtype or torch.float16,
             low_cpu_mem_usage=True,
             attn_implementation=attn_implementation,
         ).to(self.device)
@@ -62,7 +63,7 @@ class LlavaBackend(Backend):
         ).to(self.device)
         return inputs, image
 
-    def generate_with_ids(self, image, question, temp: float = 0.0, max_new_tokens: int = 128):
+    def generate_with_ids(self, image, question, max_new_tokens: int = 128):
         inputs, _ = self._prepare_inputs(image, question)
         with torch.no_grad():
             generated_ids = self.model.generate(
@@ -99,50 +100,61 @@ class LlavaBackend(Backend):
         generated_ids,
         topk_ratio: float = 0.6,
         layer_range: tuple[int, int] = (10, 25),
-        ablation_baseline: str = "attention_mask",
+        mask_strategy: str = "core",
+        mask_seed: int | None = None,
     ):
-        """Forward pass with core vision tokens masked via attention."""
+        """Forward pass with core, equal-count random, or all-token masking."""
         inputs, _ = self._prepare_inputs(image, question)
         full_ids = torch.cat([inputs.input_ids, generated_ids], dim=1)
         prompt_len = inputs.input_ids.shape[1]
 
-        with torch.no_grad():
-            outputs = self.model(
-                input_ids=full_ids,
-                pixel_values=inputs.pixel_values,
-                output_attentions=True,
-                return_dict=True,
-            )
-
         vision_token_id = self.tokenizer.convert_tokens_to_ids("<image>")
         positions = (full_ids[0] == vision_token_id).nonzero(as_tuple=True)[0]
+        if positions.numel() != 576:
+            raise AssertionError(
+                f"VAUQ requires 576 expanded LLaVA visual tokens, got {positions.numel()}"
+            )
         first_pos, last_pos = positions[0].item(), positions[-1].item() + 1
+        if last_pos - first_pos != positions.numel():
+            raise AssertionError("expanded LLaVA visual tokens must form one contiguous span")
 
-        attentions = torch.stack(outputs.attentions, dim=0).squeeze(1)
-        selected_vis_attentions = (
-            attentions[layer_range[0]: layer_range[1]][
-                :, :, prompt_len:, first_pos:last_pos
-            ]
-            .mean(0)
-            .mean(0)
-            .mean(0)
-        )
+        selected_vis_attentions = None
+        if mask_strategy == "core":
+            with torch.no_grad():
+                outputs = self.model(
+                    input_ids=full_ids,
+                    pixel_values=inputs.pixel_values,
+                    output_attentions=True,
+                    return_dict=True,
+                )
+            attentions = torch.stack(outputs.attentions, dim=0).squeeze(1)
+            selected_vis_attentions = (
+                attentions[layer_range[0]: layer_range[1]][
+                    :, :, prompt_len:, first_pos:last_pos
+                ]
+                .mean(0)
+                .mean(0)
+                .mean(0)
+            )
+            if selected_vis_attentions.numel() != positions.numel():
+                raise AssertionError(
+                    f"visual attention length {selected_vis_attentions.numel()} does not "
+                    f"match image-token count {positions.numel()}"
+                )
 
-        num_tokens = selected_vis_attentions.numel()
-        k = max(1, int(num_tokens * topk_ratio))
-        _, top_k_indices = torch.topk(selected_vis_attentions, k)
+        masked_offsets = choose_masked_offsets(
+            positions.numel(),
+            topk_ratio,
+            mask_strategy,
+            attention_scores=selected_vis_attentions,
+            seed=mask_seed,
+        ).to(full_ids.device)
 
-        if ablation_baseline != "attention_mask":
-            raise ValueError("Only attention_mask ablation is supported.")
         attention_mask = torch.cat(
             [inputs.attention_mask, torch.ones_like(generated_ids)], dim=1
         )
-        absolute_masked_indices = first_pos + top_k_indices
+        absolute_masked_indices = first_pos + masked_offsets
         attention_mask[0, absolute_masked_indices] = 0
-        del outputs, attentions, selected_vis_attentions, top_k_indices
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
         with torch.no_grad():
             outputs_masked = self.model(
                 input_ids=full_ids,

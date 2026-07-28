@@ -20,9 +20,10 @@ Usage
       --text-model-path /path/to/Qwen2.5-3B-Instruct \\
       --limit 218 --output results/mmvet_llava_vlu.jsonl
 
-  # Smoke test (no GPU / no models)
+  # Smoke test with the real models
   python scripts/run_vl_uncertainty.py \\
-      --backend mock --benchmark toy --text-model echo --judge choice --limit 2
+      --backend llava --benchmark cvbench --text-model qwen \\
+      --judge regex_choice --limit 10
 """
 
 from __future__ import annotations
@@ -39,47 +40,20 @@ import numpy as np
 from tqdm import tqdm
 
 ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = ROOT.parents[1]
 SRC = ROOT / "src"
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from vl_uncertainty.backends import BACKEND_MAP, Backend, build_backend
-from vl_uncertainty.benchmarks import BENCHMARK_MAP, DEFAULT_JUDGE, Benchmark, build_benchmark
+from judge import QwenLLMJudge, RegexChoiceJudge
+from vl_uncertainty.backends import build_backend
+from vl_uncertainty.benchmarks import BENCHMARK_MAP, build_benchmark
 from vl_uncertainty.eval import compute_metrics
-from vl_uncertainty.judges import build_judge
 from vl_uncertainty.perturbations import PerturbationConfig
 from vl_uncertainty.scoring import compute_vl_uncertainty
 from vl_uncertainty.text_models import build_text_model
-
-
-# ------------------------------------------------------------------
-# Mock & Toy (smoke tests)
-# ------------------------------------------------------------------
-class MockBackend(Backend):
-    def generate(self, image, question: str, temp: float = 0.1, max_new_tokens: int = 64):
-        import torch
-        if temp < 0.5:
-            return "0", [-0.5, -0.3], None
-        ans = str(int(temp * 10) % 2)
-        return ans, [-0.2, -0.1], None
-
-
-class ToyBenchmark(Benchmark):
-    benchmark_type = "multi_choice"
-
-    def __init__(self):
-        from PIL import Image
-        self.img = Image.new("RGB", (8, 8), (255, 255, 255))
-
-    def obtain_size(self) -> int:
-        return 2
-
-    def retrieve(self, idx: int) -> dict | None:
-        return {
-            "idx": idx, "img": self.img, "num_c": 2,
-            "question": "What color is the image?\n(0): white\n(1): black\nThis is a single choice question, answer only with choice number in 0, 1.",
-            "gt_ans": idx % 2, "choices": ["white", "black"],
-        }
 
 
 # ------------------------------------------------------------------
@@ -87,23 +61,31 @@ class ToyBenchmark(Benchmark):
 # ------------------------------------------------------------------
 def parse_args():
     p = argparse.ArgumentParser(description="VL-Uncertainty (Zhang et al. 2024)")
-    p.add_argument("--backend", choices=sorted([*BACKEND_MAP, "mock"]), default="llava")
-    p.add_argument("--benchmark", choices=sorted([*BENCHMARK_MAP, "toy"]), default="mmvet")
-    p.add_argument("--judge", choices=["choice", "llm", "none"], default=None)
-    p.add_argument("--text-model", choices=["qwen", "echo"], default="echo")
+    p.add_argument("--backend", choices=["llava"], default="llava")
+    p.add_argument("--benchmark", choices=sorted(BENCHMARK_MAP), default="mmvet")
+    p.add_argument("--judge", choices=["regex_choice", "qwen_llm"], default=None)
+    p.add_argument("--text-model", choices=["qwen"], default="qwen")
     p.add_argument("--model-path", default=os.environ.get("VLU_MODEL_PATH", "llava-hf/llava-1.5-7b-hf"))
     p.add_argument("--text-model-path", default=os.environ.get("VLU_TEXT_MODEL_PATH", "Qwen/Qwen2.5-3B-Instruct"))
     p.add_argument("--llava-device", default="cuda:0")
+    p.add_argument(
+        "--attn-implementation",
+        choices=["eager", "flash_attention_2"],
+        default="eager",
+        help="Attention backend used by LLaVA.",
+    )
     p.add_argument("--text-device", default="cuda:1")
     p.add_argument("--sampling-temp", type=float, default=1.0)
-    p.add_argument("--max-new-tokens", type=int, default=64)
-    p.add_argument("--perturbation-type", choices=["blurring", "none"], default="blurring")
+    p.add_argument("--max-new-tokens", type=int, default=32)
     p.add_argument("--limit", type=int, default=None)
     p.add_argument("--start", type=int, default=0)
-    p.add_argument("--output", default="results/vl_uncertainty_results.jsonl")
+    p.add_argument(
+        "--output",
+        default=str(PROJECT_ROOT / "results" / "vl_uncertainty" / "vl_uncertainty_results.jsonl"),
+    )
     p.add_argument("--summary-output", default=None)
     p.add_argument("--resume", action="store_true")
-    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--seed", type=int, default=0)
     return p.parse_args()
 
 
@@ -128,32 +110,38 @@ def main():
     fix_seed(args.seed)
 
     # Backend (LVLM on GPU 0).
-    backend = MockBackend() if args.backend == "mock" else build_backend(
-        args.backend, model_path=args.model_path, device=args.llava_device,
+    backend = build_backend(
+        args.backend,
+        model_path=args.model_path,
+        device=args.llava_device,
+        attn_implementation=args.attn_implementation,
     )
 
     # Benchmark.
-    benchmark = ToyBenchmark() if args.benchmark == "toy" else build_benchmark(args.benchmark)
+    benchmark = build_benchmark(args.benchmark)
 
     # Text model (Qwen for rephrasing, entailment, judge — on GPU 1).
-    text_kwargs = {} if args.text_model == "echo" else {
+    text_kwargs = {
         "model_path": args.text_model_path,
         "device": args.text_device,
     }
     text_model = build_text_model(args.text_model, **text_kwargs)
 
     # Judge.
-    judge_name = args.judge or DEFAULT_JUDGE.get(args.benchmark, "none")
-    judge = build_judge(judge_name, text_model=text_model)
+    judge_name = args.judge or ("regex_choice" if args.benchmark == "cvbench" else "qwen_llm")
+    expected_judge = "regex_choice" if args.benchmark == "cvbench" else "qwen_llm"
+    if judge_name != expected_judge:
+        raise ValueError(f"{args.benchmark} requires --judge {expected_judge}")
+    judge = (
+        RegexChoiceJudge()
+        if args.benchmark == "cvbench"
+        else QwenLLMJudge(tokenizer=text_model.tokenizer, model=text_model.model)
+    )
 
     # Perturbation config.
     pert_config = PerturbationConfig(
-        visual_perturbation=args.perturbation_type,
         blur_radius_list=(0.6, 0.8, 1.0, 1.2, 1.4),
-        textual_perturbation="llm_rephrasing" if args.text_model != "echo" else "none",
         textual_temps=(0.1, 0.2, 0.3, 0.4, 0.5),
-        sampling_time=5,
-        pair_order="progressively",
     )
 
     # Output.
@@ -184,7 +172,11 @@ def main():
             # Compute VL-Uncertainty.
             result = compute_vl_uncertainty(
                 backend=backend,
-                sample={"img": image, "question": raw_question},
+                sample={
+                    "img": image,
+                    "question": raw_question,
+                    "num_c": len(sample.get("choices", [])),
+                },
                 text_model=text_model,
                 benchmark_type=benchmark_type,
                 pert_config=pert_config,
@@ -195,7 +187,10 @@ def main():
             prediction = result.most_likely_answer or result.sampled_answers[0]
 
             # Judge correctness.
-            correct = judge.judge(prediction, gt_ans, sample)
+            if args.benchmark == "cvbench":
+                correct = judge.judge(prediction, int(gt_ans), sample["choices"], mode="number")
+            else:
+                correct = judge.judge(raw_question, [str(gt_ans)], prediction)
 
             hallucination_pred = result.uncertainty >= 1.0
             detection_correct = None if correct is None else (
@@ -226,7 +221,7 @@ def main():
                     "backend": args.backend,
                     "benchmark": args.benchmark,
                     "sampling_temp": args.sampling_temp,
-                    "perturbation_type": args.perturbation_type,
+                    "perturbation_type": "blurring",
                 },
             }
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -274,10 +269,7 @@ def _load_done(path: Path) -> set[str]:
         for line in f:
             if not line.strip():
                 continue
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
-                continue
+            row = json.loads(line)
             if row.get("id") is not None:
                 done.add(str(row["id"]))
     return done

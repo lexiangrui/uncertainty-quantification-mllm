@@ -26,10 +26,26 @@ class VILP(Benchmark):
         source: str = DATASET_REPO,
         parquet_file: str = PARQUET_FILE,
         cases: tuple[int, ...] = (1, 2),
+        question_style: str = "final_answer",
     ):
         parquet_path = _resolve_vilp_parquet(source, parquet_file)
         self.ds = pd.read_parquet(parquet_path)
         self.cases = tuple(cases)
+        STYLES = {
+            "raw": lambda q: q,
+            "final_answer": lambda q: (
+                f"{q}\n"
+                "NOTE: Provide only the final answer. Do not provide unrelated details."
+            ),
+            "describe_then_answer": lambda q: (
+                f"{q}\n"
+                "First note what you see in the image relevant to the question, then answer."
+            ),
+        }
+        if question_style not in STYLES:
+            raise ValueError(f"unknown ViLP question_style: {question_style!r}")
+        self._format_question = STYLES[question_style]
+        self.question_style = question_style
 
     def obtain_size(self) -> int:
         return len(self.ds) * len(self.cases)
@@ -38,10 +54,8 @@ class VILP(Benchmark):
         original_idx = idx // len(self.cases)
         case = self.cases[idx % len(self.cases)]
         row = self.ds.iloc[original_idx]
-        question = (
-            f"{row['question']}\n"
-            "NOTE: Provide only the final answer. Do not provide unrelated details."
-        )
+        raw_question = str(row["question"])
+        question = self._format_question(raw_question)
         image = _decode_image(row.get(f"image{case}"))
         return {
             "idx": idx,
@@ -49,6 +63,7 @@ class VILP(Benchmark):
             "case": int(case),
             "img": image,
             "question": question,
+            "raw_question": raw_question,
             "gt_ans": row.get(f"answer{case}"),
             "subset": f"case{case}",
         }

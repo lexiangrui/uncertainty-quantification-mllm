@@ -119,42 +119,50 @@ def _extract_sample_hidden(
         tuple(int(value) for value in token_payload[f"sample_{index}"].tolist())
         for index in range(len(samples))
     ]
-    batch, prompt_lengths = _collate_inputs(backend, sample, token_sequences)
-    response_positions = []
-    for index, (sample_record, token_ids) in enumerate(
-        zip(samples, token_sequences, strict=True)
-    ):
-        token_end = _token_end_for_answer(
-            backend, sample_record.get("raw_response", ""), token_ids
-        )
-        if token_end < 1:
-            raise ValueError(f"empty generated response for {sample.sample_id}:{index}")
-        response_positions.append(prompt_lengths[index] + token_end - 1)
 
-    captured = None
+    captured: list[torch.Tensor | None] = [None]
 
     def capture(_module, _args, output):
-        nonlocal captured
         hidden = getattr(output, "last_hidden_state", None)
         if hidden is None and isinstance(output, tuple) and output:
             hidden = output[0]
         if hidden is None or hidden.ndim != 3:
             raise RuntimeError("language model did not expose last_hidden_state")
-        captured = hidden
+        captured[0] = hidden
 
     assert backend.model is not None
     handle = backend._semantic_embedding_module().register_forward_hook(capture)
+    vectors: list[torch.Tensor] = []
     try:
         with torch.inference_mode():
-            backend.model(**batch, use_cache=False, return_dict=True)
+            for index, (sample_record, token_ids) in enumerate(
+                zip(samples, token_sequences, strict=True)
+            ):
+                token_end = _token_end_for_answer(
+                    backend, sample_record.get("raw_response", ""), token_ids
+                )
+                if token_end < 1:
+                    raise ValueError(
+                        f"empty generated response for {sample.sample_id}:{index}"
+                    )
+                batch, prompt_lengths = _collate_inputs(
+                    backend, sample, [token_ids]
+                )
+                response_position = prompt_lengths[0] + token_end - 1
+                captured[0] = None
+                backend.model(**batch, use_cache=False, return_dict=True)
+                if captured[0] is None:
+                    raise RuntimeError(
+                        "hidden-state forward pass did not reach the decoder"
+                    )
+                vectors.append(captured[0][0, response_position])
+                captured[0] = None
+                del batch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
     finally:
         handle.remove()
-    if captured is None:
-        raise RuntimeError("hidden-state forward pass did not reach the decoder")
-    vectors = torch.stack(
-        [captured[index, position] for index, position in enumerate(response_positions)]
-    )
-    return vectors.detach().to(device="cpu", dtype=torch.float16)
+    return torch.stack(vectors).detach().to(device="cpu", dtype=torch.float16)
 
 
 def _write_hidden(output: Path, sample_id: str, tensor: torch.Tensor) -> dict:

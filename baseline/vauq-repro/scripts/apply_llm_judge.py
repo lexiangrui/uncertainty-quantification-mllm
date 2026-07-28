@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 import sys
 from pathlib import Path
@@ -17,12 +18,15 @@ from pathlib import Path
 from tqdm import tqdm
 
 ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = ROOT.parents[1]
 SRC = ROOT / "src"
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from judge import QwenLLMJudge
 from vauq.eval import compute_metrics
-from vauq.judges import LLMJudge, QwenLocalJudge
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,13 +34,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input", required=True, help="Input VAUQ JSONL file.")
     parser.add_argument("--output", default=None, help="Output JSONL. Default: <input>.llm_judged.jsonl")
     parser.add_argument("--summary-output", default=None)
-    parser.add_argument("--judge", choices=["llm", "qwen_local"], default="qwen_local")
+    parser.add_argument("--judge", choices=["qwen_llm"], default="qwen_llm")
     parser.add_argument("--resume", action="store_true", help="Append and skip IDs already in output.")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--sleep", type=float, default=0.0, help="Seconds to sleep between API calls.")
-    parser.add_argument("--model", default=None, help="Override LLM_JUDGE_MODEL.")
-    parser.add_argument("--base-url", default=None, help="Override LLM_JUDGE_BASE_URL.")
+    parser.add_argument("--model", default=None, help="Override QWEN_JUDGE_MODEL.")
     return parser.parse_args()
 
 
@@ -53,10 +56,10 @@ def main() -> None:
 
     done = _load_done(out_path) if args.resume else {}
     mode = "a" if args.resume and done else "w"
-    judge = QwenLocalJudge() if args.judge == "qwen_local" else LLMJudge(model=args.model, base_url=args.base_url)
+    model_path = args.model or os.environ["QWEN_JUDGE_MODEL"]
+    judge = QwenLLMJudge(model_path)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    skipped: list[str] = []
     with out_path.open(mode, encoding="utf-8") as f:
         for row in tqdm(selected, desc="LLM judge"):
             row_id = str(row.get("id"))
@@ -65,17 +68,11 @@ def main() -> None:
             labeled = dict(row)
             if "correct" in labeled and "correct_before_llm" not in labeled:
                 labeled["correct_before_llm"] = labeled["correct"]
-            try:
-                correct = judge.judge(
-                    labeled.get("prediction", ""),
-                    labeled.get("gt_ans"),
-                    labeled,
-                )
-            except Exception as exc:  # noqa: BLE001 - skip row, retry via --resume
-                # Don't write the row on failure so --resume retries this id next run.
-                skipped.append(row_id)
-                print(f"[skip] id={row_id} judge failed: {exc}", file=sys.stderr)
-                continue
+            correct = judge.judge(
+                labeled.get("question", ""),
+                [str(labeled.get("gt_ans"))],
+                labeled.get("prediction", ""),
+            )
             labeled["correct"] = correct
             labeled["judge"] = args.judge
             labeled["judge_result"] = getattr(judge, "last_result", None)
@@ -83,13 +80,6 @@ def main() -> None:
             f.flush()
             if args.sleep > 0:
                 time.sleep(args.sleep)
-
-    if skipped:
-        print(
-            f"[warn] {len(skipped)} rows skipped due to judge errors; "
-            f"re-run with --resume to retry them.",
-            file=sys.stderr,
-        )
 
     records = _read_jsonl(out_path)
     summary = _summarize(records)

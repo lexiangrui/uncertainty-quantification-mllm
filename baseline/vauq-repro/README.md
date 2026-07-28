@@ -18,6 +18,16 @@ s_VAUQ  = H(y | v, t) - alpha * IS_core
 
 核心视觉 token 的选取：在 `[prompt; generated_ids]` 上做一次带 `output_attentions` 的前向，取 `layer_range` 层、所有注意力头、所有响应 query 位置对视觉 token 区间的平均注意力，按 `topk_ratio` 取 top-k，在第二次前向里把这些位置的 `attention_mask` 置 0。
 
+## 遮蔽对照实验
+
+`--mask-strategy` 提供三个只改变视觉 token 选取方式的实验条件：
+
+- `core`：论文 VAUQ，按响应对视觉 token 的注意力选 top-k。
+- `random`：从同一组 576 个视觉 token 中无放回随机选择相同数量；每条样本使用 `seed + sample_id`，可复现且不受运行/恢复顺序影响。
+- `blank`：将全部 576 个视觉 token 的 attention mask 置零。这里的 blank 是视觉 token 消融，不是把输入像素换成黑图。
+
+三种条件都先用原图 greedy 生成一次答案，再在同一答案上计算原图与遮蔽后的 teacher-forced entropy。因此 accuracy 和原图 entropy 理论上不应随策略改变，真正比较的是 `is_score` 与最终 `vauq` 的 AUROC/AUPR。随机法沿用各数据集的论文 `topk_ratio`：ViLP 0.6、MMVet 0.4、CVBench 0.3；blank 的该参数只保留在配置中，不参与遮蔽数量计算。
+
 ## 目录结构
 
 ```
@@ -29,7 +39,7 @@ vauq-repro/
 ├── scripts/
 │   ├── run_vauq.py            # 通用 CLI
 │   └── fetch_assets.sh        # 登录节点预下载模型/数据集
-├── slurm/
+├── ../../slurm/vauq/                  # 项目级 Slurm 脚本
 │   ├── run_llava_cvbench.sbatch
 │   └── run_paper_grid.sbatch
 └── src/vauq/
@@ -52,7 +62,7 @@ vauq-repro/
 |---|---|---|
 | backend | `llava` | 白盒 LVLM 封装，暴露 `generate_with_ids / get_logits / get_logits_masked` |
 | benchmark | `vilp`, `mmvet`, `cvbench` | 数据集加载器，返回 `{img, question, gt_ans, choices?}` |
-| judge | `letter`, `qwen_local`, `llm`, `none` | `letter`=选择题字母正则；`qwen_local`=集群本地 Qwen2.5-3B free-form 判分；`llm`=API 判分；`none`=VAUQ 阶段暂不打标签 |
+| judge | `regex_choice`, `qwen_llm` | CVBench 使用共享正则判分；ViLP/MMVet 使用共享 Qwen 判分 |
 
 默认超参来自论文 Appendix F（在 `scripts/run_vauq.py` 的 `DEFAULT_HYPERPARAMETERS`）：LLaVA-1.5-7B/13B × ViLP/MMVet/CVBench。`K` 已换算为 `topk_ratio=K/100`。
 
@@ -60,7 +70,7 @@ vauq-repro/
 
 ## MiliLab 集群连接
 
-不在 `mg01` 上跑推理或下大模型；`mg01` 只用于登录、环境准备、提交 Slurm 作业与（按本工程约定）一次性预下载模型/数据集。GPU 任务通过 `sbatch` 交给计算节点。
+不在 `mg01` 上跑推理。模型和数据可以按本工程约定在登录节点一次性下载到共享 `/opt`；GPU 计算节点只读取本地文件，并设置 Hugging Face/Transformers 离线变量。所有模型推理通过 `sbatch` 交给计算节点。
 
 在本机 `~/.ssh/config` 配置（替换 `<username>` 与 `<path/to/your/private/key>`）：
 
@@ -126,10 +136,10 @@ source configs/vauq.env
 bash scripts/fetch_assets.sh
 ```
 
-`fetch_assets.sh` 把模型与数据集都集中下到**同一个资产根目录** `VAUQ_ASSETS_DIR`（默认 `/opt/lexiangrui/vauq_assets/`），其下分 `models/` 与 `datasets/`：
+`fetch_assets.sh` 把模型与数据集分别放在 `/opt/lexiangrui/` 下两个并列目录：
 
-- 模型 → `$VAUQ_ASSETS_DIR/models/`：默认下载 `llava-1.5-7b-hf/`、`llava-1.5-13b-hf/`（`huggingface_hub.snapshot_download`，断点续传）。已有 `Qwen2.5-VL-7B-Instruct/`、`Qwen3-VL-8B-Instruct/`、`InternVL3_5-8B-HF/` 权重目录保留，但不再作为推理 backend 使用。
-- 数据集 → `$VAUQ_ASSETS_DIR/datasets/`：CV-Bench 2D/3D、MM-Vet、ViLP parquet。
+- 模型 → `$VAUQ_MODELS_DIR/`（默认 `/opt/lexiangrui/models/`）：默认下载 `llava-1.5-7b-hf/`、`llava-1.5-13b-hf/`（`huggingface_hub.snapshot_download`，断点续传）。已有 `Qwen2.5-VL-7B-Instruct/`、`Qwen3-VL-8B-Instruct/`、`InternVL3_5-8B-HF/` 权重目录保留，但不再作为推理 backend 使用。
+- 数据集 → `$VAUQ_DATASETS_DIR/`（默认 `/opt/lexiangrui/datasets/`）：CV-Bench 2D/3D、MM-Vet、ViLP parquet。
 
 不依赖已废弃的 `huggingface-cli`。之后推理作业即可在 `HF_HUB_OFFLINE=1 / HF_DATASETS_OFFLINE=1 / TRANSFORMERS_OFFLINE=1` 下纯离线运行（slurm 脚本已默认设好）。
 
@@ -147,7 +157,7 @@ source configs/vauq.env
 ## Slurm 批量运行
 
 ```bash
-sbatch slurm/run_llava_cvbench.sbatch
+sbatch ../../slurm/vauq/run_llava_cvbench.sbatch
 squeue -u lexiangrui
 tail -f logs/vauq-llava-cvbench_<job_id>.out
 ```
@@ -157,12 +167,28 @@ tail -f logs/vauq-llava-cvbench_<job_id>.out
 论文主表当前复现组合（LLaVA-1.5-7B/13B × ViLP/MMVet/CVBench，已排除 VisualCoT）：
 
 ```bash
-sbatch slurm/run_paper_grid.sbatch
+sbatch ../../slurm/vauq/run_paper_grid.sbatch
 # 只做冒烟：
-LIMIT=4 sbatch slurm/run_paper_grid.sbatch
+LIMIT=4 sbatch ../../slurm/vauq/run_paper_grid.sbatch
 ```
 
-`run_paper_grid.sbatch` 使用论文 Appendix A 的生成设置：greedy decoding，`max_new_tokens=128`。CVBench 用 `letter` 正则判断字母是否相同；ViLP/MMVet 先输出 `correct=null` 的 VAUQ 结果，随后用本地 Qwen 裁判补标。
+回答生成优先遵循论文 Appendix A：greedy decoding，`max_new_tokens=128`。CVBench 使用项目根目录共享的 `RegexChoiceJudge`；ViLP/MMVet 使用共享的 `QwenLLMJudge`。
+
+LLaVA-1.5-7B 在三个数据集上的 blank/random 对照（共 6 个 array task）：
+
+```bash
+# 冒烟；每个条件/数据集 2 条
+LIMIT=2 sbatch --time=01:00:00 ../../slurm/vauq/run_mask_baselines_7b.sbatch
+
+# 全量，默认 seed=42；每个 array task 的时限为 2 小时
+sbatch ../../slurm/vauq/run_mask_baselines_7b.sbatch
+
+# 随机法如需报告多 seed，可分别提交并保留独立结果
+SEED=43 sbatch --array=3-5 ../../slurm/vauq/run_mask_baselines_7b.sbatch
+SEED=44 sbatch --array=3-5 ../../slurm/vauq/run_mask_baselines_7b.sbatch
+```
+
+输出位于项目根目录 `results/vauq/mask_baselines/`。与现有 `paper_v2` core 结果对比时必须沿用相同 judge 标签；尤其 ViLP/MMVet 的 judge 模型或版本变化会改变正确性标签，从而使 AUROC 不再是严格配对比较。
 
 ## Free-form Judge
 
@@ -174,7 +200,7 @@ free-form 数据集（ViLP/MMVet）不强制复刻 GPT-5 judge，默认使用集
 提交 Qwen 裁判作业：
 
 ```bash
-sbatch slurm/run_qwen_judge_paper_v2.sbatch
+sbatch ../../slurm/vauq/run_qwen_judge_paper_v2.sbatch
 ```
 
 也可以手动补标单个文件：
@@ -189,6 +215,47 @@ source configs/vauq.env
 ```
 
 API judge 仍保留为可选路径，但不作为当前论文版复现默认配置。
+
+## 实验二：正确性与视觉幻觉解耦
+
+实验二仅使用 MMVet 和 ViLP。LLaVA-1.5-7B 直接输入数据集原始问题，不附加“只输出最终答案”，使用 greedy decoding、`max_new_tokens=128`，并保存 `prediction`、`generated_ids` 和 Core VAUQ。Qwen Judge 直接查看原图，采用 MMHal-Bench 官方五个示例和 0–6 rating：
+
+```text
+rating 0/1/2 -> hallucination=true
+rating 3/4/5/6 -> hallucination=false
+```
+
+Judge 同一次输出独立的 `correct` 和 `rating`；`hallucination` 仅由程序按 `rating < 3` 派生，避免两个字段互相矛盾。
+
+模型先在 `mg01` 下载到共享 `/opt`，不在登录节点运行推理：
+
+```bash
+cd /home/lexiangrui/Uncertainty-Quantification-of-MLLM
+nohup env \
+  HF_ENDPOINT=https://hf-mirror.com \
+  HF_HOME=/opt/lexiangrui/hf_cache \
+  /home/lexiangrui/.venvs/vlm-transformers/bin/python -u \
+  baseline/vauq-repro/scripts/download_qwen36_27b.py \
+  --output /opt/lexiangrui/models/Qwen3.6-27B \
+  > logs/vauq/qwen36-download-login.log 2>&1 < /dev/null &
+```
+
+下载脚本只有在 `config.json`、safetensors index 及全部权重分片均存在且非空后，才会写入 `DOWNLOAD_COMPLETE.json`。计算节点作业设置 `HF_HUB_OFFLINE=1`、`HF_DATASETS_OFFLINE=1` 和 `TRANSFORMERS_OFFLINE=1`。
+
+完整运行分三步：
+
+```bash
+# 1. LLaVA 原始问题回答生成 + Core VAUQ（两个数据集并行）
+sbatch ../../slurm/vauq/run_experiment2_generate.sbatch
+
+# 2. Qwen3.6-27B 多模态 Judge（等待第一步和模型下载完成）
+sbatch ../../slurm/vauq/run_experiment2_judge.sbatch
+
+# 3. 四象限、条件 AUROC/AUPR、聚类 bootstrap 和控制变量回归
+sbatch ../../slurm/vauq/analyze_experiment2.sbatch
+```
+
+ViLP bootstrap 按原始问题聚类，保证事实/反事实图像对不会被拆开。Judge JSON 解析失败或 rating 越界的样本单独标记，不重试、不格式修复，并从主统计分析排除。
 
 ## 输出
 
@@ -228,7 +295,7 @@ API judge 仍保留为可选路径，但不作为当前论文版复现默认配�
 
 当前 `paper_v2` 已修复的结果影响项：
 
-- 生成设置已对齐论文 Appendix A：`run_paper_grid.sbatch` 使用 greedy decoding，`max_new_tokens=128`；`LlavaBackend.generate_with_ids` 不再硬编码 64。
+- 后续运行的生成设置对齐论文 Appendix A：greedy decoding、`max_new_tokens=128`。已有 `paper_v2` 结果保留，不据此重新全量运行。
 - CVBench 继续跑 2D+3D 全集 2638 条，判分采用字母正则匹配。这里不强制复刻论文未说明的 exact matching 归一化细节，只要求能正确判断预测字母和金标字母是否相同。
 - free-form 判分不强制复刻 GPT-5；当前采用集群本地开源 `Qwen2.5-3B-Instruct` 作为替代 judge，并在输出中标记为 `qwen_local`。
 - 当前仍只提交单次结果；论文 Appendix A 写“averaged over three random seeds”。如需完全对齐统计口径，需要再补 3-seed 重复实验。
