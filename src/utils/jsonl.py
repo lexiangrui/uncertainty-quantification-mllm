@@ -6,7 +6,18 @@ from pathlib import Path
 from typing import Any
 
 
-def completed_sample_ids(path: Path, run: dict[str, Any]) -> set[str]:
+def completed_sample_ids(
+    path: Path,
+    run: dict[str, Any],
+    *,
+    retry_statuses: set[str] | None = None,
+) -> set[str]:
+    """Return completed ids, optionally allowing specified failed statuses to retry.
+
+    Retried records remain in the JSONL audit trail. A later successful record
+    for the same sample is therefore valid when earlier records have one of
+    ``retry_statuses``; duplicate completed records remain an error.
+    """
     if not path.exists():
         return set()
     completed: set[str] = set()
@@ -34,6 +45,8 @@ def completed_sample_ids(path: Path, run: dict[str, Any]) -> set[str]:
             sample_id = record.get("sample", {}).get("sample_id")
             if not isinstance(sample_id, str):
                 raise ValueError(f"missing sample_id at {path}:{line_number}")
+            if retry_statuses is not None and record.get("status") in retry_statuses:
+                continue
             if sample_id in completed:
                 raise ValueError(f"duplicate sample_id in {path}: {sample_id}")
             completed.add(sample_id)

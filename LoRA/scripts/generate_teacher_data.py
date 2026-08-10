@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = ROOT.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from lora_format.teacher import (  # noqa: E402
@@ -86,8 +87,10 @@ def main() -> None:
     args = parse_args()
     # Validate credentials before reading images or creating output files.
     client = create_teacher_client()
-    system_prompt = (ROOT / "prompts" / "teacher_prompt.md").read_text(encoding="utf-8").strip()
-    examples = json.loads((ROOT / "prompts" / "few_shot_examples.json").read_text(encoding="utf-8"))
+    system_prompt = (PROJECT_ROOT / "prompts" / "LoRA" / "teacher_prompt.md").read_text(encoding="utf-8").strip()
+    examples = json.loads(
+        (PROJECT_ROOT / "prompts" / "LoRA" / "few_shot_examples.json").read_text(encoding="utf-8")
+    )
     done = accepted_ids(args.accepted)
     pending = [row for row in read_jsonl(args.candidates) if row["question_id"] not in done]
     if args.workers < 1:

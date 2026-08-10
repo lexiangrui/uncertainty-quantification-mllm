@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 import torch
@@ -8,6 +9,7 @@ from PIL import Image
 
 from src.datasets.base import BenchmarkSample
 from src.generation.runner import run_generation
+from src.generation.prompt import XML_LORA_PROMPT_SHA256, XML_LORA_PROMPT_VERSION
 from src.models.base import GeneratedResponse, GenerationBackend, GenerationRequest
 
 
@@ -115,6 +117,8 @@ def test_dynamic_generation_writes_answers_tokens_and_resumes(monkeypatch, tmp_p
     assert run["scheduler"]["mixed_greedy_and_sampling"] is False
     assert run["greedy"]["retry"] is False
     assert run["hidden_state_execution"] == "separate"
+    assert run["prompt_version"] == XML_LORA_PROMPT_VERSION
+    assert run["prompt_sha256"] == XML_LORA_PROMPT_SHA256
     assert "hidden_states" not in record
     assert record["greedy"]["sections_valid"] is True
     assert "reject_resample" not in record["greedy"]
@@ -168,3 +172,9 @@ def test_request_window_separates_decoding_roles_into_dynamic_batches(monkeypatc
     assert sum(len(call) for call in backend.calls if call[0].role == "sample") == 10
     first_sampled = next(call for call in backend.calls if call[0].role == "sample")
     assert {request.sample_id for request in first_sampled} == {"one", "two"}
+
+
+def test_generation_prompt_sha_matches_versioned_file() -> None:
+    path = Path(__file__).resolve().parents[2] / "prompts" / "generation" / "xml_lora_zero_shot_v1.md"
+    text = path.read_text(encoding="utf-8").strip()
+    assert hashlib.sha256(text.encode("utf-8")).hexdigest() == XML_LORA_PROMPT_SHA256

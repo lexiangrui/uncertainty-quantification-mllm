@@ -19,7 +19,7 @@ from src.models import (
 from src.utils import completed_sample_ids, write_sample_json_line
 
 from .parser import answer_character_span, parse_structured_response
-from .prompt import build_prompt, get_prompt_spec
+from .prompt import XML_LORA_PROMPT_SHA256, build_prompt, get_prompt_spec
 
 
 @dataclass(frozen=True)
@@ -353,6 +353,7 @@ def run_generation(
         "model_path": str(model_path.resolve()),
         "model_runtime": backend.runtime_config,
         "prompt_version": prompt_spec.version,
+        "prompt_sha256": XML_LORA_PROMPT_SHA256,
         "greedy": {"do_sample": False, "temperature": 0.0, "retry": False},
         "sampling": {
             "do_sample": True,

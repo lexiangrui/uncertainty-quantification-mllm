@@ -12,7 +12,8 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset, Subset
 
-from .llava_sft import INSTRUCTION, append_eos, read_jsonl
+from .llava_sft import append_eos, read_jsonl
+from .prompts import LORA_XML_INSTRUCTION, LORA_XML_PROMPT_SHA256, LORA_XML_PROMPT_VERSION
 
 
 FAMILIES = ("llava_1_5", "qwen2_5_vl", "internvl3_5")
@@ -31,7 +32,7 @@ def render_training_text(processor, family: str, question: str, response: str) -
         "role": "user",
         "content": [
             {"type": "image"},
-            {"type": "text", "text": f"{INSTRUCTION}\n\nQuestion: {question}"},
+            {"type": "text", "text": f"{LORA_XML_INSTRUCTION}\n\nQuestion: {question}"},
         ],
     }
     prompt = _chat_template(processor, [user], add_generation_prompt=True)
@@ -340,5 +341,5 @@ def train(
 
     model.save_pretrained(output, safe_serialization=True)
     processor.save_pretrained(output)
-    run = {**config, "train_samples": len(rows), "validation_samples": len(validation_rows), "total_updates": total_updates, "trainable_parameters": sum(p.numel() for _, p in trainable), "target_format": "inline_xml", "target_contains_newline": False, "end_token_id": end_token_id, "checkpoint": str(latest_checkpoint)}
+    run = {**config, "train_samples": len(rows), "validation_samples": len(validation_rows), "total_updates": total_updates, "trainable_parameters": sum(p.numel() for _, p in trainable), "target_format": "inline_xml", "target_contains_newline": False, "end_token_id": end_token_id, "checkpoint": str(latest_checkpoint), "prompt_version": LORA_XML_PROMPT_VERSION, "prompt_sha256": LORA_XML_PROMPT_SHA256}
     (output / "training_config.json").write_text(json.dumps(run, ensure_ascii=False, indent=2) + "\n")

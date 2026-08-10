@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from .entailment import EntailmentModel
+from src.llm_judge.nli import PairwiseNLIJudge
 
 
 METHOD_VERSION = "probability-weighted-v2"
@@ -20,7 +20,7 @@ class SemanticEntropyResult:
 class SemanticEntropyMethod:
     required_responses = "samples"
 
-    def __init__(self, entailment: EntailmentModel) -> None:
+    def __init__(self, entailment: PairwiseNLIJudge) -> None:
         self.entailment = entailment
 
     @property
@@ -75,7 +75,7 @@ def _logsumexp(values: list[float]) -> float:
 def cluster_answers(
     question: str,
     answers: list[str],
-    entailment: EntailmentModel,
+    entailment: PairwiseNLIJudge,
 ) -> list[int]:
     if not answers or any(not answer.strip() for answer in answers):
         raise ValueError("answers must be non-empty")
@@ -124,7 +124,7 @@ def compute_semantic_entropy(
     question: str,
     answers: list[str],
     mean_log_probs: list[float],
-    entailment: EntailmentModel,
+    entailment: PairwiseNLIJudge,
 ) -> SemanticEntropyResult:
     if len(answers) != len(mean_log_probs) or not answers:
         raise ValueError("answers and mean_log_probs must have the same non-zero length")

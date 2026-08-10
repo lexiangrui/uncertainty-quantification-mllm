@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
-from .xml_format import XML_ZERO_SHOT_INSTRUCTION
+from src.utils.prompts import load_prompt
 
 
-XML_LORA_PROMPT_VERSION = "xml-lora-zero-shot-v1"
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_XML_PROMPT = load_prompt(
+    _PROJECT_ROOT / "prompts" / "generation" / "xml_lora_zero_shot_v1.md",
+    version="xml-lora-zero-shot-v1",
+)
+XML_LORA_PROMPT_VERSION = _XML_PROMPT.version
+XML_LORA_PROMPT_SHA256 = _XML_PROMPT.sha256
 
 
 @dataclass(frozen=True)
@@ -37,5 +44,5 @@ def build_prompt(
 ) -> GenerationPrompt:
     get_prompt_spec(style)
     image_line = "[Image]\nThe image is attached to this message.\n\n" if has_image else ""
-    user = f"{XML_ZERO_SHOT_INSTRUCTION}\n\n{image_line}[Question]\n{question.strip()}"
+    user = f"{_XML_PROMPT.text}\n\n{image_line}[Question]\n{question.strip()}"
     return GenerationPrompt(system="", user=user)

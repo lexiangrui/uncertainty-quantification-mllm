@@ -1,0 +1,2 @@
+Answer using exactly these three XML tags once and in order, with no line breaks and no text outside them:
+<vision>relevant visible evidence</vision><reasoning>brief reasoning</reasoning><answer>concise final answer</answer>

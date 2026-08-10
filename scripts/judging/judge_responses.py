@@ -9,13 +9,13 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.llm_judge.openai_chat import OpenAIChatJudge
-from src.llm_judge.runner import run_openai_judging
+from src.llm_judge import ClosedSourceJudge
+from src.llm_judge.runner import run_closed_source_judging
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Judge generated multimodal responses through an OpenAI-compatible Chat API."
+        description="Judge generated multimodal responses through the OpenAI Responses API."
     )
     parser.add_argument("--dataset", required=True, choices=("vilp", "hallusionbench", "mmvet"))
     parser.add_argument("--dataset-source", required=True, type=Path)
@@ -30,8 +30,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    judge = OpenAIChatJudge(args.model, max_tokens=args.max_tokens)
-    written, skipped = run_openai_judging(
+    judge = ClosedSourceJudge(args.model, max_tokens=args.max_tokens)
+    written, skipped = run_closed_source_judging(
         judge=judge,
         dataset=args.dataset,
         dataset_source=args.dataset_source,

@@ -12,7 +12,7 @@ _API_RETRY_BACKOFF_SECONDS = 15
 from src.datasets import iter_dataset
 from src.utils import completed_sample_ids, write_sample_json_line
 
-from .openai_chat import JUDGE_PROMPT_VERSION, OpenAIChatJudge
+from .closed_source import ClosedSourceJudge, JUDGE_PROMPT_SHA256, JUDGE_PROMPT_VERSION
 
 
 def _load_generation_records(path: Path) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
@@ -105,9 +105,9 @@ def _judge_one(judge, sample, greedy: dict) -> dict:
     }
 
 
-def run_openai_judging(
+def run_closed_source_judging(
     *,
-    judge: OpenAIChatJudge,
+    judge: ClosedSourceJudge,
     dataset: str,
     dataset_source: Path,
     generation_input: Path,
@@ -117,9 +117,10 @@ def run_openai_judging(
 ) -> tuple[int, int]:
     generation_run, generation_records = _load_generation_records(generation_input)
     run = {
-        "protocol": "openai-chat-completions",
+        "protocol": "openai-responses",
         "judge_model": judge.model,
         "judge_prompt_version": JUDGE_PROMPT_VERSION,
+        "judge_prompt_sha256": JUDGE_PROMPT_SHA256,
         "max_tokens": judge.max_tokens,
         "dataset": dataset,
         "dataset_source": str(dataset_source.resolve()),

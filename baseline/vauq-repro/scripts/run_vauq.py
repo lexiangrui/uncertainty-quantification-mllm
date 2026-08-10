@@ -2,7 +2,7 @@
 """Run VAUQ self-evaluation on a local white-box LVLM.
 
 Examples:
-    python scripts/run_vauq.py --backend llava --benchmark cvbench --judge regex_choice
+    python scripts/run_vauq.py --backend llava --benchmark cvbench --judge rule
     python scripts/run_vauq.py --backend llava --benchmark cvbench --limit 4
 """
 
@@ -27,7 +27,7 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from judge import QwenLLMJudge, RegexChoiceJudge
+from src.llm_judge import OpenSourceJudge, RuleJudge
 from vauq.backends import build_backend
 from vauq.benchmarks import build_benchmark
 from vauq.eval import compute_metrics
@@ -68,7 +68,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--benchmark", choices=["mmvet", "cvbench", "vilp"], default="cvbench")
     parser.add_argument(
         "--judge",
-        choices=["regex_choice", "qwen_llm"],
+        choices=["rule", "open_source"],
         default=None,
         help="Project-wide judge; default is selected from the benchmark type.",
     )
@@ -207,13 +207,13 @@ def main() -> None:
     benchmark = build_benchmark(args.benchmark, **benchmark_kwargs)
 
     reference_rows = load_reference_rows(args.reference_results)
-    judge_name = args.judge or ("regex_choice" if args.benchmark == "cvbench" else "qwen_llm")
-    expected_judge = "regex_choice" if args.benchmark == "cvbench" else "qwen_llm"
+    judge_name = args.judge or ("rule" if args.benchmark == "cvbench" else "open_source")
+    expected_judge = "rule" if args.benchmark == "cvbench" else "open_source"
     if judge_name != expected_judge:
         raise ValueError(f"{args.benchmark} requires --judge {expected_judge}")
     judge = None if reference_rows or args.defer_judge else (
-        RegexChoiceJudge() if args.benchmark == "cvbench"
-        else QwenLLMJudge(os.environ["QWEN_JUDGE_MODEL"])
+        RuleJudge() if args.benchmark == "cvbench"
+        else OpenSourceJudge(os.environ["QWEN_JUDGE_MODEL"])
     )
     judge_description = (
         "reference_results" if reference_rows else

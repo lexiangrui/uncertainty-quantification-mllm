@@ -1,13 +1,8 @@
 # Uncertainty Quantification of MLLM
 
-本项目研究多模态大模型（MLLM）的不确定性量化与高置信度幻觉检测，整体分为两个阶段：
+本仓库保存多模态大模型（MLLM）不确定性量化第一阶段的代码、正式实验产物和结果分析。第一阶段已完成：三个模型在三个数据集上生成结构化回答，计算三种 UQ 分数，使用多模态 LLM Judge 标注正确性与幻觉，并计算统一指标。
 
-1. 在 ViLP、HallusionBench 和 MM-Vet 上生成回答、计算 baseline UQ 分数并使用多模态 LLM Judge 标注幻觉，提取“模型置信度高但实际存在幻觉”的样本子集；
-2. 在固定子集上评测 MALP、GASP 等改进的不确定性量化方法，并与 baseline 进行统一比较。
-
-工程方案见 [docs/工程实现.md](docs/工程实现.md)，实验定义见 [docs/高置信度幻觉子集提取实验设计.md](docs/高置信度幻觉子集提取实验设计.md)。
-
-## 被测对象
+## 实验范围
 
 ### 模型
 
@@ -15,7 +10,7 @@
 - Qwen2.5-VL-7B-Instruct
 - InternVL3.5-8B-HF
 
-三个模型均通过独立 LoRA adapter 学习固定的单行 XML 回答协议：
+三个模型均挂载独立 LoRA adapter，并按固定单行 XML 协议回答：
 
 ```xml
 <vision>...</vision><reasoning>...</reasoning><answer>...</answer>
@@ -24,185 +19,130 @@
 ### 数据集
 
 - ViLP：900 个 QIA 样本
-- HallusionBench：1129 条样本
+- HallusionBench：1,129 条样本
 - MM-Vet：218 条样本
 
-数据集和模型权重不进入 Git 仓库，统一保存在服务器 `/opt/lexiangrui/` 下；训练结果和正式实验产物写入 `/home/lexiangrui/results/`。
-
-### 当前接入的 baseline UQ
+### UQ 方法
 
 - Perplexity
 - Semantic Entropy
 - UMPIRE
 
-UQ 在模型完成当前问题的回答后、内部状态释放前计算。程序只保存回答、最终分数和必要审计信息，不持久化 logits、hidden states、attention 或 KV cache。
+## 当前状态
 
-## 目录结构
+| 工作流 | 状态 | 正式产物 |
+| --- | --- | --- |
+| VQAv2 XML 数据与三模型 LoRA | 完成 | 5,000 条数据（4,000 train / 1,000 validation）和 3 个 adapter |
+| 三模型 × 三数据集回答生成 | 完成 | 6,741 条主回答 |
+| 三种 UQ 计算 | 完成 | 6,662 条有效 UQ 记录 |
+| 多模态 LLM Judge | 完成 | 6,741 条判定，6,662 条有效 joined 记录 |
+| 指标与数据分析 | 完成 | 9 个模型 × 数据集单元格的指标和汇总分析 |
+
+正式分析表明，三种 UQ 对回答错误有中等预测能力（九个单元格宏平均 AUROC：Perplexity `0.645`、Semantic Entropy `0.681`、UMPIRE `0.671`），但对幻觉的预测明显较弱（`0.548`、`0.628`、`0.588`）。在错误回答条件下，幻觉区分能力进一步下降，说明主要信号来自回答正确性，而非对视觉幻觉的直接识别。完整结论见 [第一阶段分析报告](results/analysis/phase1_uq/report.md)。
+
+## 保留的仓库内容
 
 ```text
 .
-├── docs/
-├── configs/
-├── prompts/
-├── src/
-│   ├── datasets/
-│   ├── models/
-│   ├── generation/
-│   ├── llm_judge/
-│   ├── evaluation/
-│   └── utils/
-├── scripts/
-│   ├── generation/
-│   ├── judging/
-│   ├── subset/
-│   └── evaluation/
-├── LoRA/
+├── LoRA/                         # XML 格式 LoRA 数据构造、训练与测试
 ├── baseline/
-├── MALP/
-├── GASP/
-├── slurm/
+│   ├── perplexity_repro/          # 正式第一阶段 UQ 方法
+│   ├── semantic_uncertainty_repro/
+│   ├── umpire_repro/
+│   ├── vauq-repro/                # 保留的独立论文复现
+│   └── vl_uncertainty_repro/      # 保留的独立论文复现
+├── docs/                          # 工程说明、实验设计与历史研究笔记
+├── prompts/                       # 生成、LoRA 与闭源 Judge 的版本化 Prompt
+├── results/
+│   ├── generation/full_transformers_k5/
+│   ├── hidden/
+│   ├── uq/full_transformers_k5/
+│   ├── judging/full_transformers_k5/
+│   ├── metrics/full_transformers_k5/
+│   ├── analysis/phase1_uq/
+│   └── lora/vqav2_5000_4to1/
+├── scripts/
+│   ├── analysis/analyze_phase1_results.py
+│   ├── evaluation/compute_metrics.py
+│   ├── generation/generate_responses.py
+│   ├── generation/extract_hidden_states.py
+│   ├── judging/judge_responses.py
+│   └── uq/compute_uq.py
+├── src/                           # 数据集、模型、生成、Judge、UQ 和指标公共代码
+├── slurm/                         # LoRA、生成和 UQ 作业入口
 └── tests/
 ```
 
-- `src/`：跨数据集、模型和实验阶段共享的公共能力，不放具体 UQ 方法。
-- `baseline/`：复现或接入的 baseline UQ 方法，每种方法保持独立目录。
-- `LoRA/`：VQAv2 XML 数据构造与三模型格式 LoRA 训练。
-- `MALP/`、`GASP/`：待在固定幻觉子集上评测的改进方法。
-- `scripts/`：生成、Judge、子集提取和评估的命令入口。
-- `slurm/`：服务器计算节点作业入口。
+数据集与基础模型权重不提交到 Git。正式结果目录同样被 `.gitignore` 忽略，但当前工作区保留了第一阶段的最终 JSONL、指标和分析报告。
 
-## 已实现的主工作流
+## 正式结果位置
 
-### 1. XML 格式 LoRA
+所有结果的运行标签为 `full_transformers_k5`，其中 `k5` 表示每题包含一条 greedy 主回答和五条随机采样回答。
 
-当前流程为：
+| 产物 | 路径 |
+| --- | --- |
+| 生成结果 | `results/generation/full_transformers_k5/{llava,qwen,internvl}/{vilp,hallusionbench,mmvet}.jsonl` |
+| UQ 结果 | `results/uq/full_transformers_k5/{llava,qwen,internvl}/{vilp,hallusionbench,mmvet}.jsonl` |
+| UMPIRE hidden 输入 | `results/hidden/` |
+| Judge 结果 | `results/judging/full_transformers_k5/{llava,qwen,internvl}/{vilp,hallusionbench,mmvet}.jsonl` |
+| 指标报告 | `results/metrics/full_transformers_k5/{llava,qwen,internvl}/{vilp,hallusionbench,mmvet}.metrics.json` |
+| 汇总分析 | `results/analysis/phase1_uq/` |
+| LoRA adapter | `results/lora/vqav2_5000_4to1/` |
 
-```text
-VQAv2 候选筛选
-→ Qwen3.7-Plus 教师生成 vision/reasoning/answer
-→ 本地严格校验并生成单行 XML
-→ 1600/200/200 划分
-→ 分别训练三个模型的 LoRA adapter
-```
+## 工作流
 
-训练器保存每个 optimizer update 的平均训练 loss、每个 epoch 的 validation loss、adapter 和实际训练配置。详细使用方法见 [LoRA/README.md](LoRA/README.md)。
+### 1. 生成结构化回答
 
-当前正式训练状态：
-
-- LLaVA 正式训练完成，最终 validation loss 为 `0.6637526`；
-- Qwen2.5 与 InternVL 已通过真实权重 smoke，正式 Slurm 作业尚在队列中。
-
-### 2. 回答生成与在线 UQ
-
-公共入口：
-
-```text
-scripts/generation/generate_responses.py
-slurm/generation/generate_responses.sbatch
-```
-
-生成阶段为每个样本生成：
-
-- 1 条 greedy 主回答；
-- 10 条 `temperature=1.0` 随机采样回答；
-- 回答 token 概率统计；
-- sampling hidden states，保存到 JSONL 同名的 `.hidden/` 目录中的 `.pt` sidecar。
-
-生成入口不加载 DeBERTa，也不在线计算 UQ。它强制加载 LoRA adapter，严格解析 XML，支持 JSONL + `.pt` 断点续跑，并要求计算节点处于 Hugging Face 离线模式。服务器示例：
+入口为 `scripts/generation/generate_responses.py`。它要求在 Slurm 计算节点离线运行，显式传入基础模型、对应 adapter 和数据集路径：
 
 ```bash
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
 
-python scripts/generation/generate_responses.py \
+python3 scripts/generation/generate_responses.py \
   --dataset vilp \
   --dataset-source /opt/lexiangrui/datasets/vilp \
   --model-family llava_1_5 \
   --model-path /opt/lexiangrui/models/llava-1.5-7b-hf \
-  --adapter-path /home/lexiangrui/results/lora/official_inline/llava-1.5-7b \
-  --output /home/lexiangrui/results/subset_extraction/llava_1_5_7b/vilp.jsonl
+  --adapter-path results/lora/vqav2_5000_4to1/llava-1.5-7b \
+  --output results/generation/example/llava-vilp.jsonl
 ```
 
-生成完成后独立计算 UQ：
+默认生成一条 greedy 回答和五条随机采样回答；输出严格记录 XML 解析状态和必要的生成特征。
+生成指令从 `prompts/generation/xml_lora_zero_shot_v1.md` 显式加载；运行 JSONL 的
+`run` 记录中保存 `prompt_version` 和 `prompt_sha256`，用于锁定实际使用的内容。
 
-```bash
-python scripts/uq/compute_uq.py \
-  --generation-input /home/lexiangrui/results/subset_extraction/llava_1_5_7b/vilp.jsonl \
-  --output /home/lexiangrui/results/uq/llava_1_5_7b/vilp.uq.jsonl \
-  --entailment-model-path /opt/lexiangrui/sem_unc_assets/models/deberta-v2-xlarge-mnli
-```
+### 2. 计算 UQ
 
-路径应以服务器上的实际目录为准。模型、数据和依赖必须提前在允许联网的登录或调试节点准备；正式生成在 Slurm 计算节点离线执行。
+入口为 `scripts/uq/compute_uq.py`，在 Slurm 作业内读取生成结果、对应 hidden 输入以及本地 DeBERTa entailment 模型，计算三个 UQ 方法。
 
-### 3. OpenAI-compatible 多模态 Judge
+正式 UQ JSONL 及 `results/hidden/` 中的 UMPIRE 输入均已保留。hidden 目录保存每条采样回答的最终答案末 token 最后一层向量，用于 UMPIRE；它不包含完整层级 hidden states、logits 或 KV cache。若需重建这些中间产物，可使用 `scripts/generation/extract_hidden_states.py` 和 `slurm/generation/extract_hidden_states.sbatch`。
 
-入口：
+### 3. Judge 与指标
 
-```text
-scripts/judging/judge_responses.py
-```
+`scripts/judging/judge_responses.py` 通过 OpenAI-compatible Responses API 调用多模态 Judge。服务配置仅从 `OPENAI_BASE_URL` 和 `OPENAI_API_KEY` 环境变量读取。
+闭源 Judge 的评分指令从
+`prompts/judge/closed_source_correctness_hallucination_v1.md` 加载；Judge JSONL 的
+`run` 记录保存 `judge_prompt_version` 和 `judge_prompt_sha256`。
 
-Judge 独立读取生成结果和原图，一次请求同时返回答案正确性及 MMHal 风格幻觉评分。服务配置只从环境变量读取：
+`scripts/evaluation/compute_metrics.py` 将同一模型和数据集的 UQ/Judge JSONL 按 `sample_id` 合并，报告错误检测和幻觉检测的 AUROC、AUPRC、PRR、ECE 及 group-level bootstrap 置信区间。
 
-```bash
-export OPENAI_BASE_URL=
-export OPENAI_API_KEY=
+`scripts/analysis/analyze_phase1_results.py` 对完整 3 × 3 矩阵生成当前保留的汇总报告、CSV 和 SVG 图表。
 
-python scripts/judging/judge_responses.py \
-  --dataset vilp \
-  --dataset-source /opt/lexiangrui/datasets/vilp \
-  --generation-input /home/lexiangrui/results/subset_extraction/llava_1_5_7b/vilp.jsonl \
-  --output /home/lexiangrui/results/judging/llava_1_5_7b/vilp.jsonl \
-  --model YOUR_JUDGE_MODEL
-```
+## LoRA adapter
 
-仓库不保存 API Key、私有服务地址或其他凭据。
+三个正式 adapter 位于 `results/lora/vqav2_5000_4to1/`。训练配置、训练 loss、validation loss、adapter 权重和 tokenizer/processor 配置均与 adapter 一同保存。详情见 [LoRA README](LoRA/README.md)。
 
-### 4. 统一指标计算
-
-入口：
-
-```text
-scripts/evaluation/compute_metrics.py
-```
-
-对同一“模型 × 数据集”的 UQ 输出与 Judge 输出按 `sample_id` 合并；两份输入的 `generation_run` 必须一致，否则拒绝计算。质量控制会排除 Judge 无效、缺少对应 UQ 记录或任一方法分数无效/非有限的样本，并逐类报告排除数量，不做插补。
-
-在合并后的分析集上按两个二元目标分别评估每种 UQ 方法：
-
-- 错误检测：正类 `E = 1 - correct`（主要评估）；
-- 幻觉检测：正类 `H = hallucination`（次要评估）。
-
-每个“目标 × 方法”报告 AUROC（并列分数按 1/2 计）、AUPRC、PRR 和 ECE（无标签 min–max 归一化 + 15 等宽分箱），并报告 Accuracy、Hallucination Rate 与 \(C\times H\) 四格计数。所有点估计附带以原始问题 `group_id` 为聚类单位重采样的 95% bootstrap 置信区间；只含单一类别的目标将 AUROC/AUPRC/PRR 记为 N/A。结果写入单个 JSON 报告并在终端打印汇总表：
-
-```bash
-python scripts/evaluation/compute_metrics.py \
-  --uq-input /home/lexiangrui/results/uq/llava_1_5_7b/vilp.uq.jsonl \
-  --judge-input /home/lexiangrui/results/judging/llava_1_5_7b/vilp.jsonl \
-  --output /home/lexiangrui/results/metrics/llava_1_5_7b/vilp.metrics.json
-```
-
-指标计算只依赖 numpy，900 样本、1000 次 bootstrap 数秒完成，可直接在登录节点运行，不需要 GPU 或 Slurm。
-
-## 当前完成度
-
-| 工作流 | 代码 | 真实验证 | 正式结果 |
-| --- | --- | --- | --- |
-| VQAv2 → XML 数据 | 完成 | 完成 | 2000 条完成 |
-| 三模型 LoRA | 完成 | 三模型 smoke 完成 | LLaVA 完成；另外两模型排队 |
-| 三数据集适配 | 完成 | 离线适配验证完成 | 尚未全量生成 |
-| 回答生成 + 三种 UQ | 完成 | 既有链路部分验证 | 正式 `3×3` 矩阵待跑 |
-| OpenAI Chat Judge | 完成 | 单元/API 测试完成 | 待处理正式回答 |
-| 高置信幻觉子集提取 | 待实现 | — | — |
-| 统一指标（AUROC/AUPRC/PRR/ECE + bootstrap CI） | 完成 | 单元测试与暴力实现交叉验证完成 | 待处理正式结果 |
-| MALP/GASP 子集评测 | 待接入 | — | — |
-
-Smoke 或单元测试通过不代表正式全量实验已经完成。
+| 模型 | adapter 目录 | validation loss |
+| --- | --- | ---: |
+| LLaVA-1.5-7B | `llava-1.5-7b/` | 0.764681 |
+| Qwen2.5-VL-7B-Instruct | `qwen2.5-vl-7b/` | 0.693499 |
+| InternVL3.5-8B-HF | `internvl3.5-8b-hf/` | 0.633412 |
 
 ## 测试
 
-当前公共主链、LoRA、三个已接入 UQ、统一指标和 GASP 核心测试可执行：
+测试依赖未随仓库固定安装。安装项目所需依赖后，可运行第一阶段相关测试：
 
 ```bash
 pytest -q \
@@ -211,19 +151,7 @@ pytest -q \
   baseline/perplexity_repro/tests \
   baseline/semantic_uncertainty_repro/tests \
   baseline/umpire_repro/tests \
-  GASP/tests \
   --ignore=LoRA/tests/test_reject_resample.py
 ```
 
-当前结果为 `107 passed`。`LoRA/tests/test_reject_resample.py` 引用的 `lora_format.reject_resample` 模块尚未加入仓库，需暂时排除。根目录直接运行无范围的 `pytest` 尚不能作为验收命令：MALP 和部分旧 baseline 仍存在旧 `judge` 引用、独立 `PYTHONPATH` 要求以及同名顶层模块导入冲突。
-
-## 后续工作
-
-1. 完成并验收 Qwen2.5、InternVL 正式 LoRA；
-2. 实现三模型 held-out XML 格式统一评测入口；
-3. 对三个模型和三个数据集做少量端到端生成/UQ 验证；
-4. 运行正式 `3 模型 × 3 数据集` 生成与 UQ；
-5. 对 greedy 主回答运行 Judge；
-6. 实现结果合并、高置信幻觉子集提取和敏感性分析；
-7. 对正式 `3 模型 × 3 数据集` 的 UQ 与 Judge 输出运行统一指标并汇总报告；
-8. 将 MALP、GASP 接入固定子集并与 baseline 比较。
+`LoRA/tests/test_reject_resample.py` 依赖已移除的实现，暂不作为当前验收范围。

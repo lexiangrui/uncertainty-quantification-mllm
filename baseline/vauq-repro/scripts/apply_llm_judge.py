@@ -25,7 +25,7 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from judge import QwenLLMJudge
+from src.llm_judge import OpenSourceJudge
 from vauq.eval import compute_metrics
 
 
@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input", required=True, help="Input VAUQ JSONL file.")
     parser.add_argument("--output", default=None, help="Output JSONL. Default: <input>.llm_judged.jsonl")
     parser.add_argument("--summary-output", default=None)
-    parser.add_argument("--judge", choices=["qwen_llm"], default="qwen_llm")
+    parser.add_argument("--judge", choices=["open_source"], default="open_source")
     parser.add_argument("--resume", action="store_true", help="Append and skip IDs already in output.")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--start", type=int, default=0)
@@ -57,7 +57,7 @@ def main() -> None:
     done = _load_done(out_path) if args.resume else {}
     mode = "a" if args.resume and done else "w"
     model_path = args.model or os.environ["QWEN_JUDGE_MODEL"]
-    judge = QwenLLMJudge(model_path)
+    judge = OpenSourceJudge(model_path)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open(mode, encoding="utf-8") as f:

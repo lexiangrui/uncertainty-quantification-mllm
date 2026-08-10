@@ -23,7 +23,7 @@ Usage
   # Smoke test with the real models
   python scripts/run_vl_uncertainty.py \\
       --backend llava --benchmark cvbench --text-model qwen \\
-      --judge regex_choice --limit 10
+      --judge rule --limit 10
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from judge import QwenLLMJudge, RegexChoiceJudge
+from src.llm_judge import OpenSourceJudge, RuleJudge
 from vl_uncertainty.backends import build_backend
 from vl_uncertainty.benchmarks import BENCHMARK_MAP, build_benchmark
 from vl_uncertainty.eval import compute_metrics
@@ -63,7 +63,7 @@ def parse_args():
     p = argparse.ArgumentParser(description="VL-Uncertainty (Zhang et al. 2024)")
     p.add_argument("--backend", choices=["llava"], default="llava")
     p.add_argument("--benchmark", choices=sorted(BENCHMARK_MAP), default="mmvet")
-    p.add_argument("--judge", choices=["regex_choice", "qwen_llm"], default=None)
+    p.add_argument("--judge", choices=["rule", "open_source"], default=None)
     p.add_argument("--text-model", choices=["qwen"], default="qwen")
     p.add_argument("--model-path", default=os.environ.get("VLU_MODEL_PATH", "llava-hf/llava-1.5-7b-hf"))
     p.add_argument("--text-model-path", default=os.environ.get("VLU_TEXT_MODEL_PATH", "Qwen/Qwen2.5-3B-Instruct"))
@@ -128,14 +128,18 @@ def main():
     text_model = build_text_model(args.text_model, **text_kwargs)
 
     # Judge.
-    judge_name = args.judge or ("regex_choice" if args.benchmark == "cvbench" else "qwen_llm")
-    expected_judge = "regex_choice" if args.benchmark == "cvbench" else "qwen_llm"
+    judge_name = args.judge or ("rule" if args.benchmark == "cvbench" else "open_source")
+    expected_judge = "rule" if args.benchmark == "cvbench" else "open_source"
     if judge_name != expected_judge:
         raise ValueError(f"{args.benchmark} requires --judge {expected_judge}")
     judge = (
-        RegexChoiceJudge()
+        RuleJudge()
         if args.benchmark == "cvbench"
-        else QwenLLMJudge(tokenizer=text_model.tokenizer, model=text_model.model)
+        else OpenSourceJudge(
+            args.text_model_path,
+            tokenizer=text_model.tokenizer,
+            model=text_model.model,
+        )
     )
 
     # Perturbation config.

@@ -62,7 +62,7 @@ vauq-repro/
 |---|---|---|
 | backend | `llava` | 白盒 LVLM 封装，暴露 `generate_with_ids / get_logits / get_logits_masked` |
 | benchmark | `vilp`, `mmvet`, `cvbench` | 数据集加载器，返回 `{img, question, gt_ans, choices?}` |
-| judge | `regex_choice`, `qwen_llm` | CVBench 使用共享正则判分；ViLP/MMVet 使用共享 Qwen 判分 |
+| judge | `rule`, `open_source` | CVBench 使用规则判分；ViLP/MMVet 使用指定 Qwen 模型判分 |
 
 默认超参来自论文 Appendix F（在 `scripts/run_vauq.py` 的 `DEFAULT_HYPERPARAMETERS`）：LLaVA-1.5-7B/13B × ViLP/MMVet/CVBench。`K` 已换算为 `topk_ratio=K/100`。
 
@@ -172,7 +172,7 @@ sbatch ../../slurm/vauq/run_paper_grid.sbatch
 LIMIT=4 sbatch ../../slurm/vauq/run_paper_grid.sbatch
 ```
 
-回答生成优先遵循论文 Appendix A：greedy decoding，`max_new_tokens=128`。CVBench 使用项目根目录共享的 `RegexChoiceJudge`；ViLP/MMVet 使用共享的 `QwenLLMJudge`。
+回答生成优先遵循论文 Appendix A：greedy decoding，`max_new_tokens=128`。CVBench 使用项目根目录共享的 `RuleJudge`；ViLP/MMVet 使用 `OpenSourceJudge` 和指定的 Qwen 模型名称。
 
 LLaVA-1.5-7B 在三个数据集上的 blank/random 对照（共 6 个 array task）：
 

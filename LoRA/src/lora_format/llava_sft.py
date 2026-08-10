@@ -10,8 +10,7 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
-
-INSTRUCTION = """Answer using exactly these three XML tags once and in order, with no line breaks and no text outside them: <vision>relevant visible evidence</vision><reasoning>brief reasoning</reasoning><answer>concise final answer</answer>"""
+from .prompts import LORA_XML_INSTRUCTION, LORA_XML_PROMPT_SHA256, LORA_XML_PROMPT_VERSION
 
 
 def append_eos(text: str, eos_token: str | None) -> str:
@@ -49,7 +48,7 @@ class LlavaXmlDataset(Dataset):
             "role": "user",
             "content": [
                 {"type": "image"},
-                {"type": "text", "text": f"{INSTRUCTION}\n\nQuestion: {row['question']}"},
+                {"type": "text", "text": f"{LORA_XML_INSTRUCTION}\n\nQuestion: {row['question']}"},
             ],
         }
         prompt_text = self.processor.apply_chat_template(
@@ -268,6 +267,8 @@ def train(config: dict, max_train_samples: int | None = None) -> None:
         "assistant_target_ends_with_eos": True,
         "eos_token": processor.tokenizer.eos_token,
         "eos_token_id": processor.tokenizer.eos_token_id,
+        "prompt_version": LORA_XML_PROMPT_VERSION,
+        "prompt_sha256": LORA_XML_PROMPT_SHA256,
     }
     (output_dir / "training_config.json").write_text(
         json.dumps(run, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"

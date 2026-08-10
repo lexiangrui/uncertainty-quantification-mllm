@@ -14,10 +14,10 @@ sys.path.insert(0, str(PROJECT_ROOT / "baseline" / "perplexity_repro" / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "baseline" / "umpire_repro" / "src"))
 
 from perplexity_uq import PerplexityMethod
-from sem_unc.entailment import DebertaEntailment
 from sem_unc.semantic_entropy import SemanticEntropyMethod
 from src.uq import run_deferred_uq
 from umpire_uq import UmpireMethod
+from src.llm_judge import NLIJudge
 
 
 def main() -> None:
@@ -33,7 +33,7 @@ def main() -> None:
         raise RuntimeError(
             "deferred UQ must run inside a Slurm allocation; submit compute_uq.sbatch"
         )
-    entailment = DebertaEntailment(
+    entailment = NLIJudge(
         args.entailment_model_path,
         batch_size=args.entailment_batch_size,
         device=args.entailment_device,
