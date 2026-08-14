@@ -1,3 +1,4 @@
-from .lac import LacBackend, LacResult
+from .backend import VgsBackend
+from .vgs import VgsResult, compute_vgs
 
-__all__ = ["LacBackend", "LacResult"]
+__all__ = ["VgsBackend", "VgsResult", "compute_vgs"]

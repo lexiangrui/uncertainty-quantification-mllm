@@ -19,7 +19,7 @@ from __future__ import annotations
 import torch
 from dataclasses import dataclass
 
-from src.improvement.lac import LacBackend
+from src.improvement.backend import VgsBackend
 
 _CHUNK = 256
 
@@ -42,7 +42,7 @@ class VgsResult:
         }
 
 
-def _get_decoder_layers(backend: LacBackend):
+def _get_decoder_layers(backend: VgsBackend):
     base = backend._base_model()
     core = getattr(base, "model", base)
     lang_model = getattr(core, "language_model", core)
@@ -133,7 +133,7 @@ def _make_chunked_eager(accumulator: _VgsAccumulator):
 
 
 def compute_vgs(
-    backend: LacBackend,
+    backend: VgsBackend,
     full_inputs: dict,
     prompt_length: int,
     answer_span: tuple[int, int],

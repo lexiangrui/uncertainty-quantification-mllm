@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compute Visual Grounding Score (VGS) + LAC in a single forward pass."""
+"""Compute Visual Grounding Score (VGS) per sample via a single forward pass."""
 from __future__ import annotations
 
 import argparse
@@ -13,7 +13,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.datasets import iter_dataset
 from src.utils import completed_sample_ids, load_jsonl_records, write_sample_json_line
-from src.improvement import LacBackend
+from src.improvement import VgsBackend
 from src.improvement.vgs import compute_vgs
 
 
@@ -45,7 +45,7 @@ def main():
     run = {"vgs_output_version": "v1", "greedy_input": str(args.greedy_input.resolve()), "greedy_run": gen_run}
     completed = completed_sample_ids(args.output, run)
 
-    backend = LacBackend(args.family, args.model_path,
+    backend = VgsBackend(args.family, args.model_path,
                           adapter_path=args.adapter_path,
                           attn_implementation=args.attn_implementation)
     backend._load()
