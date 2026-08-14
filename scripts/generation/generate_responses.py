@@ -15,7 +15,7 @@ from src.models import load_backend
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate one greedy response and shared sampled responses offline."
+        description="Generate greedy responses or sampled responses offline."
     )
     parser.add_argument("--dataset", required=True, choices=("vilp", "hallusionbench", "mmvet"))
     parser.add_argument("--dataset-source", required=True, type=Path)
@@ -27,12 +27,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model-path", required=True, type=Path)
     parser.add_argument("--adapter-path", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--max-new-tokens", type=int, default=256)
-    parser.add_argument("--num-samples", type=int, default=5)
+    parser.add_argument("--max-new-tokens", type=int, default=512)
+    parser.add_argument("--num-samples", type=int, default=10)
+    parser.add_argument(
+        "--phase",
+        choices=("greedy", "samples"),
+        required=True,
+        help="Greedy and sampled responses are separate production stages.",
+    )
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--reject-resample-k", type=int, default=10)
+    parser.add_argument("--reject-resample-k", type=int, default=50)
     parser.add_argument("--max-batch-size", type=int, default=5)
     parser.add_argument("--request-window-samples", type=int, default=16)
+    parser.add_argument(
+        "--sample-ids-file",
+        type=Path,
+        help="Optional newline-delimited sample_id allowlist for a targeted rerun.",
+    )
     parser.add_argument(
         "--attn-implementation",
         choices=("flash_attention_2", "sdpa", "eager"),
@@ -59,14 +70,27 @@ def main() -> None:
     require_offline_mode()
     if args.max_new_tokens <= 0:
         raise ValueError("max-new-tokens must be positive")
-    if args.num_samples <= 0:
-        raise ValueError("num-samples must be positive")
+    if args.phase == "greedy" and args.num_samples != 0:
+        raise ValueError("greedy phase requires --num-samples 0")
+    if args.phase == "samples" and args.num_samples <= 0:
+        raise ValueError("samples phase requires positive --num-samples")
     if args.reject_resample_k <= 0:
         raise ValueError("reject-resample-k must be positive")
     if args.max_batch_size <= 0:
         raise ValueError("max-batch-size must be positive")
     if args.request_window_samples <= 0:
         raise ValueError("request-window-samples must be positive")
+    sample_ids = None
+    if args.sample_ids_file is not None:
+        if not args.sample_ids_file.is_file():
+            raise FileNotFoundError(args.sample_ids_file)
+        sample_ids = {
+            line.strip()
+            for line in args.sample_ids_file.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        }
+        if not sample_ids:
+            raise ValueError("sample-ids-file must contain at least one sample_id")
     backend = load_backend(
         args.model_family,
         args.model_path,
@@ -89,6 +113,8 @@ def main() -> None:
         reject_resample_k=args.reject_resample_k,
         max_batch_size=args.max_batch_size,
         request_window_samples=args.request_window_samples,
+        phase=args.phase,
+        sample_ids=sample_ids,
     )
     print(f"completed: written={written} skipped={skipped} output={args.output}")
 

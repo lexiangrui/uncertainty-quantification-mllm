@@ -16,6 +16,7 @@ class GeneratedResponse:
     token_log_probs: tuple[float, ...]
     sampling_token_log_probs: tuple[float, ...]
     final_hidden: tuple[float, ...] = ()
+    hidden_steps: tuple[tuple[float, ...], ...] = ()
     finish_reason: str | None = None
     rng_seed: int | None = None
 

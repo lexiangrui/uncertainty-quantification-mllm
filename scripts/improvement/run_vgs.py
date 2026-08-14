@@ -57,17 +57,28 @@ def main():
             continue
         record = next((r for r in records if r.get("sample", {}).get("sample_id") == sid), None)
         if not record:
-            skipped += 1; continue
+            print(f"skip {sid}: generation record missing", flush=True)
+            skipped += 1
+            continue
         greedy = record.get("greedy", {})
         if not greedy.get("sections_valid") or not greedy.get("raw_response") or not sample.image:
-            skipped += 1; continue
+            print(
+                f"skip {sid}: sections_valid={greedy.get('sections_valid')} "
+                f"raw_response={bool(greedy.get('raw_response'))} image={bool(sample.image)}",
+                flush=True,
+            )
+            skipped += 1
+            continue
         try:
             full_inputs, prompt_length, answer_span = backend.prepare_inputs(
                 sample.image, sample.question, greedy["raw_response"])
             if not full_inputs or not answer_span:
-                skipped += 1; continue
+                print(f"skip {sid}: input preparation failed", flush=True)
+                skipped += 1
+                continue
             vgs = compute_vgs(backend, full_inputs, prompt_length, answer_span)
-        except (RuntimeError, ValueError, torch.cuda.OutOfMemoryError):
+        except (RuntimeError, ValueError, torch.cuda.OutOfMemoryError) as exc:
+            print(f"skip {sid}: {type(exc).__name__}: {exc}", flush=True)
             skipped += 1
             if torch.cuda.is_available(): torch.cuda.empty_cache()
             continue

@@ -128,12 +128,12 @@ def test_runner_writes_and_resumes(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr("src.llm_judge.runner.iter_dataset", lambda *args: iter([sample]))
     source = tmp_path / "source.parquet"
     source.touch()
-    generation_input = tmp_path / "generation.jsonl"
-    generation_run = {"prompt_version": "xml-lora-zero-shot-v1"}
-    generation_input.write_text(
+    greedy_input = tmp_path / "greedy.jsonl"
+    greedy_run = {"prompt_version": "xml-lora-zero-shot-v1"}
+    greedy_input.write_text(
         json.dumps(
             {
-                "run": generation_run,
+                "run": greedy_run,
                 "sample": {"sample_id": sample.sample_id},
                 "greedy": {
                     "sections_valid": True,
@@ -152,7 +152,7 @@ def test_runner_writes_and_resumes(monkeypatch, tmp_path: Path) -> None:
         judge=judge,
         dataset="vilp",
         dataset_source=source,
-        generation_input=generation_input,
+        greedy_input=greedy_input,
         output=output,
         limit=None,
     )
@@ -182,8 +182,8 @@ def test_runner_records_unseparated_input_without_api_call(monkeypatch, tmp_path
     monkeypatch.setattr("src.llm_judge.runner.iter_dataset", lambda *args: iter([sample]))
     source = tmp_path / "source.parquet"
     source.touch()
-    generation_input = tmp_path / "generation.jsonl"
-    generation_input.write_text(
+    greedy_input = tmp_path / "greedy.jsonl"
+    greedy_input.write_text(
         json.dumps(
             {
                 "record_type": "run",
@@ -213,7 +213,7 @@ def test_runner_records_unseparated_input_without_api_call(monkeypatch, tmp_path
         judge=judge,
         dataset="vilp",
         dataset_source=source,
-        generation_input=generation_input,
+        greedy_input=greedy_input,
         output=output,
         limit=None,
     ) == (1, 0)

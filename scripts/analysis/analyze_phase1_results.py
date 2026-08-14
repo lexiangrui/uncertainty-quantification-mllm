@@ -38,7 +38,6 @@ from scripts.analysis.analyze_uq_predictiveness import (  # noqa: E402
     risk_deciles,
     stable_seed,
     write_csv,
-    write_report as write_base_report,
     write_svg_deciles,
     write_svg_heatmap,
 )
@@ -53,6 +52,12 @@ def _fmt(value: object, digits: int = 3) -> str:
     if value is None:
         return "N/A"
     return f"{float(value):.{digits}f}"
+
+
+def _pct(value: object, digits: int = 1) -> str:
+    if value is None:
+        return "N/A"
+    return f"{float(value):.{digits}%}"
 
 
 def _mean(values: Iterable[float]) -> float | None:
@@ -376,9 +381,9 @@ def write_phase1_report(
         for method in METHOD_ORDER:
             row = low20[(method, fraction)]
             lines.append(
-                f"| {method} | {fraction:.0%} | {_fmt(row['macro_low_hallucination_rate'], 1)} | "
-                f"{_fmt(row['macro_high_hallucination_rate'], 1)} | {_fmt(row['macro_low_hallucination_share'], 1)} | "
-                f"{_fmt(row['macro_high_hallucination_recall'], 1)} | {_fmt(row['macro_low_severe_hallucination_rate'], 1)} |"
+                f"| {method} | {fraction:.0%} | {_pct(row['macro_low_hallucination_rate'])} | "
+                f"{_pct(row['macro_high_hallucination_rate'])} | {_pct(row['macro_low_hallucination_share'])} | "
+                f"{_pct(row['macro_high_hallucination_recall'])} | {_pct(row['macro_low_severe_hallucination_rate'])} |"
             )
     lines += [
         "",
@@ -386,15 +391,15 @@ def write_phase1_report(
         "",
         "## 4. 输出文件",
         "",
-        "- `metrics_by_cell.csv`：模型×数据集×方法×目标的AUROC、AUPRC、PRR和尾部风险指标。",
-        "- `macro_summary.csv`：9个单元格上的宏平均汇总。",
+        "- `../correlation/metrics_by_cell.csv`：模型×数据集×方法×目标的AUROC、AUPRC、PRR和尾部风险指标。",
+        "- `../correlation/macro_summary.csv`：9个单元格上的宏平均汇总。",
         "- `label_relationship.csv`：正确性与幻觉的四象限关系。",
-        "- `risk_by_decile.csv`：UQ十分位数上的错误率、幻觉率和条件幻觉率。",
-        "- `low_uq_summary.csv`：最低10%、20%、30%区域的低UQ盲区统计。",
-        "- `low_uq_samples.csv`：最低20%区域的样本级审计清单。",
-        "- `method_overlap.csv`：三种方法低UQ区域的交集模式。",
+        "- `../correlation/risk_by_decile.csv`：UQ十分位数上的错误率、幻觉率和条件幻觉率。",
+        "- `../luh/low_uq_summary.csv`：最低10%、20%、30%区域的低UQ盲区统计。",
+        "- `../luh/low_uq_samples.csv`：最低20%区域的样本级审计清单。",
+        "- `../luh/method_overlap.csv`：三种方法低UQ区域的交集模式。",
         "- `exclusions.json`：generation、Judge、UQ的纳入排除记录。",
-        "- `auroc_heatmap.svg`、`risk_by_decile.svg`、`low_uq_hallucination.svg`：主要图形。",
+        "- `../correlation/*.svg` 与 `../luh/low_uq_hallucination.svg`：主要图形。",
         "",
         "## 5. 解释边界",
         "",
@@ -414,7 +419,11 @@ def main() -> None:
     args = parser.parse_args()
     if args.bootstrap_samples < 1:
         parser.error("--bootstrap-samples must be positive")
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    descriptive_dir = args.output_dir / "descriptive"
+    correlation_dir = args.output_dir / "correlation"
+    luh_dir = args.output_dir / "luh"
+    for directory in (descriptive_dir, correlation_dir, luh_dir):
+        directory.mkdir(parents=True, exist_ok=True)
 
     rows, exclusions = load_rows(args.project_root)
     metrics = evaluate(rows, args.bootstrap_samples)
@@ -430,18 +439,18 @@ def main() -> None:
     low_samples = low_uq_samples(rows)
     overlap = method_overlap(rows)
 
-    write_csv(args.output_dir / "metrics_by_cell.csv", metrics)
-    write_csv(args.output_dir / "macro_summary.csv", macros)
-    write_csv(args.output_dir / "label_relationship.csv", relationships)
-    write_csv(args.output_dir / "risk_by_decile.csv", deciles)
-    write_csv(args.output_dir / "low_uq_summary.csv", low_summary)
-    write_csv(args.output_dir / "low_uq_macro_summary.csv", low_macro_all)
-    write_csv(args.output_dir / "low_uq_samples.csv", low_samples)
-    write_csv(args.output_dir / "method_overlap.csv", overlap)
-    (args.output_dir / "exclusions.json").write_text(
+    write_csv(correlation_dir / "metrics_by_cell.csv", metrics)
+    write_csv(correlation_dir / "macro_summary.csv", macros)
+    write_csv(descriptive_dir / "label_relationship.csv", relationships)
+    write_csv(correlation_dir / "risk_by_decile.csv", deciles)
+    write_csv(luh_dir / "low_uq_summary.csv", low_summary)
+    write_csv(luh_dir / "low_uq_macro_summary.csv", low_macro_all)
+    write_csv(luh_dir / "low_uq_samples.csv", low_samples)
+    write_csv(luh_dir / "method_overlap.csv", overlap)
+    (descriptive_dir / "exclusions.json").write_text(
         json.dumps(exclusions, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    (args.output_dir / "analysis_config.json").write_text(
+    (descriptive_dir / "analysis_config.json").write_text(
         json.dumps(
             {
                 "models": MODELS,
@@ -459,11 +468,11 @@ def main() -> None:
         + "\n",
         encoding="utf-8",
     )
-    write_svg_heatmap(args.output_dir / "auroc_heatmap.svg", metrics)
-    write_svg_deciles(args.output_dir / "risk_by_decile.svg", deciles)
-    write_svg_low_uq(args.output_dir / "low_uq_hallucination.svg", low_summary)
+    write_svg_heatmap(correlation_dir / "auroc_heatmap.svg", metrics)
+    write_svg_deciles(correlation_dir / "risk_by_decile.svg", deciles)
+    write_svg_low_uq(luh_dir / "low_uq_hallucination.svg", low_summary)
     write_phase1_report(
-        args.output_dir,
+        descriptive_dir,
         rows,
         metrics,
         macros,
@@ -483,7 +492,7 @@ def main() -> None:
                 f"range={_fmt(row['min_auroc'])}-{_fmt(row['max_auroc'])} "
                 f"CI>0.5={row['cells_ci_above_0_5']}/{row['cells']}"
             )
-    print(f"report={args.output_dir / 'report.md'}")
+    print(f"report={descriptive_dir / 'report.md'}")
 
 
 if __name__ == "__main__":

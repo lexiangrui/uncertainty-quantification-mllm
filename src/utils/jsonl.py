@@ -3,7 +3,43 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
+
+
+def load_jsonl_records(path: Path) -> list[dict[str, Any]]:
+    """Load JSONL records from a file, handling both compact and multi-line JSON.
+
+    Tries per-line parsing first (fast path for compact JSONL).  If that
+    fails, falls back to a streaming decoder that handles pretty-printed
+    multi-line JSON objects.
+    """
+    with path.open(encoding="utf-8") as handle:
+        content = handle.read()
+
+    # Fast path: each non-empty line is a complete JSON object
+    lines = [line for line in content.splitlines() if line.strip()]
+    try:
+        return [json.loads(line) for line in lines]
+    except json.JSONDecodeError:
+        pass
+
+    # Fallback: streaming decode for multi-line JSON
+    decoder = json.JSONDecoder()
+    results: list[dict[str, Any]] = []
+    idx = 0
+    while idx < len(content):
+        s = content[idx:].lstrip()
+        if not s:
+            break
+        offset = len(content) - len(s)
+        try:
+            obj, end = decoder.raw_decode(s)
+        except json.JSONDecodeError:
+            break
+        idx = offset + end
+        if isinstance(obj, dict):
+            results.append(obj)
+    return results
 
 
 def completed_sample_ids(

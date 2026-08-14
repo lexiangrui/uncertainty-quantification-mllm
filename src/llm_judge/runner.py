@@ -10,36 +10,32 @@ _API_MAX_RETRIES = 3
 _API_RETRY_BACKOFF_SECONDS = 15
 
 from src.datasets import iter_dataset
-from src.utils import completed_sample_ids, write_sample_json_line
+from src.utils import completed_sample_ids, load_jsonl_records, write_sample_json_line
 
 from .closed_source import ClosedSourceJudge, JUDGE_PROMPT_SHA256, JUDGE_PROMPT_VERSION
 
 
-def _load_generation_records(path: Path) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+def _load_greedy_records(path: Path) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     if not path.is_file():
         raise FileNotFoundError(path)
-    generation_run: dict[str, Any] | None = None
+    run: dict[str, Any] | None = None
     records: dict[str, dict[str, Any]] = {}
-    with path.open(encoding="utf-8") as handle:
-        for line_number, line in enumerate(handle, start=1):
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError as error:
-                raise ValueError(f"invalid JSON at {path}:{line_number}") from error
-            if line_number == 1 and record.get("record_type") == "run":
-                generation_run = record.get("run")
-                continue
-            if generation_run is None:
-                generation_run = record.get("run")
-            elif "run" in record and record.get("run") != generation_run:
-                raise ValueError(f"generation run mismatch at {path}:{line_number}")
-            sample_id = record.get("sample", {}).get("sample_id")
-            if not isinstance(sample_id, str) or sample_id in records:
-                raise ValueError(f"invalid or duplicate sample_id at {path}:{line_number}")
-            records[sample_id] = record
-    if generation_run is None:
-        raise ValueError(f"generation input is empty: {path}")
-    return generation_run, records
+    rows = load_jsonl_records(path)
+    for index, record in enumerate(rows):
+        if index == 0 and record.get("record_type") == "run":
+            run = record.get("run")
+            continue
+        if run is None:
+            run = record.get("run")
+        elif "run" in record and record.get("run") != run:
+            raise ValueError(f"greedy run mismatch at record {index}")
+        sample_id = record.get("sample", {}).get("sample_id")
+        if not isinstance(sample_id, str) or sample_id in records:
+            raise ValueError(f"invalid or duplicate sample_id at record {index}")
+        records[sample_id] = record
+    if run is None:
+        raise ValueError(f"greedy input is empty: {path}")
+    return run, records
 
 
 _INVALID_FORMAT_VALUE = {
@@ -110,12 +106,12 @@ def run_closed_source_judging(
     judge: ClosedSourceJudge,
     dataset: str,
     dataset_source: Path,
-    generation_input: Path,
+    greedy_input: Path,
     output: Path,
     limit: int | None,
     concurrency: int = 1,
 ) -> tuple[int, int]:
-    generation_run, generation_records = _load_generation_records(generation_input)
+    greedy_run, generation_records = _load_greedy_records(greedy_input)
     run = {
         "protocol": "openai-responses",
         "judge_model": judge.model,
@@ -124,8 +120,8 @@ def run_closed_source_judging(
         "max_tokens": judge.max_tokens,
         "dataset": dataset,
         "dataset_source": str(dataset_source.resolve()),
-        "generation_input": str(generation_input.resolve()),
-        "generation_run": generation_run,
+        "greedy_input": str(greedy_input.resolve()),
+        "greedy_run": greedy_run,
     }
     completed = completed_sample_ids(output, run)
     written = 0

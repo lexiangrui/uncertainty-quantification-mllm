@@ -89,8 +89,6 @@ class LacBackend:
 
         dtype = torch.float16 if self.family == "llava_1_5" else torch.bfloat16
         device_map = "auto"
-        if self.family == "qwen2_5_vl":
-            device_map = {"model.visual": 0, "model.language_model": 1, "lm_head": 1}
 
         kwargs = dict(
             device_map=device_map,
