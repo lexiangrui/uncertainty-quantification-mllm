@@ -4,19 +4,24 @@ Measures the fraction of attention from answer tokens directed at visual
 tokens vs. text tokens.  Low visual grounding → answer generated from
 language context → hallucination risk.
 
-Uses a **streaming hook approach**: instead of ``output_attentions=True``
-(which stores ALL layers' attention simultaneously and OOMs on long
-sequences), a forward hook on each selected attention layer processes
-and discards the attention weights immediately.  Peak memory is one
-layer's attention matrix, not all layers.
+**Memory-efficient exact attention**: ``attn_implementation='eager'`` makes
+transformers materialize a full (heads × seq × seq) matrix per layer —
+~1.4 GB at seq≈3500, which OOMs for the longest InternVL3.5 sequences.
+Instead we swap the registry entry ``ALL_ATTENTION_FUNCTIONS["eager"]``
+for a *chunked* implementation: query rows are processed in blocks of
+``_CHUNK`` so peak memory is one (heads × chunk × seq) tile, while the
+math (post-RoPE Q/K, additive mask, fp32 softmax) is identical to eager.
+The VGS rows (answer-predicting positions) are accumulated inside the
+chunk loop and never stored in full.
 """
 from __future__ import annotations
 
 import torch
-import torch.nn.functional as F
 from dataclasses import dataclass
 
 from src.improvement.lac import LacBackend
+
+_CHUNK = 256
 
 
 @dataclass
@@ -31,14 +36,13 @@ class VgsResult:
         return {
             "score": self.score,
             "vision_attn_ratio": self.vision_attn_ratio,
-            "vision_attn_mean": self.vision_attn_mean,
+            "vision_attn_mean": self.vision_attn_ratio,
             "n_answer_tokens": self.n_answer_tokens,
             "n_visual_tokens": self.n_visual_tokens,
         }
 
 
 def _get_decoder_layers(backend: LacBackend):
-    """Return the list of decoder layers from the model."""
     base = backend._base_model()
     core = getattr(base, "model", base)
     lang_model = getattr(core, "language_model", core)
@@ -49,13 +53,92 @@ def _get_decoder_layers(backend: LacBackend):
     raise RuntimeError("cannot locate decoder layers")
 
 
+def _repeat_kv(x: torch.Tensor, n: int) -> torch.Tensor:
+    if n == 1:
+        return x
+    return x[:, :, None, :, :].expand(*x.shape[:2], n, *x.shape[2:]).reshape(
+        x.shape[0], x.shape[1] * n, x.shape[2], x.shape[3]
+    )
+
+
+class _VgsAccumulator:
+    """Accumulates answer→visual attention mass per selected decoder layer."""
+
+    def __init__(self, predict_idx: torch.Tensor, visual_idx: torch.Tensor, selected_layers: set[int]):
+        self.predict_idx = predict_idx.cpu()
+        self.visual_idx = visual_idx.cpu()
+        self.selected = selected_layers
+        self.module_layers: dict[int, int] = {}
+        self.visual_sum = 0.0
+        self.total_sum = 0.0
+
+    def map_modules(self, layers: list) -> None:
+        for i, layer in enumerate(layers):
+            attn = getattr(layer, "self_attn", None)
+            if attn is not None:
+                self.module_layers[id(attn)] = i
+
+    def accumulate(self, module, probs: torch.Tensor, row_start: int) -> None:
+        layer = self.module_layers.get(id(module))
+        if layer is None or layer not in self.selected:
+            return
+        p = self.predict_idx.to(probs.device)
+        sel = p[(p >= row_start) & (p < row_start + probs.shape[2])]
+        if sel.numel() == 0:
+            return
+        rows = probs[0][:, sel - row_start, :]  # (heads, n_sel, seq)
+        col = rows.sum(dim=(0, 1))  # (seq,)
+        vidx = self.visual_idx.to(col.device)
+        self.visual_sum += col[vidx].sum().item()
+        self.total_sum += col.sum().item()
+
+
+def _make_chunked_eager(accumulator: _VgsAccumulator):
+    def chunked_eager(module, query, key, value, attention_mask, scaling, dropout=0.0, **kwargs):
+        is_causal = kwargs.get("is_causal")
+        is_decoder = id(module) in accumulator.module_layers
+        groups = getattr(module, "num_key_value_groups", 1)
+        key_states = _repeat_kv(key, groups)
+        value_states = _repeat_kv(value, groups)
+        q_len = query.shape[2]
+        kv_len = key_states.shape[2]
+
+        # Adaptive chunk: keep one fp32 probs tile under ~512 MB even for
+        # extreme sequences (Qwen2.5-VL global-attention ViT layers can see
+        # tens of thousands of visual tokens on high-resolution images).
+        budget = 512 * 1024 * 1024
+        chunk = max(64, min(_CHUNK, int(budget / (query.shape[1] * kv_len * 4))))
+
+        out = torch.empty_like(query)
+        for s in range(0, q_len, chunk):
+            e = min(s + chunk, q_len)
+            scores = torch.matmul(query[:, :, s:e, :], key_states.transpose(2, 3)) * scaling
+            if attention_mask is not None:
+                scores = scores + attention_mask[:, :, s:e, :]
+            elif is_causal or (is_decoder and is_causal is None):
+                # Decoder rows are causal unless an explicit mask was given.
+                rows = torch.arange(s, e, device=scores.device).unsqueeze(1)
+                cols = torch.arange(kv_len, device=scores.device).unsqueeze(0)
+                causal = cols <= rows
+                scores = scores.masked_fill(
+                    ~causal.view(1, 1, e - s, kv_len), torch.finfo(scores.dtype).min
+                )
+            # else: bidirectional (ViT global attention) — no mask
+            probs = torch.softmax(scores, dim=-1, dtype=torch.float32).to(query.dtype)
+            out[:, :, s:e, :] = torch.matmul(probs, value_states)
+            accumulator.accumulate(module, probs, s)
+        return out.transpose(1, 2).contiguous(), None
+
+    return chunked_eager
+
+
 def compute_vgs(
     backend: LacBackend,
     full_inputs: dict,
     prompt_length: int,
     answer_span: tuple[int, int],
 ) -> VgsResult:
-    """Compute Visual Grounding Score using streaming attention hooks."""
+    """Compute Visual Grounding Score via chunked eager attention."""
     input_ids = full_inputs["input_ids"]
     image_token_id = backend._image_token_id
     ans_start, ans_end = answer_span
@@ -68,79 +151,37 @@ def compute_vgs(
     if n_visual == 0:
         return VgsResult(None, None, None, n_ans, 0)
 
-    predict_positions = list(range(ans_start - 1, ans_end - 1))
-    visual_positions = visual_mask.nonzero(as_tuple=True)[0]
+    predict_idx = torch.arange(ans_start - 1, ans_end - 1)
+    visual_idx = visual_mask.nonzero(as_tuple=True)[0].cpu()
 
     layers = _get_decoder_layers(backend)
     n_layers = len(layers)
-    layer_start = n_layers // 3
-    layer_end = n_layers
+    selected = set(range(n_layers // 3, n_layers))
 
-    # Streaming accumulation: process each layer's attention in a hook,
-    # then discard it immediately to avoid OOM on long sequences.
-    total_visual_attn = 0.0
-    total_all_attn = 0.0
+    accumulator = _VgsAccumulator(predict_idx, visual_idx, selected)
+    accumulator.map_modules(layers)
 
-    # Pre-compute tensors on the correct device for use inside hooks
-    predict_idx = torch.tensor(predict_positions, dtype=torch.long)
-    visual_idx = visual_positions.cpu()
+    from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
-    def make_hook():
-        def hook(module, args, output):
-            nonlocal total_visual_attn, total_all_attn
-            # output from eager attention: (attn_output, attn_weights) or more
-            if not isinstance(output, tuple) or len(output) < 2:
-                return
-            attn_weights = output[1]
-            if attn_weights is None:
-                return
-            # attn_weights: (batch, heads, seq, seq)
-            # Extract attention from predict_positions to all positions
-            attn = attn_weights[0]  # (heads, seq, seq)
-            dev = attn.device
-            pidx = predict_idx.to(dev)
-            vidx = visual_idx.to(dev)
-
-            ans_attn = attn[:, pidx, :]  # (heads, n_ans, seq)
-            ans_sum = ans_attn.sum(dim=(0, 1))  # (seq,)
-            total_visual_attn += ans_sum[vidx].sum().item()
-            total_all_attn += ans_sum.sum().item()
-
-            # Discard attention to free memory — return None in its place
-            output_list = list(output)
-            output_list[1] = None
-            return tuple(output_list)
-        return hook
-
-    # Register hooks on selected layers
-    handles = []
-    for layer_idx in range(layer_start, min(layer_end, n_layers)):
-        layer = layers[layer_idx]
-        attn_module = getattr(layer, "self_attn", None)
-        if attn_module is not None:
-            h = attn_module.register_forward_hook(make_hook())
-            handles.append(h)
-
+    # "eager" is not in the default registry (models pass it as a default
+    # argument), so get_interface() falls back to our entry once registered.
+    ALL_ATTENTION_FUNCTIONS["eager"] = _make_chunked_eager(accumulator)
     try:
         with torch.inference_mode():
-            outputs = backend.model(
-                **full_inputs,
-                output_attentions=True,  # needed so attention is computed
-                use_cache=False,
-            )
+            outputs = backend.model(**full_inputs, use_cache=False)
     finally:
-        for h in handles:
-            h.remove()
+        del ALL_ATTENTION_FUNCTIONS["eager"]
 
     del outputs
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    vision_ratio = total_visual_attn / max(total_all_attn, 1e-12)
-    score = -vision_ratio
+    if accumulator.total_sum < 1e-12:
+        return VgsResult(None, None, None, n_ans, n_visual)
 
+    vision_ratio = accumulator.visual_sum / accumulator.total_sum
     return VgsResult(
-        score=score,
+        score=-vision_ratio,
         vision_attn_ratio=vision_ratio,
         vision_attn_mean=vision_ratio,
         n_answer_tokens=n_ans,
