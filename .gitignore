@@ -32,14 +32,24 @@ build/
 .mypy_cache/
 .ruff_cache/
 
-# LaTeX build artifacts.
-report/*.aux
-report/*.bbl
-report/*.blg
-report/*.log
-report/*.out
-report/*.toc
-report/*.synctex.gz
-report/*.fdb_latexmk
-report/*.fls
-report/*.pdf
+# LaTeX build artifacts under report/ (including nested chapters/build dirs).
+report/**/*.aux
+report/**/*.bbl
+report/**/*.bcf
+report/**/*.blg
+report/**/*.dvi
+report/**/*.fdb_latexmk
+report/**/*.fls
+report/**/*.lof
+report/**/*.log
+report/**/*.lot
+report/**/*.nav
+report/**/*.out
+report/**/*.run.xml
+report/**/*.snm
+report/**/*.synctex.gz
+report/**/*.toc
+report/**/*.vrb
+report/**/*.xdv
+report/**/*.pdf
+report/**/_minted-*/

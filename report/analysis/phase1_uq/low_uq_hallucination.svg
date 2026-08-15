@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="430" viewBox="0 0 1180 430">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<style>text{font-family:Arial,sans-serif;fill:#202124}.small{font-size:11px}.value{font-size:12px;font-weight:600}</style>
+<text x="20" y="28" font-size="18" font-weight="600">Hallucination rate in the lowest 20% UQ region</text>
+<text class="small" text-anchor="middle" x="202.5" y="49">llava</text>
+<text class="small" text-anchor="middle" x="202.5" y="64">vilp</text>
+<text class="small" text-anchor="middle" x="307.5" y="49">llava</text>
+<text class="small" text-anchor="middle" x="307.5" y="64">hallusion</text>
+<text class="small" text-anchor="middle" x="412.5" y="49">llava</text>
+<text class="small" text-anchor="middle" x="412.5" y="64">mmvet</text>
+<text class="small" text-anchor="middle" x="517.5" y="49">qwen</text>
+<text class="small" text-anchor="middle" x="517.5" y="64">vilp</text>
+<text class="small" text-anchor="middle" x="622.5" y="49">qwen</text>
+<text class="small" text-anchor="middle" x="622.5" y="64">hallusion</text>
+<text class="small" text-anchor="middle" x="727.5" y="49">qwen</text>
+<text class="small" text-anchor="middle" x="727.5" y="64">mmvet</text>
+<text class="small" text-anchor="middle" x="832.5" y="49">internvl</text>
+<text class="small" text-anchor="middle" x="832.5" y="64">vilp</text>
+<text class="small" text-anchor="middle" x="937.5" y="49">internvl</text>
+<text class="small" text-anchor="middle" x="937.5" y="64">hallusion</text>
+<text class="small" text-anchor="middle" x="1042.5" y="49">internvl</text>
+<text class="small" text-anchor="middle" x="1042.5" y="64">mmvet</text>
+<text class="small" text-anchor="end" x="140" y="99">perplexity</text>
+<rect x="152" y="77" width="101" height="34" rx="3" fill="#4c78a8" fill-opacity="0.484"/>
+<text class="value" text-anchor="middle" x="202.5" y="100">0.5</text>
+<rect x="257" y="77" width="101" height="34" rx="3" fill="#4c78a8" fill-opacity="0.644"/>
+<text class="value" text-anchor="middle" x="307.5" y="100">0.7</text>
+<rect x="362" y="77" width="101" height="34" rx="3" fill="#4c78a8" fill-opacity="0.510"/>
+<text class="value" text-anchor="middle" x="412.5" y="100">0.5</text>
+<rect x="467" y="77" width="101" height="34" rx="3" fill="#4c78a8" fill-opacity="0.246"/>
+<text class="value" text-anchor="middle" x="517.5" y="100">0.2</text>
+<rect x="572" y="77" width="101" height="34" rx="3" fill="#4c78a8" fill-opacity="0.435"/>
+<text class="value" text-anchor="middle" x="622.5" y="100">0.4</text>
+<rect x="677" y="77" width="101" height="34" rx="3" fill="#4c78a8" fill-opacity="0.338"/>
+<text class="value" text-anchor="middle" x="727.5" y="100">0.3</text>
+<rect x="782" y="77" width="101" height="34" rx="3" fill="#4c78a8" fill-opacity="0.289"/>
+<text class="value" text-anchor="middle" x="832.5" y="100">0.2</text>
+<rect x="887" y="77" width="101" height="34" rx="3" fill="#4c78a8" fill-opacity="0.331"/>
+<text class="value" text-anchor="middle" x="937.5" y="100">0.3</text>
+<rect x="992" y="77" width="101" height="34" rx="3" fill="#4c78a8" fill-opacity="0.213"/>
+<text class="value" text-anchor="middle" x="1042.5" y="100">0.1</text>
+<text class="small" text-anchor="end" x="140" y="137">semantic_entropy</text>
+<rect x="152" y="115" width="101" height="34" rx="3" fill="#e45756" fill-opacity="0.444"/>
+<text class="value" text-anchor="middle" x="202.5" y="138">0.4</text>
+<rect x="257" y="115" width="101" height="34" rx="3" fill="#e45756" fill-opacity="0.605"/>
+<text class="value" text-anchor="middle" x="307.5" y="138">0.6</text>
+<rect x="362" y="115" width="101" height="34" rx="3" fill="#e45756" fill-opacity="0.439"/>
+<text class="value" text-anchor="middle" x="412.5" y="138">0.4</text>
+<rect x="467" y="115" width="101" height="34" rx="3" fill="#e45756" fill-opacity="0.224"/>
+<text class="value" text-anchor="middle" x="517.5" y="138">0.1</text>
+<rect x="572" y="115" width="101" height="34" rx="3" fill="#e45756" fill-opacity="0.414"/>
+<text class="value" text-anchor="middle" x="622.5" y="138">0.4</text>
+<rect x="677" y="115" width="101" height="34" rx="3" fill="#e45756" fill-opacity="0.338"/>
+<text class="value" text-anchor="middle" x="727.5" y="138">0.3</text>
+<rect x="782" y="115" width="101" height="34" rx="3" fill="#e45756" fill-opacity="0.237"/>
+<text class="value" text-anchor="middle" x="832.5" y="138">0.1</text>
+<rect x="887" y="115" width="101" height="34" rx="3" fill="#e45756" fill-opacity="0.363"/>
+<text class="value" text-anchor="middle" x="937.5" y="138">0.3</text>
+<rect x="992" y="115" width="101" height="34" rx="3" fill="#e45756" fill-opacity="0.213"/>
+<text class="value" text-anchor="middle" x="1042.5" y="138">0.1</text>
+<text class="small" text-anchor="end" x="140" y="175">umpire</text>
+<rect x="152" y="153" width="101" height="34" rx="3" fill="#54a24b" fill-opacity="0.431"/>
+<text class="value" text-anchor="middle" x="202.5" y="176">0.4</text>
+<rect x="257" y="153" width="101" height="34" rx="3" fill="#54a24b" fill-opacity="0.580"/>
+<text class="value" text-anchor="middle" x="307.5" y="176">0.6</text>
+<rect x="362" y="153" width="101" height="34" rx="3" fill="#54a24b" fill-opacity="0.386"/>
+<text class="value" text-anchor="middle" x="412.5" y="176">0.3</text>
+<rect x="467" y="153" width="101" height="34" rx="3" fill="#54a24b" fill-opacity="0.215"/>
+<text class="value" text-anchor="middle" x="517.5" y="176">0.1</text>
+<rect x="572" y="153" width="101" height="34" rx="3" fill="#54a24b" fill-opacity="0.361"/>
+<text class="value" text-anchor="middle" x="622.5" y="176">0.3</text>
+<rect x="677" y="153" width="101" height="34" rx="3" fill="#54a24b" fill-opacity="0.356"/>
+<text class="value" text-anchor="middle" x="727.5" y="176">0.3</text>
+<rect x="782" y="153" width="101" height="34" rx="3" fill="#54a24b" fill-opacity="0.237"/>
+<text class="value" text-anchor="middle" x="832.5" y="176">0.1</text>
+<rect x="887" y="153" width="101" height="34" rx="3" fill="#54a24b" fill-opacity="0.300"/>
+<text class="value" text-anchor="middle" x="937.5" y="176">0.2</text>
+<rect x="992" y="153" width="101" height="34" rx="3" fill="#54a24b" fill-opacity="0.157"/>
+<text class="value" text-anchor="middle" x="1042.5" y="176">0.0</text>
+<text class="small" x="150" y="205">Values are descriptive operating-point rates; the 20% threshold is selected without labels.</text>
+</svg>

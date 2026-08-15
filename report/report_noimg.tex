@@ -1,0 +1,66 @@
+% !TEX program = pdflatex
+% No-image version: graphicx loaded with [demo] so every \includegraphics
+% renders as a black placeholder box. Captions, numbering, and cross-refs
+% are unaffected.
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage[demo]{graphicx}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{siunitx}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage[table]{xcolor}
+\usepackage[authoryear,round]{natbib}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage[nameinlink,noabbrev]{cleveref}
+
+\graphicspath{{figures/}}
+\sisetup{detect-all}
+
+\lstset{
+  basicstyle=\small\ttfamily,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!5},
+  columns=fullflexible,
+  keepspaces=true,
+}
+
+\numberwithin{figure}{section}
+\numberwithin{table}{section}
+
+\title{\textbf{Uncertainty Quantification and Hallucination Risk\\in Multimodal Large Language Models}\\[0.5em]\large (No-Image Version)}
+\author{Xiangrui Yue}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\input{chapter/00_abstract}
+
+\setcounter{tocdepth}{2}
+\tableofcontents
+\clearpage
+
+\input{chapter/01_introduction}
+\input{chapter/02_literature_survey}
+\input{chapter/03_method}
+\input{chapter/04_experimental_design}
+\input{chapter/05_results}
+\input{chapter/06_case_analysis}
+\input{chapter/07_limitations_future_work}
+\input{chapter/08_references}
+
+\appendix
+\input{chapter/appendix}
+
+\end{document}

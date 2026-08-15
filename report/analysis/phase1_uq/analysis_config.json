@@ -1,0 +1,31 @@
+{
+  "models": [
+    "llava",
+    "qwen",
+    "internvl"
+  ],
+  "datasets": [
+    "vilp",
+    "hallusionbench",
+    "mmvet"
+  ],
+  "methods": [
+    "perplexity",
+    "semantic_entropy",
+    "umpire"
+  ],
+  "targets": [
+    "error",
+    "correct",
+    "hallucination",
+    "hallucination_given_error"
+  ],
+  "low_quantiles": [
+    0.1,
+    0.2,
+    0.3
+  ],
+  "primary_low_quantile": 0.2,
+  "bootstrap_samples": 500,
+  "input_project_root": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM"
+}
