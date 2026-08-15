@@ -63,6 +63,9 @@
 │   └── lora/vqav2_5000_4to1/
 ├── scripts/
 │   ├── analysis/analyze_phase1_results.py
+│   ├── analysis/compute_common_luh.py
+│   ├── analysis/extract_luh_subset.py
+│   ├── analysis/extract_per_model_subset.py
 │   ├── evaluation/compute_metrics.py
 │   ├── generation/generate_responses.py
 │   ├── generation/extract_hidden_states.py
@@ -87,6 +90,7 @@
 | Judge 结果 | `results/judging/full_transformers_k5/{llava,qwen,internvl}/{vilp,hallusionbench,mmvet}.jsonl` |
 | 指标报告 | `results/metrics/full_transformers_k5/{llava,qwen,internvl}/{vilp,hallusionbench,mmvet}.metrics.json` |
 | 汇总分析 | `results/analysis/phase1_uq/` |
+| LUH 子集提取 | `results/analysis/luh/` |
 | LoRA adapter | `results/lora/vqav2_5000_4to1/` |
 
 ## 工作流
@@ -129,6 +133,24 @@ python3 scripts/generation/generate_responses.py \
 `scripts/evaluation/compute_metrics.py` 将同一模型和数据集的 UQ/Judge JSONL 按 `sample_id` 合并，报告错误检测和幻觉检测的 AUROC、AUPRC、PRR、ECE 及 group-level bootstrap 置信区间。
 
 `scripts/analysis/analyze_phase1_results.py` 对完整 3 × 3 矩阵生成当前保留的汇总报告、CSV 和 SVG 图表。
+
+### 4. 低不确定性幻觉（LUH）子集提取
+
+在既有 UQ 与 Judge 结果之上，为每个模型提取 400 样本的低不确定性幻觉（LUH）子集：
+200 条幻觉且不确定性低的样本为正例，200 条在三维 PPL/SE/UMPIRE 百分位空间最近邻匹配的
+非幻觉样本为负例。匹配保证三种 baseline 在子集上的 AUROC 接近 0.5，使子集成为改进方法
+的诚实测试集。
+
+- `scripts/analysis/compute_common_luh.py`：在每个 dataset × model × method 单元格内做
+  average-rank percentile 归一化（默认低 UQ 阈值 0.25），输出跨至少两个模型的 common LUH
+  与三个模型一致的 core LUH。
+- `scripts/analysis/extract_per_model_subset.py`：按模型独立提取 400 样本子集，负例用
+  三维百分位空间贪心最近邻匹配，并打印子集上的 baseline AUROC 自检。
+- `scripts/analysis/extract_luh_subset.py`：跨模型公共交集策略的早期提取版本，保留作参考。
+
+三个脚本分别通过 `--uq-root/--uq-dir`、`--judge-root/--judge-dir`、`--gen-dir` 指定输入，
+产物写入 `results/analysis/luh/`。提取定义、流程与验证结果见
+[低不确定性子集提取说明](docs/低不确定性子集提取说明.md)。
 
 ## LoRA adapter
 
