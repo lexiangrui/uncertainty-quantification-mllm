@@ -1,13 +1,133 @@
 \section{Introduction}
 \label{sec:introduction}
 
-% TODO: task description, motivation, research question, contributions
+\subsection{Research Background and Problem Definition}
+\label{subsec:background}
 
-\subsection{Task Description}
-% TODO
+Multimodal large language models (MLLMs) generate open-ended responses from images and text, but their outputs can deviate from the input evidence or objective facts. Following related work \cite{sun2023aligning}, I adopt the following definition: MLLM hallucination refers to factual content generated during perception and reasoning that contradicts the input visual content, the question, or the context, cannot be reasonably derived from them, or is inconsistent with verifiable real-world knowledge.
+
+Hallucination is not equivalent to general errors. Calculation mistakes, incorrect formula selection, flawed logical reasoning, or option mapping errors are not labeled as hallucination unless they introduce factual content satisfying the conditions above. Conversely, even when the final answer is correct, an instance is still labeled as hallucination whenever its perception or reasoning process satisfies those conditions. I accordingly define a correctness label and a hallucination label:
+\[
+C_i=\mathbb{1}[\text{the final answer is consistent with the reference answer}],\qquad
+H_i=\mathbb{1}[\text{perception or reasoning satisfies any hallucination condition}].
+\]
+The labels $C$ and $H$ are independent and jointly form four combinations. This design distinguishes responses that are wrong without hallucination from those that are correct yet contain hallucination, and avoids substituting answer correctness for the hallucination label.
+
+Uncertainty quantification (UQ) computes an uncertainty score for a given input and its response from signals such as generation probability, repeated sampling, internal representations, or model self-assessment, and describes the degree to which the model lacks certainty about that response \cite{liu2025uncertainty}. Throughout this report, a higher UQ score indicates higher uncertainty.
+
+Uncertainty is related to hallucination, but the two are not equivalent. Uncertainty describes the stability of the model predictive distribution or internal state, whereas hallucination describes whether the factual content of a response is supported by the input and reliable knowledge. High uncertainty can arise from image blur, ambiguous questions, or multiple plausible answers, in which case hallucination does not necessarily occur; low uncertainty only indicates that the model has formed a stable prediction and does not guarantee that the prediction is factually grounded. Prior studies likewise show that the association between UQ and hallucination varies with task, model, and hallucination type \cite{agnimo2026evaluating}.
+
+A model may repeatedly generate the same hallucination with high probability because of language priors, stable but erroneous visual representations, or other systematic biases. For a given UQ method, I define this situation as low-uncertainty hallucination (LUH): a response is independently judged to contain hallucination, yet the UQ method still places it in the low-uncertainty region of the model. LUH is a false negative of hallucination detection and reflects the failure of the UQ method to recognize unsupported content that the model generates stably.
+
+According to the uncertainty level and the presence of hallucination, model responses fall into four categories (Table~\ref{tab:luh_categories}).
+
+\begin{table}[ht]
+\centering
+\caption{Four categories of model responses by uncertainty level and hallucination status.}
+\label{tab:luh_categories}
+\begin{tabular}{p{3.2cm}p{2.2cm}p{6.8cm}c}
+\toprule
+Category & UQ status & Response characteristics & Hallucination \\
+\midrule
+Certain and reliable response & Low uncertainty & Stable response whose factual content is consistent with the input evidence and verifiable knowledge & No \\
+High-uncertainty hallucination & High uncertainty & The model lacks sufficient evidence and repeatedly generates different factual content without support & Yes \\
+High-uncertainty non-hallucination & High uncertainty & The question is ambiguous, admits multiple plausible answers, or leaves open-ended expression space, but the generated content remains grounded & No \\
+Low-uncertainty hallucination (LUH) & Low uncertainty & Stable and superficially plausible response containing factual content that contradicts the input, cannot be reasonably derived from it, or is inconsistent with verifiable knowledge; it constitutes a false negative of UQ-based hallucination detection & Yes \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{A Survey of Multimodal Hallucination Evaluation}
+\label{subsec:hallucination_survey}
+
+The evaluation of multimodal hallucination has evolved from checking the existence of objects to assessing whether open-ended responses are supported by evidence, and the evaluation target has gradually expanded from the final answer to the complete response. Early studies mainly focused on object hallucination in image description. Rohrbach et al.\ proposed CHAIR, which compares the objects mentioned in a generated description with the objects actually present in the image and computes the proportion of hallucinated objects among all mentioned objects \cite{rohrbach2018object}. This method pioneered an evaluation paradigm centered on visual evidence checking, but it is limited to a fixed set of object categories such as the 80 classes of MSCOCO, and its results are sensitive to instruction design and description length. In the era of multimodal large models, Li et al.\ proposed POPE, which converts object hallucination detection into a yes/no binary classification task of whether a certain object exists in the image \cite{li2023evaluating}: positive questions are constructed from objects that truly exist in the image, while negative questions are sampled from objects that do not appear, with subsets divided by random, popular, and adversarial negative sampling strategies. Their study found that objects appearing frequently or co-occurring often in the training data are more likely to be generated by the model in a hallucinated form, which suggests that multimodal hallucination may originate from stable language and co-occurrence priors rather than from visual perception noise alone. Comprehensive benchmarks such as MME further incorporate object existence, counting, position, and color perception subtasks into a unified polling evaluation framework \cite{fu2023mme}.
+
+As the evaluation target became finer, researchers summarized object-level hallucination into three categories: category hallucination, which identifies object categories that do not exist in the image; attribute hallucination, in which the object category is correct but the description of attributes such as color, shape, material, or quantity is wrong; and relation hallucination, in which both the objects and their attributes are correct but the interactions or relative positions among objects do not match the image. The above classification shows that hallucination is not limited to claiming the existence of things that do not exist, but also includes describing existing things incorrectly. Therefore, checking only whether the final answer matches a reference standard cannot cover unsupported content at the attribute and relation levels.
+
+Polling-based evaluation can hardly capture complex hallucination in open-ended responses. MMHal-Bench constructs an open-ended question set covering eight types of questions such as object attributes, counting, and spatial relations, and introduces GPT-4 as a judge to score responses on a 0 to 6 scale \cite{sun2023aligning}, shifting hallucination detection from rule matching to letting a stronger model judge whether a response is supported by evidence. HallusionBench takes a diagnostic perspective and divides questions into Visual Dependent, which can only be answered with the visual context, and Visual Supplement, which can be answered without the visual input while the visual content only provides supplementary or corrective information, and systematically examines visual illusions, language priors, false premises, and image-text conflicts \cite{guan2024hallusionbench}. The Visual Supplement setting directly tests whether the model is dominated by language priors when they conflict with image evidence. In addition, GAVIE verifies the feasibility of GPT-4 in open-ended hallucination evaluation \cite{liu2023mitigating}, and HaELM attempts to train a dedicated hallucination detection model to reduce dependence on general-purpose large models \cite{wang2023evaluation}.
+
+Overall, multimodal hallucination evaluation has progressed from rule-based object comparison such as CHAIR, to discriminative polling such as POPE and MME, and then to open-ended evaluation assisted by stronger models such as MMHal-Bench, GAVIE, and HaELM, and the evaluation target has expanded from whether the final answer matches to whether the complete response is supported by the input evidence. However, these works also show that a single accuracy rate cannot fully describe the trustworthiness of an MLLM. On the one hand, an open-ended response may attach incorrect visual details even when its conclusion is correct. On the other hand, a model may also answer wrongly because of reasoning or calculation mistakes even when its visual observation is completely correct, and such mistakes do not constitute hallucination under the definition in Section~\ref{subsec:background}. Therefore, studying whether UQ can predict hallucination requires hallucination labels independent of correctness, together with the visual observation, the reasoning process, and the final answer of the model, so that the location where hallucination actually occurs can be identified.
+
+\subsection{From Language Model Uncertainty to Multimodal Uncertainty}
+\label{subsec:from_llm_to_mllm}
+
+\subsubsection{Uncertainty Quantification Methods for Large Language Models}
+
+Classical machine learning usually distinguishes aleatoric uncertainty from epistemic uncertainty; for open-ended language generation, related surveys further divide uncertainty into input, reasoning, parameter, and prediction dimensions \cite{liu2025uncertainty}. According to how the score is obtained, existing UQ methods for large language models can be summarized into five categories.
+
+The first category is based on generation probability. These methods use logits to compute token entropy, predictive entropy, sequence negative log-likelihood, or perplexity (PPL) \cite{malinin2021uncertainty}. They are computationally cheap, but the generation probability only reflects the likelihood of the response under the model distribution and does not directly represent factual correctness.
+
+The second category is based on model self-assessment. P(True) and verbalized confidence estimate uncertainty by asking the model again whether its answer is correct or letting the model directly report a confidence value \cite{kadavath2022language}. Such methods apply to closed-source models, but the results are easily affected by prompting and may reproduce the knowledge bias of the model.
+
+The third category is based on the consistency of multiple samples. These methods repeatedly generate responses and estimate uncertainty from answer frequency, textual similarity, or semantic consistency. Semantic Entropy clusters the sampled responses semantically and computes the cluster entropy \cite{kuhn2023semantic}. Kernel Language Entropy uses a semantic kernel to describe continuous similarity \cite{nikitin2024kernel}. Eccentricity and Degree are based on centrality measures of the response relation graph \cite{lin2023generating}, while EigenScore is based on the spectral characteristics of the covariance matrix of response embeddings \cite{chen2024inside}. These methods suit open-ended responses, but they may still give low uncertainty when the model stably repeats the same mistake.
+
+The fourth category is based on internal representations. These methods use hidden states, attention, or intermediate-layer activations to compute distances or densities, or train lightweight probes to predict answer reliability. Azaria and Mitchell showed through linear probes that internal states contain information related to the truthfulness of statements \cite{azaria2023internal}, but such methods usually require white-box access and their results depend on the model layer, the task, and the supervision labels.
+
+The fifth category is based on perturbation and ensembling. SPUQ estimates uncertainty by perturbing the input and aggregating response changes under different conditions \cite{gao2024spuq}. Monte Carlo dropout, Bayesian approximation, and model ensembling estimate model uncertainty by approximating the parameter posterior \cite{liu2025uncertainty}. Such methods can discover local instability, but they are computationally expensive and depend on whether the perturbation truly preserves the meaning of the original task.
+
+These five categories measure generation probability, self-assessed confidence, output consistency, internal states, and intervention stability respectively, and cannot be directly interpreted as hallucination probability without verification.
+
+\subsubsection{Uncertainty Quantification Methods for Multimodal Large Language Models}
+
+The text-side UQ methods above can be directly applied to the text output of an MLLM, but they can hardly distinguish whether the uncertainty comes from vision, text, multimodal alignment, or language decoding. Recent methods therefore begin to explicitly exploit visual inputs and cross-modal internal signals.
+
+VL-Uncertainty rewrites the question and applies Gaussian blur to the image, and then computes the semantic cluster entropy of responses under perturbed inputs \cite{zhang2024vluncertainty}. It extends Semantic Entropy from a fixed input to an input neighborhood formed by semantic-equivalent perturbations of image and text, but changing both modalities simultaneously makes the source of the score difficult to attribute, and blurring may remove visual information required by the task.
+
+VAUQ combines the prediction entropy on the original image with the entropy increase after masking high-attention visual tokens, in order to measure whether the response depends on visual evidence \cite{park2026vauq}. This method explicitly considers visual information, but a high attention weight does not necessarily mean that the region is the evidence on which the response depends, and its main evaluation target is still the correctness of the final answer.
+
+UMPIRE combines the dispersion of sampled responses in the internal semantic space of the MLLM with generation probability, measuring both response diversity and multimodal consistency \cite{lau2026umpire}. However, the uncertainty of this method mainly comes from the variation among samples, and it treats answer correctness as the main risk target.
+
+Visual Semantic Entropy perturbs only the image while keeping the text question fixed, and computes uncertainty from the weighted distance among semantic prototypes of responses \cite{huy2026visualsemanticentropy}. This study points out that overconfident visual representations make sampled responses highly consistent in meaning, which causes ordinary Semantic Entropy to underestimate visual uncertainty, but it still mainly evaluates answer errors and visual ambiguity.
+
+In summary, multimodal UQ has evolved from reusing text scores to explicitly probing visual evidence and cross-modal representations, but whether these scores can identify the strictly defined hallucination still needs to be verified with independent hallucination labels.
+
+\subsection{Common Gaps in Existing Research}
+\label{subsec:gaps}
+
+Based on the above survey, I argue that existing UQ research suffers from four interrelated gaps in predicting low-uncertainty hallucination, as summarized in Table~\ref{tab:gaps}.
+
+\begin{table}[ht]
+\centering
+\caption{Four gaps of existing UQ research in predicting low-uncertainty hallucination.}
+\label{tab:gaps}
+\begin{tabular}{p{2.4cm}p{5.2cm}p{6.4cm}}
+\toprule
+Gap & Common practice in existing research & Impact on low-uncertainty hallucination \\
+\midrule
+Mechanism assumption & High generation probability or multi-sample consistency is interpreted as reliability & When the same hallucination is stably reproduced, methods such as PPL and Semantic Entropy may simultaneously give low uncertainty \\
+Evaluation target & The correctness of the final answer is used as the hallucination or risk label & It cannot distinguish wrong answers without hallucination from correct answers that contain hallucination, and the effectiveness of UQ may be replaced by the error rate \\
+Measurement object & Only the final answer is scored in terms of probability or semantic dispersion & Unsupported content introduced in the visual observation or reasoning may not be reflected in the UQ score of the short final answer \\
+Perturbation validity & Image blurring and text rewriting are treated as semantically equivalent perturbations & Perturbations may destroy task information or introduce prompt sensitivity, so that a high score reflects artificial information degradation rather than the original hallucination risk \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This judgment is also supported by a recent systematic study. Agnimo et al.\ compared 46 UQ estimators and found that the association between uncertainty and hallucination varies significantly with the dataset, which encodes both the task and the hallucination type, and with the model, and that no single estimator is consistently best across datasets. That study further points out that existing work often substitutes broad correctness, robustness, or calibration targets for hallucination-specific targets, and therefore UQ scores should not be directly regarded as general-purpose hallucination detectors \cite{agnimo2026evaluating}. However, that study targets text LLMs and has not systematically examined the low-uncertainty hallucination caused by visual evidence, language priors, and multimodal fusion.
 
 \subsection{Research Question}
-% TODO
+\label{subsec:research_question}
 
-\subsection{Contributions}
-% TODO
+Based on the above survey, I formulate the following core research question: how can uncertainty quantification methods identify and predict low-uncertainty hallucination in multimodal large language models?
+
+The low-uncertainty hallucination studied in this report is not a new type of hallucination but a class of samples that existing UQ methods may miss: the response contains content unsupported by the image, the question, the context, or the facts, while the generation probability, sampling consistency, or internal semantic representation score of the method still exhibits low uncertainty. Answering this question requires identifying hallucinated samples that PPL, Semantic Entropy, and UMPIRE jointly place in the low-uncertainty region, namely the consensus LUH missed by all three baselines, and then designing a new uncertainty quantification method based on the common characteristics of these samples and the common failure modes of the three methods. To compute discriminative metrics, I configure 200 positive samples and an equal number of low-uncertainty non-hallucinated negative samples for each model, so that the comparison is confined to the same low-uncertainty region. The report therefore consists of two consecutive experiments.
+
+\subsection{Research Method and Experimental Pipeline}
+\label{subsec:pipeline}
+
+I first systematically evaluate existing UQ methods, analyze the relationship between uncertainty and answer correctness and hallucination risk, and extract for each model hallucinated samples that all three baseline methods judge as low-uncertainty (positive LUH samples) together with non-hallucinated samples in the same low-uncertainty region (negative samples). I then design a new UQ method based on the failure modes exposed by the consensus LUH missed by the three baselines, and examine whether the new method can identify these LUH from the non-hallucinated samples in the low-uncertainty region. The overall research pipeline is
+\[
+\text{response generation}
+\rightarrow \text{independent correctness and hallucination labeling}
+\rightarrow \text{evaluation of existing UQ methods}
+\rightarrow \text{consensus LUH and low-uncertainty non-hallucination extraction}
+\rightarrow \text{new method design and validation}.
+\]
+The first four stages constitute Experiment~1 and the last stage constitutes Experiment~2; Experiment~2 fully reuses the samples, labels, and metric definitions of Experiment~1, and the two experiments are consecutive.
+
+\subsubsection{Experiment 1: Evaluation of Existing UQ Methods and Extraction of the Consensus LUH Subset}
+
+In a unified model-dataset evaluation matrix, Experiment~1 generates structured responses, performs independent correctness and hallucination labeling, computes three baseline scores (Perplexity, Semantic Entropy, and UMPIRE), and evaluates their error and hallucination detection ability. It then extracts 200 low-uncertainty hallucinated positive samples and 200 low-uncertainty non-hallucinated negative samples per model, forming a fixed 400-sample evaluation subset that serves as the evaluation basis of Experiment~2. The datasets, models, labeling protocol, UQ computation, and subset extraction procedures are detailed in Chapter~2.
+
+\subsubsection{Experiment 2: Improving UQ Methods to Identify Low-Uncertainty Hallucination}
+
+Experiment~2 designs a new UQ method on the fixed low-uncertainty hallucination subset of Experiment~1, so that the new score can identify the low-uncertainty hallucination missed by the three baselines. The new method and the baselines use exactly the same samples, hallucination labels, and evaluation metrics. Acceptance requires three conditions to be satisfied simultaneously: a significant improvement of the ranking metrics on the subset, no degradation on the full test set, and stable reproduction across models and datasets. The detailed method design and validation procedure are described in the following chapters.
