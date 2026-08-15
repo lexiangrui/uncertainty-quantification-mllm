@@ -210,3 +210,53 @@ def test_char_span_tokens_offset_mapping():
     assert batch.char_span_tokens(0, 6) == [0, 1, 2]
     assert batch.char_span_tokens(9, 12) == []
     assert batch.absolute(2) == 12
+
+
+# ----------------------------------------------------------------------
+# Frozen score post-processing
+# ----------------------------------------------------------------------
+
+def _record(p_toward, p_away, base_logit=10.0):
+    """Synthetic extraction record with one object and two interventions."""
+    return {
+        "sample": {"sample_id": "x"},
+        "sai": {
+            "objects": [{"surface": "dog", "token_id": 5, "positions": [2]}],
+            "lens": [],
+            "baseline": {"section_nll": {}, "mention_logprob": [[-1.0]],
+                         "mention_logit": [[base_logit]]},
+            "interventions": [
+                {"layer": 16, "anchor": "dog", "anchor_mode": "unembed", "locate": "topk",
+                 "sign": 1, "sigma": 1.0, "mention_dlogit": [[0.5]],
+                 "lens_dread": {"31": [p_toward]}},
+                {"layer": 16, "anchor": "dog", "anchor_mode": "unembed", "locate": "topk",
+                 "sign": -1, "sigma": 1.0, "mention_dlogit": [[-0.5]],
+                 "lens_dread": {"31": [p_away]}},
+                {"layer": 16, "anchor": "dog", "anchor_mode": "mention_state", "locate": "topk",
+                 "sign": 1, "sigma": 1.0, "mention_dlogit": [[0.4]],
+                 "lens_dread": {"31": [p_toward]}},
+                {"layer": 16, "anchor": "dog", "anchor_mode": "mention_state", "locate": "topk",
+                 "sign": -1, "sigma": 1.0, "mention_dlogit": [[-0.4]],
+                 "lens_dread": {"31": [p_away]}},
+            ],
+        },
+    }
+
+
+def test_frozen_components_and_scores():
+    from src.improvement.sai_score import sai_frozen_components, sai_frozen_scores
+
+    records = {
+        "a": _record(2.0, -2.0, base_logit=12.0),   # strong propagation, well supported
+        "b": _record(1.0, -1.0, base_logit=6.0),    # weak propagation, unsupported
+        "c": _record(4.0, -4.0, base_logit=8.0),    # strongest propagation
+    }
+    comps = {sid: sai_frozen_components(r) for sid, r in records.items()}
+    assert comps["a"]["P31_unembed"] == 2.0
+    assert comps["b"]["P31_mention_state"] == 1.0
+    assert comps["a"]["neg_support"] == -12.0
+    scores = sai_frozen_scores(comps)
+    # c has the largest propagation and mid support → highest risk score
+    assert scores["c"] > scores["a"] > scores["b"] or scores["c"] > scores["b"]
+    # a is well supported and weakly propagating → lowest risk
+    assert scores["a"] == min(scores.values())

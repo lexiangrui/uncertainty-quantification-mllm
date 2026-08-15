@@ -40,6 +40,13 @@ INTERVENE_LAYERS=${INTERVENE_LAYERS:-"12 20 28"}
 SIGMAS=${SIGMAS:-"1.0 2.0"}
 K_LOCATE=${K_LOCATE:-16}
 MAX_OBJECTS=${MAX_OBJECTS:-3}
+ANCHOR_MODES=${ANCHOR_MODES:-"unembed mention_state"}
+LOCATE_MODES=${LOCATE_MODES:-"topk topk_large soft"}
+LENS_LAYERS=${LENS_LAYERS:-}
+lens_args=()
+if [ -n "${LENS_LAYERS}" ]; then
+  lens_args+=(--lens-layers ${LENS_LAYERS})
+fi
 extra_args=()
 if [ -n "${IDS_FILE}" ] && [ -f "${IDS_FILE}" ]; then
   extra_args+=(--sample-ids-file "${IDS_FILE}")
@@ -54,6 +61,9 @@ exec ~/.venvs/vlm-transformers/bin/python scripts/improvement/run_sai.py \
   --dataset-source "${DS_SOURCE}" \
   --intervene-layers ${INTERVENE_LAYERS} \
   --sigmas ${SIGMAS} \
+  --anchor-modes ${ANCHOR_MODES} \
+  --locate-modes ${LOCATE_MODES} \
   --k-locate "${K_LOCATE}" \
   --max-objects "${MAX_OBJECTS}" \
+  "${lens_args[@]}" \
   "${extra_args[@]}"
