@@ -19,7 +19,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--dataset", required=True, choices=("vilp", "hallusionbench", "mmvet"))
     parser.add_argument("--dataset-source", required=True, type=Path)
-    parser.add_argument("--generation-input", required=True, type=Path)
+    parser.add_argument("--greedy-input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--model", required=True)
     parser.add_argument("--max-tokens", type=int, default=512)
@@ -35,7 +35,7 @@ def main() -> None:
         judge=judge,
         dataset=args.dataset,
         dataset_source=args.dataset_source,
-        generation_input=args.generation_input,
+        greedy_input=args.greedy_input,
         output=args.output,
         limit=args.limit,
         concurrency=args.concurrency,

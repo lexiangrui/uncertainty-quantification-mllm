@@ -174,11 +174,11 @@ def run_metrics(
 ) -> dict[str, Any]:
     uq_run, uq_records = _load_records(uq_input)
     judge_run, judge_records = _load_records(judge_input)
-    generation_run = uq_run.get("generation_run")
-    if not isinstance(generation_run, dict):
-        raise ValueError("uq run header lacks generation_run")
-    if generation_run != judge_run.get("generation_run"):
-        raise ValueError("generation_run mismatch between UQ and judge inputs")
+    greedy_run = uq_run.get("greedy_run")
+    if not isinstance(greedy_run, dict):
+        raise ValueError("uq run header lacks greedy_run")
+    if greedy_run != judge_run.get("greedy_run"):
+        raise ValueError("greedy_run mismatch between UQ and judge inputs")
     methods = _method_names(uq_run)
     rows, exclusions = _collect_rows(judge_records, uq_records, methods)
     if not rows:
@@ -238,9 +238,9 @@ def run_metrics(
         "metrics_output_version": METRICS_OUTPUT_VERSION,
         "uq_input": str(uq_input.resolve()),
         "judge_input": str(judge_input.resolve()),
-        "dataset": generation_run.get("dataset"),
-        "model_family": generation_run.get("model_family"),
-        "model_id": generation_run.get("model_id"),
+        "dataset": greedy_run.get("dataset"),
+        "model_family": greedy_run.get("model_family"),
+        "model_id": greedy_run.get("model_id"),
         "uq_methods": methods,
         "config": {
             "bootstrap_samples": bootstrap_samples,

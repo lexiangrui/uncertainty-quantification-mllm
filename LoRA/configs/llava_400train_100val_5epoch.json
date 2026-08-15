@@ -3,7 +3,7 @@
   "base_model": "/opt/lexiangrui/models/llava-1.5-7b-hf",
   "end_token": "</s>",
   "dataset_root": "/opt/lexiangrui/datasets/vqav2_xml_sft/final",
-  "output_dir": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/lora/ablation_400train_100val_5epoch/llava-1.5-7b",
+  "output_dir": "/tmp/Uncertainty-Quantification-of-MLLM/lora-legacy/llava-400train-100val-5epoch",
   "epochs": 5,
   "learning_rate": 0.0002,
   "weight_decay": 0.0,

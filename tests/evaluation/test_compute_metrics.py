@@ -8,15 +8,15 @@ import pytest
 from src.evaluation import run_metrics
 
 
-GENERATION_RUN = {"dataset": "vilp", "model_family": "llava_1_5", "model_id": "llava"}
+GREEDY_RUN = {"dataset": "vilp", "model_family": "llava_1_5", "model_id": "llava"}
 
 UQ_RUN = {
-    "uq_output_version": "deferred-uq-v1",
-    "generation_run": GENERATION_RUN,
+    "uq_output_version": "split-uq-v1",
+    "greedy_run": GREEDY_RUN,
     "uq_methods": [{"name": "perplexity"}, {"name": "semantic_entropy"}],
 }
 
-JUDGE_RUN = {"judge_model": "judge", "generation_run": GENERATION_RUN}
+JUDGE_RUN = {"judge_model": "judge", "greedy_run": GREEDY_RUN}
 
 EVALUATED = [
     # sample_id, group_id, correct, perplexity score
@@ -193,18 +193,18 @@ def test_run_metrics_is_deterministic(tmp_path: Path) -> None:
     assert first == second
 
 
-def test_run_metrics_rejects_generation_run_mismatch(tmp_path: Path) -> None:
+def test_run_metrics_rejects_greedy_run_mismatch(tmp_path: Path) -> None:
     uq_input, _ = _write_inputs(tmp_path)
     other_run = {
         "judge_model": "judge",
-        "generation_run": {**GENERATION_RUN, "model_id": "other"},
+        "greedy_run": {**GREEDY_RUN, "model_id": "other"},
     }
     judge_input = _write_jsonl(
         tmp_path / "judge-mismatch.jsonl",
         other_run,
         [_judge_record("s1", "g1", valid=True, correct=True)],
     )
-    with pytest.raises(ValueError, match="generation_run mismatch"):
+    with pytest.raises(ValueError, match="greedy_run mismatch"):
         run_metrics(
             uq_input=uq_input,
             judge_input=judge_input,

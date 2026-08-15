@@ -3,7 +3,7 @@
   "base_model": "/opt/lexiangrui/models/llava-1.5-7b-hf",
   "end_token": "</s>",
   "dataset_root": "/opt/lexiangrui/datasets/vqav2_xml_sft/final",
-  "output_dir": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/lora/vqav2_5000_4to1/llava-1.5-7b",
+  "output_dir": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/lora/llava/adapter",
   "epochs": 1,
   "learning_rate": 0.0002,
   "weight_decay": 0.0,

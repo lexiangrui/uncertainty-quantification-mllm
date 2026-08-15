@@ -22,6 +22,9 @@ from .parser import answer_character_span, parse_structured_response
 from .prompt import XML_LORA_PROMPT_SHA256, build_prompt, get_prompt_spec
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
 @dataclass(frozen=True)
 class ResponseSignals:
     answer: str
@@ -49,10 +52,13 @@ class SampleState:
     greedy_signals: ResponseSignals | None = None
     greedy_response: GeneratedResponse | None = None
     draws: list[DrawState] = field(default_factory=list)
+    require_greedy: bool = True
 
     @property
     def done(self) -> bool:
-        return self.greedy_record is not None and all(draw.done for draw in self.draws)
+        return (not self.require_greedy or self.greedy_record is not None) and all(
+            draw.done for draw in self.draws
+        )
 
 
 def _serialized_signals(signals: ResponseSignals | None) -> dict | None:
@@ -159,12 +165,19 @@ def _response_record(
         )
     ):
         raise ValueError("answer log probability is not finite")
+    hidden_index = token_end if len(response.hidden_steps) > token_end else token_end - 1
+    final_hidden = (
+        response.hidden_steps[hidden_index]
+        if response.hidden_steps and hidden_index >= 0
+        else ()
+    )
     signals = ResponseSignals(
         answer=parsed.answer,
         token_count=len(answer_log_probs),
         sequence_log_prob=sequence_log_prob,
         mean_log_prob=mean_log_prob,
         sampling_sequence_log_prob=sampling_sequence_log_prob,
+        final_hidden=final_hidden,
     )
     return (
         {
@@ -186,20 +199,47 @@ def _sidecar_filename(sample_id: str) -> str:
     return hashlib.sha256(sample_id.encode()).hexdigest()[:16] + ".pt"
 
 
-def _write_token_sidecar(output: Path, state: SampleState) -> dict:
-    if state.greedy_response is None or any(draw.response is None for draw in state.draws):
+def _hidden_sidecar_path(output: Path, sample_id: str) -> tuple[Path, dict]:
+    """Return the canonical hidden-state location and its JSONL descriptor."""
+    try:
+        relative = output.resolve().relative_to(PROJECT_ROOT / "results")
+    except ValueError:
+        directory = output.with_suffix(".hidden")
+        path = directory / _sidecar_filename(sample_id)
+        return path, {"path": str(path.relative_to(output.parent)), "storage": "generation_adjacent"}
+    if (
+        len(relative.parts) != 4
+        or relative.parts[0] != "generation"
+        or relative.parts[2] != "samples"
+    ):
+        raise ValueError(
+            "samples output must use results/generation/<model>/samples/<dataset>.jsonl: "
+            f"{output}"
+        )
+    directory = PROJECT_ROOT / "results" / "hidden" / relative.parts[1] / output.stem
+    path = directory / _sidecar_filename(sample_id)
+    return path, {
+        "path": str(path.relative_to(PROJECT_ROOT / "results" / "hidden")),
+        "storage": "results_hidden",
+    }
+
+
+def _write_token_sidecar(output: Path, state: SampleState, *, include_greedy: bool) -> dict:
+    if (include_greedy and state.greedy_response is None) or any(
+        draw.response is None for draw in state.draws
+    ):
         raise RuntimeError(f"incomplete token state for {state.sample.sample_id}")
     directory = _token_directory(output)
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / _sidecar_filename(state.sample.sample_id)
     payload = {
-        "greedy": torch.tensor(state.greedy_response.token_ids, dtype=torch.int32),
-        **{
-            f"sample_{index}": torch.tensor(draw.response.token_ids, dtype=torch.int32)
-            for index, draw in enumerate(state.draws)
-            if draw.response is not None
-        },
+        f"sample_{index}": torch.tensor(draw.response.token_ids, dtype=torch.int32)
+        for index, draw in enumerate(state.draws)
+        if draw.response is not None
     }
+    if include_greedy:
+        assert state.greedy_response is not None
+        payload = {"greedy": torch.tensor(state.greedy_response.token_ids, dtype=torch.int32), **payload}
     descriptor, temporary = tempfile.mkstemp(
         prefix=path.name + ".", suffix=".tmp", dir=directory
     )
@@ -214,12 +254,16 @@ def _write_token_sidecar(output: Path, state: SampleState) -> dict:
     return {
         "path": str(path.relative_to(output.parent)),
         "format": "generated-token-ids-v1",
-        "keys": ["greedy"] + [f"sample_{index}" for index in range(len(state.draws))],
+        "keys": list(payload),
     }
 
 
-def _new_state(sample: BenchmarkSample, num_samples: int) -> SampleState:
-    return SampleState(sample=sample, draws=[DrawState() for _ in range(num_samples)])
+def _new_state(sample: BenchmarkSample, num_samples: int, *, require_greedy: bool) -> SampleState:
+    return SampleState(
+        sample=sample,
+        draws=[DrawState() for _ in range(num_samples)],
+        require_greedy=require_greedy,
+    )
 
 
 def _request(
@@ -248,18 +292,20 @@ def _request(
 
 
 def _initial_requests(
-    state: SampleState, *, seed: int, prompt_style: str
+    state: SampleState, *, seed: int, prompt_style: str, include_greedy: bool
 ) -> list[GenerationRequest]:
-    requests = [
-        _request(
-            state,
-            role="greedy",
-            draw_index=None,
-            attempt=1,
-            seed=_derived_seed(seed, state.sample.sample_id, -1),
-            prompt_style=prompt_style,
+    requests = []
+    if include_greedy:
+        requests.append(
+            _request(
+                state,
+                role="greedy",
+                draw_index=None,
+                attempt=1,
+                seed=_derived_seed(seed, state.sample.sample_id, -1),
+                prompt_style=prompt_style,
+            )
         )
-    ]
     for index in range(len(state.draws)):
         requests.append(
             _request(
@@ -274,8 +320,15 @@ def _initial_requests(
     return requests
 
 
-def _record(state: SampleState, output: Path, reject_resample_k: int) -> dict:
-    if not state.done or state.greedy_record is None:
+def _record(
+    state: SampleState,
+    output: Path,
+    reject_resample_k: int,
+    *,
+    include_greedy: bool,
+    include_hidden: bool,
+) -> dict:
+    if not state.done or (include_greedy and state.greedy_record is None):
         raise RuntimeError(f"sample is incomplete: {state.sample.sample_id}")
     samples: list[dict] = []
     accepted_samples = 0
@@ -301,13 +354,13 @@ def _record(state: SampleState, output: Path, reject_resample_k: int) -> dict:
                     "rejected_count": draw.attempts_used - int(accepted),
                     "accepted": accepted,
                 },
+                "hidden_state_index": index if draw.signals and draw.signals.final_hidden else None,
             }
         )
-    return {
+    record = {
         "sample": _serialize_sample(state.sample),
-        "greedy": state.greedy_record,
         "samples": samples,
-        "generation_tokens": _write_token_sidecar(output, state),
+        "generation_tokens": _write_token_sidecar(output, state, include_greedy=include_greedy),
         "reject_resample_summary": {
             "max_attempts": reject_resample_k,
             "retained_samples": len(state.draws),
@@ -317,6 +370,32 @@ def _record(state: SampleState, output: Path, reject_resample_k: int) -> dict:
             "rejected_attempts": rejected_attempts,
         },
     }
+    if include_greedy:
+        record["greedy"] = state.greedy_record
+    if include_hidden and all(draw.signals and draw.signals.final_hidden for draw in state.draws):
+        tensor = torch.tensor([draw.signals.final_hidden for draw in state.draws], dtype=torch.float16)
+        path, hidden_descriptor = _hidden_sidecar_path(output, state.sample.sample_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        file_descriptor, temporary = tempfile.mkstemp(
+            prefix=path.name + ".", suffix=".tmp", dir=path.parent
+        )
+        os.close(file_descriptor)
+        try:
+            torch.save(tensor, temporary)
+            os.replace(temporary, path)
+        except BaseException:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+            raise
+        record["hidden_states"] = {
+            **hidden_descriptor,
+            "shape": list(tensor.shape),
+            "dtype": "float16",
+            "role": "samples",
+            "position": "answer_last_token",
+            "source": "generation_decoder_hook",
+        }
+    return record
 
 
 def run_generation(
@@ -332,18 +411,24 @@ def run_generation(
     seed: int,
     limit: int | None,
     prompt_style: str = "xml_lora",
-    reject_resample_k: int = 10,
+    reject_resample_k: int = 50,
     max_batch_size: int = 5,
     request_window_samples: int = 16,
+    phase: str,
+    sample_ids: set[str] | None = None,
 ) -> tuple[int, int]:
-    if num_samples < 1:
-        raise ValueError("num_samples must be positive")
+    if phase not in {"greedy", "samples"}:
+        raise ValueError("phase must be greedy or samples")
+    if (phase == "greedy" and num_samples != 0) or (phase == "samples" and num_samples < 1):
+        raise ValueError("greedy phase requires num_samples=0; samples phase requires positive num_samples")
     if reject_resample_k < 1:
         raise ValueError("reject_resample_k must be positive")
     if max_batch_size < 1:
         raise ValueError("max_batch_size must be positive")
     if request_window_samples < 1:
         raise ValueError("request_window_samples must be positive")
+    if sample_ids is not None and not sample_ids:
+        raise ValueError("sample_ids must be non-empty when provided")
     prompt_spec = get_prompt_spec(prompt_style)
     run = {
         "dataset": dataset,
@@ -361,6 +446,7 @@ def run_generation(
             "num_samples": num_samples,
             "reject_resample_k": reject_resample_k,
         },
+        "generation_phase": phase,
         "scheduler": {
             "type": "transformers_role_separated_dynamic_batching",
             "max_batch_size": max_batch_size,
@@ -371,15 +457,19 @@ def run_generation(
         "max_new_tokens": max_new_tokens,
         "seed": seed,
         "limit": limit,
-        "generation_output_version": "responses-jsonl-token-ids-v2",
-        "hidden_state_execution": "separate",
-        "uq_execution": "deferred",
+        "sample_filter": sorted(sample_ids) if sample_ids is not None else None,
+        "generation_output_version": "split-responses-jsonl-v1",
+        "hidden_state_execution": (
+            "not_collected" if phase == "greedy" else "inline_sample_answer_last_token"
+        ),
+        "uq_execution": "separate_split_inputs",
     }
     completed = completed_sample_ids(output, run)
     source = (
         sample
         for sample in iter_dataset(dataset, dataset_source, limit)
         if sample.sample_id not in completed
+        and (sample_ids is None or sample.sample_id in sample_ids)
     )
     active: dict[str, SampleState] = {}
     pending_greedy: list[GenerationRequest] = []
@@ -399,13 +489,15 @@ def run_generation(
             except StopIteration:
                 exhausted = True
                 break
-            state = _new_state(sample, num_samples)
+            state = _new_state(sample, num_samples, require_greedy=phase != "samples")
             active[sample.sample_id] = state
             requests = _initial_requests(
-                state, seed=seed, prompt_style=prompt_style
+                state, seed=seed, prompt_style=prompt_style, include_greedy=phase != "samples"
             )
-            pending_greedy.append(requests[0])
-            new_request_sets.append(requests[1:])
+            if phase != "samples":
+                pending_greedy.append(requests[0])
+                requests = requests[1:]
+            new_request_sets.append(requests)
         # Round-robin sampled draws across newly admitted samples. This keeps
         # a batch from being dominated by five copies of the same image while
         # preserving separate greedy and temperature=1 generate calls.
@@ -473,7 +565,15 @@ def run_generation(
             if not state.done:
                 continue
             write_sample_json_line(
-                output, run, _record(state, output, reject_resample_k)
+                output,
+                run,
+                _record(
+                    state,
+                    output,
+                    reject_resample_k,
+                    include_greedy=phase != "samples",
+                    include_hidden=phase != "greedy",
+                ),
             )
             del active[sample_id]
             written += 1

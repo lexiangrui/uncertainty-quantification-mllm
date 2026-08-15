@@ -24,8 +24,8 @@ export OPENAI_API_KEY=
 python scripts/judging/judge_responses.py \
   --dataset vilp \
   --dataset-source /server/datasets/vilp/ViLP.parquet \
-  --generation-input /server/results/generation/llava_vilp.jsonl \
-  --output /server/results/judging/llava_vilp.jsonl \
+  --greedy-input /server/results/generation/llava/greedy/vilp.jsonl \
+  --output /server/results/judging/llava/vilp.jsonl \
   --model YOUR_JUDGE_MODEL
 ```
 

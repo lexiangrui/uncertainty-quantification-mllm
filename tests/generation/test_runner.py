@@ -8,7 +8,7 @@ import torch
 from PIL import Image
 
 from src.datasets.base import BenchmarkSample
-from src.generation.runner import run_generation
+from src.generation.runner import _hidden_sidecar_path, run_generation
 from src.generation.prompt import XML_LORA_PROMPT_SHA256, XML_LORA_PROMPT_VERSION
 from src.models.base import GeneratedResponse, GenerationBackend, GenerationRequest
 
@@ -37,7 +37,7 @@ class FakeDynamicBackend(GenerationBackend):
         return "".join(chr(value) for value in token_ids).strip()
 
     @staticmethod
-    def response(text: str) -> GeneratedResponse:
+    def response(text: str, *, with_hidden: bool) -> GeneratedResponse:
         token_ids = tuple(ord(value) for value in text)
         return GeneratedResponse(
             text=text,
@@ -45,6 +45,11 @@ class FakeDynamicBackend(GenerationBackend):
             token_log_probs=tuple(-0.1 for _ in token_ids),
             sampling_token_log_probs=tuple(-0.1 for _ in token_ids),
             finish_reason="stop",
+            hidden_steps=(
+                tuple(tuple(float(index) for index in range(4)) for _ in token_ids)
+                if with_hidden
+                else ()
+            ),
         )
 
     def generate_requests(self, requests, *, max_new_tokens):
@@ -61,7 +66,10 @@ class FakeDynamicBackend(GenerationBackend):
                 and request.draw_index == 0
                 and request.request_id.endswith("attempt-1")
             )
-            values[request.request_id] = self.response(INVALID if invalid else VALID)
+            values[request.request_id] = self.response(
+                INVALID if invalid else VALID,
+                with_hidden=request.role == "sample",
+            )
         return values
 
 
@@ -101,10 +109,11 @@ def kwargs(tmp_path: Path, backend: GenerationBackend) -> dict:
         "reject_resample_k": 10,
         "max_batch_size": 5,
         "request_window_samples": 16,
+        "phase": "samples",
     }
 
 
-def test_dynamic_generation_writes_answers_tokens_and_resumes(monkeypatch, tmp_path):
+def test_sample_generation_writes_answers_tokens_and_resumes(monkeypatch, tmp_path):
     backend = FakeDynamicBackend()
     monkeypatch.setattr("src.generation.runner.iter_dataset", lambda *args: iter([sample()]))
     options = kwargs(tmp_path, backend)
@@ -115,19 +124,40 @@ def test_dynamic_generation_writes_answers_tokens_and_resumes(monkeypatch, tmp_p
     assert run["scheduler"]["max_batch_size"] == 5
     assert run["scheduler"]["type"] == "transformers_role_separated_dynamic_batching"
     assert run["scheduler"]["mixed_greedy_and_sampling"] is False
-    assert run["greedy"]["retry"] is False
-    assert run["hidden_state_execution"] == "separate"
+    assert run["generation_phase"] == "samples"
+    assert run["hidden_state_execution"] == "inline_sample_answer_last_token"
     assert run["prompt_version"] == XML_LORA_PROMPT_VERSION
     assert run["prompt_sha256"] == XML_LORA_PROMPT_SHA256
-    assert "hidden_states" not in record
-    assert record["greedy"]["sections_valid"] is True
-    assert "reject_resample" not in record["greedy"]
+    assert record["hidden_states"]["shape"] == [5, 4]
+    assert "greedy" not in record
     assert len(record["samples"]) == 5
     assert all(item["reject_resample"]["attempts_used"] == 1 for item in record["samples"])
     token_path = options["output"].parent / record["generation_tokens"]["path"]
     tokens = torch.load(token_path, weights_only=True)
-    assert set(tokens) == {"greedy", "sample_0", "sample_1", "sample_2", "sample_3", "sample_4"}
+    assert set(tokens) == {"sample_0", "sample_1", "sample_2", "sample_3", "sample_4"}
+    hidden_path = options["output"].parent / record["hidden_states"]["path"]
+    hidden = torch.load(hidden_path, weights_only=True)
+    assert hidden.shape == (5, 4)
+    assert all(item["hidden_state_index"] == index for index, item in enumerate(record["samples"]))
     assert run_generation(**options) == (0, 1)
+
+
+def test_greedy_generation_writes_only_greedy_response(monkeypatch, tmp_path):
+    backend = FakeDynamicBackend()
+    monkeypatch.setattr("src.generation.runner.iter_dataset", lambda *args: iter([sample()]))
+    options = kwargs(tmp_path, backend)
+    options.update(phase="greedy", num_samples=0)
+
+    assert run_generation(**options) == (1, 0)
+    run, records = read(options["output"])
+    record = records[0]
+    assert run["generation_phase"] == "greedy"
+    assert run["hidden_state_execution"] == "not_collected"
+    assert record["samples"] == []
+    assert record["greedy"]["answer"] == "yes"
+    assert "hidden_states" not in record
+    token_path = options["output"].parent / record["generation_tokens"]["path"]
+    assert set(torch.load(token_path, weights_only=True)) == {"greedy"}
 
 
 def test_only_sampled_responses_are_retried(monkeypatch, tmp_path):
@@ -138,11 +168,10 @@ def test_only_sampled_responses_are_retried(monkeypatch, tmp_path):
     run_generation(**options)
     _, records = read(options["output"])
     record = records[0]
-    assert record["greedy"]["sections_valid"] is False
     greedy_requests = [
         request for call in backend.calls for request in call if request.role == "greedy"
     ]
-    assert len(greedy_requests) == 1
+    assert not greedy_requests
     retried = record["samples"][0]
     assert retried["sections_valid"] is True
     assert retried["reject_resample"] == {
@@ -156,7 +185,7 @@ def test_only_sampled_responses_are_retried(monkeypatch, tmp_path):
     assert record["reject_resample_summary"]["rejected_attempts"] == 1
 
 
-def test_request_window_separates_decoding_roles_into_dynamic_batches(monkeypatch, tmp_path):
+def test_request_window_batches_samples_without_greedy(monkeypatch, tmp_path):
     backend = FakeDynamicBackend()
     values = [sample("one"), sample("two")]
     monkeypatch.setattr("src.generation.runner.iter_dataset", lambda *args: iter(values))
@@ -164,17 +193,44 @@ def test_request_window_separates_decoding_roles_into_dynamic_batches(monkeypatc
     options["request_window_samples"] = 2
 
     assert run_generation(**options) == (2, 0)
-    first = backend.calls[0]
-    assert {request.sample_id for request in first} == {"one", "two"}
-    assert {request.role for request in first} == {"greedy"}
     assert all(len(call) <= 5 for call in backend.calls)
     assert all(len({request.role for request in call}) == 1 for call in backend.calls)
-    assert sum(len(call) for call in backend.calls if call[0].role == "sample") == 10
-    first_sampled = next(call for call in backend.calls if call[0].role == "sample")
-    assert {request.sample_id for request in first_sampled} == {"one", "two"}
+
+
+def test_sample_id_filter_runs_only_requested_records(monkeypatch, tmp_path):
+    backend = FakeDynamicBackend()
+    values = [sample("one"), sample("two")]
+    monkeypatch.setattr("src.generation.runner.iter_dataset", lambda *args: iter(values))
+    options = kwargs(tmp_path, backend)
+    options["sample_ids"] = {"two"}
+
+    assert run_generation(**options) == (1, 0)
+    run, records = read(options["output"])
+    assert run["sample_filter"] == ["two"]
+    assert [record["sample"]["sample_id"] for record in records] == ["two"]
+    assert all(call[0].role == "sample" for call in backend.calls)
+    assert sum(len(call) for call in backend.calls) == options["num_samples"]
+    assert {request.sample_id for request in backend.calls[0]} == {"two"}
 
 
 def test_generation_prompt_sha_matches_versioned_file() -> None:
     path = Path(__file__).resolve().parents[2] / "prompts" / "generation" / "xml_lora_zero_shot_v1.md"
     text = path.read_text(encoding="utf-8").strip()
     assert hashlib.sha256(text.encode("utf-8")).hexdigest() == XML_LORA_PROMPT_SHA256
+
+
+def test_production_hidden_paths_follow_model_and_dataset_layout() -> None:
+    output = (
+        Path(__file__).resolve().parents[2]
+        / "results"
+        / "generation"
+        / "llava"
+        / "samples"
+        / "mmvet.jsonl"
+    )
+    path, descriptor = _hidden_sidecar_path(output, "mmvet-1")
+    assert path == output.parents[4] / "results" / "hidden" / "llava" / "mmvet" / "4520f8b99db1622b.pt"
+    assert descriptor == {
+        "path": "llava/mmvet/4520f8b99db1622b.pt",
+        "storage": "results_hidden",
+    }

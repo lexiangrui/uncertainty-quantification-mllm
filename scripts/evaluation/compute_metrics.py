@@ -24,7 +24,7 @@ def _formatted(entry: dict) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Merge deferred UQ scores with judge labels for one model x dataset "
+            "Merge UQ scores with greedy-response judge labels for one model x dataset "
             "run and compute AUROC/AUPRC/PRR/ECE with cluster bootstrap CIs "
             "for the error and hallucination targets."
         )

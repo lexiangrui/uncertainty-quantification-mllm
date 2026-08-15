@@ -1,6 +1,6 @@
 # 三模型 XML 格式 LoRA
 
-本目录保存第一阶段使用的 XML 格式 LoRA 数据构造、训练和测试代码。正式训练已完成，三个 adapter 与完整训练记录位于仓库根目录的 `results/lora/vqav2_5000_4to1/`。
+本目录保存第一阶段使用的 XML 格式 LoRA 数据构造、训练和测试代码。三个正式 adapter 与完整训练记录已整理到 `results/lora/<mllm>/adapter/`。
 
 ## 训练目标
 
@@ -18,9 +18,9 @@
 
 | 模型 | adapter 目录 | train / validation | updates | validation loss |
 | --- | --- | ---: | ---: | ---: |
-| LLaVA-1.5-7B | `results/lora/vqav2_5000_4to1/llava-1.5-7b/` | 4,000 / 1,000 | 250 | 0.764681 |
-| Qwen2.5-VL-7B-Instruct | `results/lora/vqav2_5000_4to1/qwen2.5-vl-7b/` | 4,000 / 1,000 | 250 | 0.693499 |
-| InternVL3.5-8B-HF | `results/lora/vqav2_5000_4to1/internvl3.5-8b-hf/` | 4,000 / 1,000 | 250 | 0.633412 |
+| LLaVA-1.5-7B | `results/lora/llava/adapter/` | 4,000 / 1,000 | 250 | 记录于训练输出 |
+| Qwen2.5-VL-7B-Instruct | `results/lora/qwen/adapter/` | 4,000 / 1,000 | 250 | 记录于训练输出 |
+| InternVL3.5-8B-HF | `results/lora/internvl/adapter/` | 4,000 / 1,000 | 250 | 记录于训练输出 |
 
 每个 adapter 目录均包含：
 
@@ -64,7 +64,7 @@ LLaVA 与 Qwen2.5-VL 的最大序列长度为 `1024`，InternVL3.5 为 `4096`。
 
 - VQAv2 XML 数据：`/opt/lexiangrui/datasets/vqav2_xml_sft/`
 - 基础模型：`/opt/lexiangrui/models/`
-- 正式 adapter：`results/lora/vqav2_5000_4to1/`
+- 正式 adapter：`results/lora/<mllm>/adapter/`
 
 数据构造入口：
 
@@ -98,8 +98,8 @@ python3 scripts/generation/generate_responses.py \
   --dataset-source /opt/lexiangrui/datasets/vilp \
   --model-family llava_1_5 \
   --model-path /opt/lexiangrui/models/llava-1.5-7b-hf \
-  --adapter-path results/lora/vqav2_5000_4to1/llava-1.5-7b \
-  --output results/generation/example/llava-vilp.jsonl
+  --adapter-path results/lora/llava/adapter \
+  --output results/generation/llava/greedy/vilp.jsonl
 ```
 
 Qwen2.5-VL 和 InternVL3.5 分别使用对应 family、基础模型目录和表中的 adapter 目录。

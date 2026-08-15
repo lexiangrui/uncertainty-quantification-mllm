@@ -1,3 +1,3 @@
-from .runner import run_deferred_uq
+from .runner import run_split_uq
 
-__all__ = ["run_deferred_uq"]
+__all__ = ["run_split_uq"]

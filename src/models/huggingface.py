@@ -45,7 +45,9 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         self.processor_class = AutoProcessor
         self.attn_implementation = attn_implementation
         self.adapter_path = adapter_path
-        self.device_map_name = os.environ.get("QWEN_DEVICE_MAP")
+        # Slurm export preserves an explicitly empty value for non-Qwen jobs;
+        # treat that value the same as an unset override.
+        self.device_map_name = os.environ.get("QWEN_DEVICE_MAP") or None
         if self.device_map_name is not None:
             if family != "qwen2_5_vl":
                 raise ValueError("QWEN_DEVICE_MAP is only supported for qwen2_5_vl")
@@ -83,6 +85,16 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
     def _load(self) -> None:
         if self.model is not None:
             return
+        if self.attn_implementation == "flash_attention_2":
+            from transformers.utils import is_flash_attn_2_available
+
+            if not torch.cuda.is_available() or not is_flash_attn_2_available():
+                raise RuntimeError(
+                    "FlashAttention2 requires an initialized CUDA device and the local "
+                    "flash-attn extension. The current Slurm allocation has no usable CUDA "
+                    "device; resubmit on a healthy GPU node instead of falling back to a "
+                    "Hub kernel or CPU attention."
+                )
         self.processor = self.processor_class.from_pretrained(
             self.model_path, local_files_only=True
         )
@@ -108,6 +120,20 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         self.model = self.model_class.from_pretrained(
             self.model_path, **model_kwargs
         ).eval()
+        if self.attn_implementation == "flash_attention_2":
+            device_map = getattr(self.model, "hf_device_map", {})
+            offloaded_modules = sorted(
+                name
+                for name, device in device_map.items()
+                if str(device) in {"cpu", "disk"}
+            )
+            if offloaded_modules:
+                preview = ", ".join(offloaded_modules[:3])
+                raise RuntimeError(
+                    "FlashAttention2 cannot run with CPU/disk offload. "
+                    f"Accelerate offloaded {preview}; allocate a GPU with enough free "
+                    "memory or use --attn-implementation sdpa explicitly."
+                )
         if self.adapter_path is not None:
             if not self.adapter_path.is_dir():
                 raise NotADirectoryError(self.adapter_path)
@@ -264,10 +290,24 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         }
         if do_sample:
             generation_kwargs["temperature"] = 1.0
-        outputs = self.model.generate(
-            **inputs,
-            **generation_kwargs,
-        )
+        hidden_steps: list[torch.Tensor] = []
+
+        def capture_hidden(_module, _args, output) -> None:
+            hidden = getattr(output, "last_hidden_state", None)
+            if hidden is None and isinstance(output, tuple) and output:
+                hidden = output[0]
+            if hidden is None or hidden.ndim != 3:
+                raise RuntimeError("language model did not expose its last hidden state")
+            hidden_steps.append(hidden[:, -1, :].detach().float().cpu())
+
+        handle = None
+        if do_sample:
+            handle = self._semantic_embedding_module().register_forward_hook(capture_hidden)
+        try:
+            outputs = self.model.generate(**inputs, **generation_kwargs)
+        finally:
+            if handle is not None:
+                handle.remove()
         if outputs.logits is None or outputs.scores is None:
             raise RuntimeError("Transformers generation did not return token scores")
         step_count = len(outputs.logits)
@@ -321,6 +361,10 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
                 ),
                 finish_reason="length" if length == max_new_tokens else "stop",
                 rng_seed=batch_seed,
+                hidden_steps=tuple(
+                    tuple(float(value) for value in step[index].tolist())
+                    for step in hidden_steps
+                ),
             )
         return values
 
