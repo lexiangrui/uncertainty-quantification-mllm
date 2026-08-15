@@ -118,6 +118,48 @@ class VgsBackend:
         tok = getattr(self.processor, "tokenizer", self.processor)
         return tok.decode(token_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False).strip()
 
+    def _answer_token_span(
+        self, raw_response: str, gen_ids: list[int], char_start: int, char_end: int
+    ) -> tuple[list[int], int, int]:
+        """Map the answer character span to generated-token indices.
+
+        Uses the fast tokenizer's offset mapping: a token belongs to the
+        answer when it *overlaps* [char_start, char_end).  Byte-level BPE
+        sometimes merges the closing '>' of <answer> (or the '<' of
+        </answer>) into the first/last answer token; such a token is the
+        answer's boundary token and is kept — there is no finer split.
+
+        Returns (gen_ids, tok_start, tok_end) where gen_ids may be replaced
+        by the re-encoding the offsets were computed against.
+        """
+        tok = getattr(self.processor, "tokenizer", self.processor)
+        if getattr(tok, "is_fast", False):
+            enc = tok(raw_response, add_special_tokens=False, return_offsets_mapping=True)
+            ids = list(enc["input_ids"])
+            hits = [
+                i for i, (s, e) in enumerate(enc["offset_mapping"])
+                if e > char_start and s < char_end
+            ]
+            if hits:
+                return ids, hits[0], hits[-1] + 1
+            gen_ids = ids
+        # Fallback (slow tokenizers): first token whose decoded prefix
+        # covers the span.  Strict '>' so a token ending exactly at
+        # char_start (e.g. the '>' of <answer>) is not included.
+        tok_start = tok_end = None
+        for end in range(1, len(gen_ids) + 1):
+            decoded = self._decode(gen_ids[:end])
+            if tok_start is None and len(decoded) > char_start:
+                tok_start = end - 1
+            if len(decoded) >= char_end:
+                tok_end = end
+                break
+        if tok_start is None:
+            tok_start = 0
+        if tok_end is None:
+            tok_end = len(gen_ids)
+        return list(gen_ids), tok_start, tok_end
+
     def prepare_inputs(self, image, question, raw_response: str):
         """Build teacher-forcing inputs: prompt + generated response."""
         prompt_inputs = self._prepare_prompt(image, question)
@@ -126,28 +168,17 @@ class VgsBackend:
         if not gen_ids:
             return None, None, None
 
-        gen_tensor = torch.tensor([gen_ids], dtype=torch.long, device=self.device)
-        full_ids = torch.cat([prompt_inputs["input_ids"], gen_tensor], dim=1)
-        full_mask = torch.cat([prompt_inputs["attention_mask"], torch.ones_like(gen_tensor)], dim=1)
-
         # Find answer span within generated tokens
         try:
             char_start, char_end = answer_character_span(raw_response, "xml")
         except ValueError:
             return None, None, None
+        # May replace gen_ids with the offset-consistent re-encoding
+        gen_ids, tok_start, tok_end = self._answer_token_span(raw_response, gen_ids, char_start, char_end)
 
-        tok_start = tok_end = None
-        for end in range(1, len(gen_ids) + 1):
-            decoded = self._decode(gen_ids[:end])
-            if tok_start is None and len(decoded) >= char_start:
-                tok_start = max(end - 1, 0)
-            if len(decoded) >= char_end:
-                tok_end = end
-                break
-        if tok_end is None:
-            tok_end = len(gen_ids)
-        if tok_start is None:
-            tok_start = 0
+        gen_tensor = torch.tensor([gen_ids], dtype=torch.long, device=self.device)
+        full_ids = torch.cat([prompt_inputs["input_ids"], gen_tensor], dim=1)
+        full_mask = torch.cat([prompt_inputs["attention_mask"], torch.ones_like(gen_tensor)], dim=1)
 
         full_inputs = dict(prompt_inputs)
         full_inputs["input_ids"] = full_ids

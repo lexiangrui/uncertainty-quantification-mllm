@@ -178,7 +178,10 @@ def load_all(model, subset_ids, group_ids):
 
     sids = sorted(s for s in subset_ids if s in vgs and s in uq and s in judge)
     labels = np.array([judge[s] for s in sids])
-    groups = np.array([hash(group_ids[s]) for s in sids])
+    # Keep stable group identifiers. Python's hash() is randomized between
+    # processes, which otherwise changes the bootstrap samples despite a
+    # fixed RNG seed and makes the reported confidence intervals drift.
+    groups = np.array([str(group_ids[s]) for s in sids], dtype=object)
     data = {}
     for m in BASELINES:
         data[m] = np.array([uq[s][m] for s in sids])
