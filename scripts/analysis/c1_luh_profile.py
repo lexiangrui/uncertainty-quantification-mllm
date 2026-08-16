@@ -83,77 +83,52 @@ def _avg_rank_pct(values: np.ndarray) -> np.ndarray:
     return ranks
 
 
-def miss_stats(records: list[dict], method: str) -> dict:
-    """Share of H=1 below the H=0 score median, and share in the bottom quartile."""
-    scores = np.array([r["scores"][method] for r in records], dtype=float)
-    h = np.array([1 if r["hallucination"] else 0 for r in records], dtype=int)
-    h0 = scores[h == 0]
-    h1 = scores[h == 1]
-    median_h0 = float(np.median(h0)) if len(h0) else None
-    below = float(np.mean(h1 < median_h0)) if len(h1) and median_h0 is not None else None
-    pct = _avg_rank_pct(scores)
-    bottom25 = float(np.mean(pct[h == 1] <= 0.25)) if len(h1) else None
-    return {
-        "n_h1": int(h1.size), "n_h0": int(h0.size),
-        "median_h0_score": median_h0,
-        "pct_h1_below_median_h0": below,
-        "pct_h1_bottom25": bottom25,
-    }
+LUH_ALPHAS = (0.25, 0.50)
 
 
-def module_c11(pool: dict[str, list[dict]]) -> list[dict]:
+def _method_arrays(records: list[dict], method: str):
+    sub = [r for r in records if r["scores"].get(method) is not None]
+    scores = np.array([r["scores"][method] for r in sub], dtype=float)
+    h = np.array([1 if r["hallucination"] else 0 for r in sub], dtype=int)
+    return sub, scores, h
+
+
+def luh_share(scores: np.ndarray, h: np.ndarray, alpha: float):
+    """P(s_H1 <= Q_alpha(H0)): share of hallucinated samples whose uncertainty
+    score is at or below the alpha quantile of the non-hallucination score
+    distribution."""
+    h0, h1 = scores[h == 0], scores[h == 1]
+    if h0.size == 0 or h1.size == 0:
+        return None, None
+    threshold = float(np.quantile(h0, alpha))
+    return float(np.mean(h1 <= threshold)), threshold
+
+
+def module_c11(pooled: dict[str, list[dict]]) -> list[dict]:
+    """LUH-scale shares (alpha = 0.25, 0.50) per model x method on the pooled
+    evaluated set, with group-level bootstrap CIs."""
     rows = []
     for model in MODELS:
-        for dataset in DATASETS:
-            cell = [r for r in pool[model] if r["dataset"] == dataset]
-            for method in METHODS:
-                base = miss_stats(cell, method)
-
-                def stat(idx: np.ndarray) -> float | None:
-                    return miss_stats([cell[i] for i in idx], method)["pct_h1_below_median_h0"]
-
-                def stat25(idx: np.ndarray) -> float | None:
-                    return miss_stats([cell[i] for i in idx], method)["pct_h1_bottom25"]
-
-                ci = cluster_ci(stat, cell)
-                ci25 = cluster_ci(stat25, cell)
+        for method in METHODS:
+            sub, scores, h = _method_arrays(pooled[model], method)
+            for alpha in LUH_ALPHAS:
+                rate, threshold = luh_share(scores, h, alpha)
+                ci = cluster_ci(lambda idx: luh_share(scores[idx], h[idx], alpha)[0], sub)
                 rows.append({
-                    "model": model, "dataset": dataset, "method": method,
-                    **{k: v for k, v in base.items() if k not in ("pct_h1_below_median_h0", "pct_h1_bottom25")},
-                    "pct_h1_below_median_h0": base["pct_h1_below_median_h0"],
-                    "ci_low": ci["ci_low"], "ci_high": ci["ci_high"],
-                    "pct_h1_bottom25": base["pct_h1_bottom25"],
-                    "ci25_low": ci25["ci_low"], "ci25_high": ci25["ci_high"],
+                    "model": model, "method": method, "alpha": alpha,
+                    "n_evaluated": len(sub), "n_h1": int(h.sum()), "n_h0": int((1 - h).sum()),
+                    "threshold": threshold,
+                    "luh_share": rate, "ci_low": ci["ci_low"], "ci_high": ci["ci_high"],
+                    "null_exchangeable": alpha,
+                    "excess": None if rate is None else rate - alpha,
                 })
     write_csv(
-        OUT / "c1_miss_mass.csv",
-        ["model", "dataset", "method", "n_h1", "n_h0", "median_h0_score",
-         "pct_h1_below_median_h0", "ci_low", "ci_high",
-         "pct_h1_bottom25", "ci25_low", "ci25_high"],
+        OUT / "c1_luh_rate.csv",
+        ["model", "method", "alpha", "n_evaluated", "n_h1", "n_h0", "threshold",
+         "luh_share", "ci_low", "ci_high", "null_exchangeable", "excess"],
         rows,
     )
-
-    overall = []
-    for model in MODELS:
-        for method in METHODS:
-            base = miss_stats(pool[model], method)
-
-            def stat(idx: np.ndarray) -> float | None:
-                return miss_stats([pool[model][i] for i in idx], method)["pct_h1_below_median_h0"]
-
-            ci = cluster_ci(stat, pool[model])
-            overall.append({
-                "model": model, "method": method,
-                "n_h1": base["n_h1"], "n_h0": base["n_h0"],
-                "pct_h1_below_median_h0": base["pct_h1_below_median_h0"],
-                "ci_low": ci["ci_low"], "ci_high": ci["ci_high"],
-            })
-    write_csv(
-        OUT / "c1_miss_overall.csv",
-        ["model", "method", "n_h1", "n_h0", "pct_h1_below_median_h0", "ci_low", "ci_high"],
-        overall,
-    )
-    return overall
+    return rows
 
 
 def _tokens(rec: dict) -> int:
@@ -303,7 +278,7 @@ def module_c13(pool: dict[str, list[dict]]) -> None:
                             if r["dataset"] == "vilp" else None, ["case1", "case2", "case3"]))
 
 
-def write_report(overall: list[dict], pool: dict[str, list[dict]]) -> None:
+def write_report(rate_rows: list[dict], pool: dict[str, list[dict]]) -> None:
     lines = [
         "# 模块 C1：LUH 画像与漏检归因报告",
         "",
@@ -313,11 +288,16 @@ def write_report(overall: list[dict], pool: dict[str, list[dict]]) -> None:
         counts = {g: sum(1 for r in pool[model] if r["group"] == g)
                   for g in ("luh", "matched_neg", "detected_hallu")}
         lines.append(f"- {model}: {counts}")
-    lines += ["", "## 漏检规模（每模型，三数据集合并，c1_miss_overall.csv）"]
-    for row in overall:
+    lines += [
+        "",
+        "## LUH 规模（每模型 × 每方法 × α，全体已评估样本合并，c1_luh_rate.csv）",
+        "luh_share(α) = P(s_H1 ≤ Q_α(H0))，α ∈ {0.25, 0.50}；excess = share − α。",
+    ]
+    for row in rate_rows:
         lines.append(
-            f"- {row['model']} / {row['method']}: H=1 低于 H=0 中位数的比例 "
-            f"{row['pct_h1_below_median_h0']:.3f} [{row['ci_low']:.3f}, {row['ci_high']:.3f}]"
+            f"- {row['model']} / {row['method']} (α={row['alpha']:.2f}): "
+            f"{row['luh_share']:.3f} [{row['ci_low']:.3f}, {row['ci_high']:.3f}]，"
+            f"excess {row['excess']:+.3f}"
         )
     lines += [
         "",
@@ -333,10 +313,14 @@ def write_report(overall: list[dict], pool: dict[str, list[dict]]) -> None:
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     pool = load_pool()
-    overall = module_c11(pool)
+    pooled_eval: dict[str, list[dict]] = {m: [] for m in MODELS}
+    for model in MODELS:
+        for dataset in DATASETS:
+            pooled_eval[model].extend(evaluated(load_cell(model, dataset)))
+    rate_rows = module_c11(pooled_eval)
     module_c12(pool)
     module_c13(pool)
-    write_report(overall, pool)
+    write_report(rate_rows, pool)
     print(f"module C1 done -> {OUT}")
 
 
