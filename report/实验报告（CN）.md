@@ -36,6 +36,8 @@ LUH 是幻觉检测的漏报，反映该 UQ 方法未能识别模型稳定生成
 | 高不确定性非幻觉 | 高不确定性 | 问题存在歧义、多个合理答案或开放式表达空间，但生成内容仍有依据 | 否 |
 | **低不确定性幻觉（LUH）** | **低不确定性** | **回答稳定且表面可信，但包含与输入矛盾、无法合理推出或与可验证知识不一致的事实性内容；属于 UQ 幻觉检测漏报** | **是** |
 
+![image-20260816115501794](/Users/lexiangrui/Library/Application Support/typora-user-images/image-20260816115501794.png)
+
 ### 1.2 多模态幻觉的评测研究
 
 多模态幻觉的评测经历了从“物体存在性核对”到“开放式回答的证据支持度评估”的演进，评测对象也从最终答案逐步扩展为完整回答内容。早期研究主要关注图像描述中的物体幻觉：Rohrbach 等人提出 CHAIR，通过将生成描述中提及的物体与图像中实际存在的物体逐一比对，计算幻觉物体占全部提及物体的比例 [18]，开创了以“视觉证据核对”为核心的评测范式，但受限于固定的物体类别集合（如 MSCOCO 的 80 类），且结果易受指令设计与描述长度影响。进入多模态大模型时代后，Li 等人提出 POPE，将物体幻觉检测转化为“图像中是否存在某物体”的 Yes/No 轮询二分类任务 [1]：正问题基于图像中真实存在的物体构造，负问题则从未出现物体中采样，并按随机、高频与对抗三种负采样策略划分子集；研究发现，训练数据中高频出现或经常共现的物体更容易被模型以幻觉形式生成，提示多模态幻觉可能源于稳定的语言与共现先验，而非仅来自视觉感知噪声。MME 等综合评测基准进一步将物体存在性、计数、位置、颜色等感知子任务纳入统一的轮询式评测框架 [19]。
@@ -159,7 +161,7 @@ LUH 是幻觉检测的漏报，反映该 UQ 方法未能识别模型稳定生成
 >
 > 回答：`<vision>The image shows a large drone hovering over a futuristic cityscape. The drone has a central body with four distinct propellers, each attached to a rotor arm extending outward.</vision><reasoning>The drone in the picture clearly has four propellers, which is the standard configuration for modern drones.</reasoning><answer>4</answer>`
 
-<img src="figures/vilp_0_case1.jpg" alt="示例问题图像：ViLP vilp-0-case1（无人机）。" style="zoom:50%;" />
+<img src="figures/vilp_0_case1.jpg" alt="示例问题图像：ViLP vilp-0-case1（无人机）。" style="zoom: 33%;" />
 
 #### 2.1.2 评测数据集
 
