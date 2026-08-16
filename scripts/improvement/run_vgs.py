@@ -42,7 +42,7 @@ def main():
 
     gen_run, records = _load_generation(args.greedy_input)
     dataset = gen_run["dataset"]
-    run = {"vgs_output_version": "v2", "greedy_input": str(args.greedy_input.resolve()), "greedy_run": gen_run}
+    run = {"vgs_output_version": "v4-fulllayers", "greedy_input": str(args.greedy_input.resolve()), "greedy_run": gen_run}
     completed = completed_sample_ids(args.output, run)
 
     backend = VgsBackend(args.family, args.model_path,

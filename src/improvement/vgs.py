@@ -16,6 +16,8 @@ chunk loop and never stored in full.
 """
 from __future__ import annotations
 
+import math
+
 import torch
 from dataclasses import dataclass
 
@@ -31,6 +33,20 @@ class VgsResult:
     vision_attn_mean: float | None
     n_answer_tokens: int
     n_visual_tokens: int
+    # v3 components: attention mass per region (answer rows, selected layers).
+    # visual + prelim + prompt_text partitions the full causal context of
+    # every answer row, so vision_attn_ratio == visual/(sum of the three).
+    visual_attn_sum: float | None = None
+    prelim_attn_sum: float | None = None
+    prompt_text_attn_sum: float | None = None
+    # Mass-weighted normalized entropy of the answer->visual attention
+    # distribution (1 = uniform over visual tokens, 0 = single patch).
+    visual_attn_entropy: float | None = None
+    # Per-layer region sums for every decoder layer: {layer: [vis, prelim, text]}
+    layer_breakdown: dict[int, list[float]] | None = None
+    # Per-layer dispersion accumulators: {layer: [h_sum, s_sum]}; dispersion
+    # over a layer range = sum(h)/sum(s).
+    layer_dispersion: dict[int, list[float]] | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -39,6 +55,12 @@ class VgsResult:
             "vision_attn_mean": self.vision_attn_ratio,
             "n_answer_tokens": self.n_answer_tokens,
             "n_visual_tokens": self.n_visual_tokens,
+            "visual_attn_sum": self.visual_attn_sum,
+            "prelim_attn_sum": self.prelim_attn_sum,
+            "prompt_text_attn_sum": self.prompt_text_attn_sum,
+            "visual_attn_entropy": self.visual_attn_entropy,
+            "layer_breakdown": self.layer_breakdown,
+            "layer_dispersion": self.layer_dispersion,
         }
 
 
@@ -62,15 +84,42 @@ def _repeat_kv(x: torch.Tensor, n: int) -> torch.Tensor:
 
 
 class _VgsAccumulator:
-    """Accumulates answer→visual attention mass per selected decoder layer."""
+    """Accumulates answer→region attention mass per selected decoder layer.
 
-    def __init__(self, predict_idx: torch.Tensor, visual_idx: torch.Tensor, selected_layers: set[int]):
+    For every answer row (position p predicts the next answer token) the
+    causal context [0, p] is partitioned into three disjoint regions:
+
+    - visual: image token positions
+    - prelim: generated tokens [prompt_length, p] (scaffolding + answer
+      prefix) — the "self-generated text" the model can copy from
+    - prompt_text: prompt positions [0, prompt_length) minus visual
+
+    visual + prelim + prompt_text equals the full context of every row,
+    so the classic VGS ratio is visual / (sum of the three).
+    """
+
+    def __init__(
+        self,
+        predict_idx: torch.Tensor,
+        visual_idx: torch.Tensor,
+        selected_layers: set[int],
+        prompt_length: int,
+    ):
         self.predict_idx = predict_idx.cpu()
         self.visual_idx = visual_idx.cpu()
+        self.prompt_length = prompt_length
         self.selected = selected_layers
         self.module_layers: dict[int, int] = {}
         self.visual_sum = 0.0
         self.total_sum = 0.0
+        self.prelim_sum = 0.0
+        self.prompt_text_sum = 0.0
+        # Per-layer region sums [vis, prelim, text] for every decoder layer,
+        # so any layer range can be reconstructed offline.
+        self.layer_breakdown: dict[int, list[float]] = {}
+        # Per-layer dispersion accumulators [weighted entropy sum, visual
+        # mass]; dispersion over a layer range = sum(h)/sum(s) over the range.
+        self.layer_dispersion: dict[int, list[float]] = {}
 
     def map_modules(self, layers: list) -> None:
         for i, layer in enumerate(layers):
@@ -80,17 +129,64 @@ class _VgsAccumulator:
 
     def accumulate(self, module, probs: torch.Tensor, row_start: int) -> None:
         layer = self.module_layers.get(id(module))
-        if layer is None or layer not in self.selected:
+        if layer is None:
             return
         p = self.predict_idx.to(probs.device)
         sel = p[(p >= row_start) & (p < row_start + probs.shape[2])]
         if sel.numel() == 0:
             return
         rows = probs[0][:, sel - row_start, :]  # (heads, n_sel, seq)
-        col = rows.sum(dim=(0, 1))  # (seq,)
-        vidx = self.visual_idx.to(col.device)
-        self.visual_sum += col[vidx].sum().item()
-        self.total_sum += col.sum().item()
+        vidx = self.visual_idx.to(rows.device)
+
+        # Region masses. col_rows[k, j] = attention of the k-th selected row
+        # to position j, summed over heads.
+        col_rows = rows.sum(dim=0).float()  # (n_sel, seq)
+        vis_rows = col_rows[:, vidx].sum(dim=-1)  # (n_sel,)
+        # prelim of row p covers [prompt_length, p]
+        pl = self.prompt_length
+        prelim_rows = torch.stack(
+            [col_rows[k, pl : int(p_k.item()) + 1].sum() for k, p_k in enumerate(sel)]
+        )
+        text_rows = col_rows[:, :pl].sum(dim=-1) - vis_rows
+
+        vis = vis_rows.sum().item()
+        pre = prelim_rows.sum().item()
+        txt = text_rows.sum().item()
+        b = self.layer_breakdown.get(layer)
+        if b is None:
+            b = self.layer_breakdown[layer] = [0.0, 0.0, 0.0]
+        b[0] += vis
+        b[1] += pre
+        b[2] += txt
+        if layer in self.selected:
+            self.visual_sum += vis
+            self.prelim_sum += pre
+            self.prompt_text_sum += txt
+            self.total_sum += vis + pre + txt
+
+        # Dispersion: normalized entropy of the per-(head, row) visual
+        # attention distribution, renormalized over visual positions.
+        n_vis = vidx.numel()
+        if n_vis > 1:
+            p_v = rows[:, :, vidx].float()  # (heads, n_sel, n_vis)
+            s = p_v.sum(dim=-1)  # (heads, n_sel)
+            e = (p_v * torch.log(p_v + 1e-12)).sum(dim=-1)
+            s_cl = s.clamp_min(1e-12)
+            h = (torch.log(s_cl) - e / s_cl) / math.log(n_vis)
+            d = self.layer_dispersion.get(layer)
+            if d is None:
+                d = self.layer_dispersion[layer] = [0.0, 0.0]
+            d[0] += (h * s).sum().item()
+            d[1] += s.sum().item()
+
+    def dispersion(self, layers: set[int] | None = None) -> float | None:
+        """Mass-weighted normalized entropy over `layers` (default: selected)."""
+        sel = self.selected if layers is None else layers
+        h_sum = sum(v[0] for k, v in self.layer_dispersion.items() if k in sel)
+        s_sum = sum(v[1] for k, v in self.layer_dispersion.items() if k in sel)
+        if s_sum < 1e-12:
+            return None
+        return float(h_sum / s_sum)
 
 
 def _make_chunked_eager(accumulator: _VgsAccumulator):
@@ -158,7 +254,7 @@ def compute_vgs(
     n_layers = len(layers)
     selected = set(range(n_layers // 3, n_layers))
 
-    accumulator = _VgsAccumulator(predict_idx, visual_idx, selected)
+    accumulator = _VgsAccumulator(predict_idx, visual_idx, selected, prompt_length)
     accumulator.map_modules(layers)
 
     from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
@@ -186,4 +282,10 @@ def compute_vgs(
         vision_attn_mean=vision_ratio,
         n_answer_tokens=n_ans,
         n_visual_tokens=n_visual,
+        visual_attn_sum=accumulator.visual_sum,
+        prelim_attn_sum=accumulator.prelim_sum,
+        prompt_text_attn_sum=accumulator.prompt_text_sum,
+        visual_attn_entropy=accumulator.dispersion(),
+        layer_breakdown=accumulator.layer_breakdown,
+        layer_dispersion=accumulator.layer_dispersion,
     )
