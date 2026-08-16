@@ -37,7 +37,8 @@
 | samples hidden | 完成 | 6,678 个 sidecar 位于 `results/hidden/` |
 | 三种 UQ 计算 | 完成 | 9 个文件、6,662 条有效 UQ 记录 |
 | 多模态 LLM Judge | 完成 | 9 个文件、6,741 条 frozen greedy 标签 |
-| 指标与数据分析 | 完成 | 9 个指标报告、6,662 条 joined 样本和 LUH 分析 |
+| 指标计算 | 完成 | 9 个指标报告位于 `results/metrics/` |
+| 结果数据分析 | 完成 | 描述性统计、检测性能对比与 LUH 画像位于 `results/analysis/{descriptive,detection,luh_profile}/` |
 | 下一步研究 | 规划中 | 在模型独立的低不确定性幻觉子集上改进 UQ，使其能够识别现有方法漏检的 LUH |
 
 采样数固定为 K=10；每个 sample 最多进行 50 次 XML 格式拒绝重采样。greedy 回答和 Judge 标签复用原第一阶段 K=5 运行中的 greedy 部分，不重新生成或重新 Judge；samples、hidden 和 UQ 已按 K=10 重算。目录不再使用 K 作为层级。
@@ -64,7 +65,8 @@
 │   ├── analysis/{descriptive,correlation,luh}/
 │   └── lora/<mllm>/adapter/
 ├── scripts/
-│   ├── analysis/analyze_phase1_results.py
+│   ├── extract_per_model_subset.py     # 每模型 LUH 困难子集提取
+│   ├── analysis/                       # 实验一结果分析（A/B/C1 模块）
 │   ├── evaluation/compute_metrics.py
 │   ├── generation/generate_responses.py
 │   ├── judging/judge_responses.py
@@ -88,7 +90,8 @@
 | UQ 结果 | `results/uq/<mllm>/<dataset>.jsonl` |
 | Judge 结果 | `results/judging/<mllm>/<dataset>.jsonl` |
 | 指标报告 | `results/metrics/<mllm>/<dataset>.json` |
-| 汇总分析 | `results/analysis/{descriptive,correlation,luh}/` |
+| LUH 子集 | `results/analysis/luh/` |
+| 结果分析 | `results/analysis/{descriptive,detection,luh_profile}/` |
 | LoRA adapter | `results/lora/<mllm>/adapter/` |
 
 ## 工作流
@@ -152,9 +155,15 @@ bash slurm/generation/submit_uq_grid.sh
 
 `scripts/evaluation/compute_metrics.py` 将同一模型和数据集的 UQ/Judge JSONL 按 `sample_id` 合并，报告错误检测和幻觉检测的 AUROC、AUPRC、PRR、ECE 及 group-level bootstrap 置信区间。
 
-`scripts/analysis/analyze_phase1_results.py` 对完整 3 × 3 矩阵生成当前保留的汇总报告、CSV 和 SVG 图表。
-`scripts/analysis/compute_common_luh.py` 在每个 dataset × model × method 单元格内做
-25% percentile normalization，并输出跨至少两个模型的 common LUH 与三个模型一致的 core LUH。
+`scripts/extract_per_model_subset.py` 为每个模型独立提取 400 样本低不确定性子集
+（200 条 LUH 正例 + 200 条三维 baseline 百分位最近邻匹配的非幻觉负例），产物位于
+`results/analysis/luh/`，提取定义与验证结果见
+[低不确定性子集提取说明](docs/低不确定性子集提取说明.md)。
+
+实验一结果分析入口为 `scripts/analysis/` 下的三个模块：`a_descriptive.py`（描述性统计）、
+`b_detection.py`（检测性能对比，点估计与 `results/metrics/` 逐值核对）、`c1_luh_profile.py`
+（LUH 画像与漏检归因）。产物位于 `results/analysis/{descriptive,detection,luh_profile}/`，
+方案与字段审计见 [实验一结果分析](docs/实验一结果分析.md)。
 
 ## 下一步研究方向
 
