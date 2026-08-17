@@ -280,7 +280,7 @@ def layer_features(result: dict) -> dict[int, dict[str, float]]:
         ) / (aAI + aAQ + aAV + aAR + aAA + EPS)
         features[int(layer)] = {
             "U_image": 1.0 - aAI,
-            "U_direct": (aAV + aAR + aAA) / (sum(attn[2]) + EPS),
+            "U_direct": (aAV + aAR) / (sum(attn[2]) + EPS),
             "U_V": 1.0 - g_vision,
             "U_R": 1.0 - g_reasoning,
             "U_ECA": 1.0 - g_answer,

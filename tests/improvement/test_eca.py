@@ -101,5 +101,5 @@ def test_layer_features_include_same_section_attention_in_denominators():
     features = layer_features(result)[0]
 
     assert features == pytest.approx(
-        {"U_image": 0.0, "U_direct": 0.9, "U_V": 0.9, "U_R": 0.9, "U_ECA": 0.9}
+        {"U_image": 0.0, "U_direct": 0.0, "U_V": 0.9, "U_R": 0.9, "U_ECA": 0.9}
     )
