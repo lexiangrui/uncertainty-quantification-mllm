@@ -64,6 +64,13 @@ def test_section_token_spans_require_fast_tokenizer():
         backend._section_token_spans("text", {"vision": (0, 4)})
 
 
+def test_section_token_spans_reject_section_without_xml_free_token():
+    backend = EcaBackend("llava_1_5", Path("unused"))
+    backend.processor = _Processor(_FastTokenizer([(0, 5)]))
+
+    assert backend._section_token_spans("text<", {"answer": (0, 4)}) is None
+
+
 def test_accumulator_preserves_groups_across_xml_gaps():
     module = object()
     accumulator = _EcaAccumulator(

@@ -112,7 +112,7 @@ class EcaBackend:
 
     def _section_token_spans(
         self, raw_response: str, char_spans: dict[str, tuple[int, int]]
-    ) -> tuple[list[int], dict[str, tuple[int, int]]]:
+    ) -> tuple[list[int], dict[str, tuple[int, int]]] | None:
         """Map XML content to tokens wholly contained in each character span."""
         tok = getattr(self.processor, "tokenizer", self.processor)
         if not getattr(tok, "is_fast", False):
@@ -123,7 +123,7 @@ class EcaBackend:
         for name, (cs, ce) in char_spans.items():
             hits = [i for i, (start, end) in enumerate(offsets) if cs <= start < end <= ce]
             if not hits:
-                raise ValueError(f"section has no XML-free tokens: {name}")
+                return None
             spans[name] = (hits[0], hits[-1] + 1)
         return list(encoded["input_ids"]), spans
 
@@ -140,7 +140,10 @@ class EcaBackend:
             char_spans = section_character_spans(raw_response, "xml")
         except ValueError:
             return None, None, None
-        gen_ids, tok_spans = self._section_token_spans(raw_response, char_spans)
+        mapped = self._section_token_spans(raw_response, char_spans)
+        if mapped is None:
+            return None, None, None
+        gen_ids, tok_spans = mapped
 
         gen_tensor = torch.tensor([gen_ids], dtype=torch.long, device=self.device)
         full_ids = torch.cat([prompt_inputs["input_ids"], gen_tensor], dim=1)
