@@ -1,8 +1,8 @@
-"""Model backend for GCAR — model loading and teacher-forcing input construction.
+"""Model backend for ECA input construction.
 
 Loads a multimodal model per family (LLaVA-1.5 / Qwen2.5-VL / InternVL3.5)
 and builds teacher-forcing inputs: prompt + re-tokenized greedy response,
-with the answer character span mapped to token positions.
+with XML section character spans mapped to token positions.
 """
 from __future__ import annotations
 
@@ -10,14 +10,14 @@ from pathlib import Path
 
 import torch
 
-from src.generation.parser import answer_character_span, section_character_spans
+from src.generation.parser import section_character_spans
 from src.generation.prompt import build_prompt
 
 
-class GcarBackend:
-    """Loads a multimodal model and builds teacher-forcing inputs for GCAR.
+class EcaBackend:
+    """Loads a multimodal model and builds teacher-forcing inputs for ECA.
 
-    GCAR needs attention weights, so attention must return them — pass
+    ECA needs attention weights, so attention must return them — pass
     ``attn_implementation="eager"`` (the default here).
     """
 
@@ -110,65 +110,22 @@ class GcarBackend:
         inputs = self.processor(**kwargs)
         return {k: v.to(self.device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
 
-    def _tokenize(self, text: str) -> list[int]:
-        tok = getattr(self.processor, "tokenizer", self.processor)
-        return tok.encode(text, add_special_tokens=False)
-
-    def _decode(self, token_ids: list[int]) -> str:
-        tok = getattr(self.processor, "tokenizer", self.processor)
-        return tok.decode(token_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False).strip()
-
     def _section_token_spans(
-        self, raw_response: str, gen_ids: list[int], char_spans: dict[str, tuple[int, int]]
+        self, raw_response: str, char_spans: dict[str, tuple[int, int]]
     ) -> tuple[list[int], dict[str, tuple[int, int]]]:
-        """Map section character spans to generated-token index spans.
-
-        Uses the fast tokenizer's offset mapping: a token belongs to a
-        section when it *overlaps* the section's [start, end).  Byte-level
-        BPE sometimes merges a tag boundary character into the first/last
-        section token; such a token is the section's boundary token and is
-        kept — there is no finer split.
-
-        Returns (gen_ids, {section: (tok_start, tok_end)}) where gen_ids may
-        be replaced by the re-encoding the offsets were computed against.
-        """
+        """Map XML content to tokens wholly contained in each character span."""
         tok = getattr(self.processor, "tokenizer", self.processor)
+        if not getattr(tok, "is_fast", False):
+            raise ValueError("ECA requires a fast tokenizer with offset mapping")
+        encoded = tok(raw_response, add_special_tokens=False, return_offsets_mapping=True)
+        offsets = encoded["offset_mapping"]
         spans = {}
-        if getattr(tok, "is_fast", False):
-            enc = tok(raw_response, add_special_tokens=False, return_offsets_mapping=True)
-            ids = list(enc["input_ids"])
-            offsets = enc["offset_mapping"]
-            for name, (cs, ce) in char_spans.items():
-                hits = [i for i, (s, e) in enumerate(offsets) if e > cs and s < ce]
-                if hits:
-                    lo, hi = hits[0], hits[-1] + 1
-                    while lo < hi and ("<" in raw_response[slice(*offsets[lo])] or ">" in raw_response[slice(*offsets[lo])]):
-                        lo += 1
-                    while hi > lo and ("<" in raw_response[slice(*offsets[hi - 1])] or ">" in raw_response[slice(*offsets[hi - 1])]):
-                        hi -= 1
-                    if hi > lo:
-                        spans[name] = (lo, hi)
-            if len(spans) == len(char_spans):
-                return ids, spans
-            gen_ids = ids
-        # Fallback (slow tokenizers): first token whose decoded prefix
-        # covers each span.  Strict boundary so a token ending exactly at
-        # span start is not included.
         for name, (cs, ce) in char_spans.items():
-            tok_start = tok_end = None
-            for end in range(1, len(gen_ids) + 1):
-                decoded = self._decode(gen_ids[:end])
-                if tok_start is None and len(decoded) > cs:
-                    tok_start = end - 1
-                if len(decoded) >= ce:
-                    tok_end = end
-                    break
-            if tok_start is None:
-                tok_start = 0
-            if tok_end is None:
-                tok_end = len(gen_ids)
-            spans[name] = (tok_start, tok_end)
-        return list(gen_ids), spans
+            hits = [i for i, (start, end) in enumerate(offsets) if cs <= start < end <= ce]
+            if not hits:
+                raise ValueError(f"section has no XML-free tokens: {name}")
+            spans[name] = (hits[0], hits[-1] + 1)
+        return list(encoded["input_ids"]), spans
 
     def prepare_inputs_sections(self, image, question, raw_response: str):
         """Teacher-forcing inputs plus absolute token spans of all sections.
@@ -179,16 +136,11 @@ class GcarBackend:
         """
         prompt_inputs = self._prepare_prompt(image, question)
         prompt_length = int(prompt_inputs["input_ids"].shape[1])
-        gen_ids = self._tokenize(raw_response)
-        if not gen_ids:
-            return None, None, None
-
         try:
             char_spans = section_character_spans(raw_response, "xml")
         except ValueError:
             return None, None, None
-        # May replace gen_ids with the offset-consistent re-encoding
-        gen_ids, tok_spans = self._section_token_spans(raw_response, gen_ids, char_spans)
+        gen_ids, tok_spans = self._section_token_spans(raw_response, char_spans)
 
         gen_tensor = torch.tensor([gen_ids], dtype=torch.long, device=self.device)
         full_ids = torch.cat([prompt_inputs["input_ids"], gen_tensor], dim=1)

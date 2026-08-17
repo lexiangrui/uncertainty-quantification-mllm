@@ -2,9 +2,9 @@
 """Layer sweep for ECA on the LUH subsets.
 
 Per layer (heads averaged, PAS row convention) compute the feature chain
-    aAI / U_direct / G_V / G_R / U_ECA
+    U_image / U_direct / U_V / U_R / U_ECA
 and report AUROC vs relative layer depth per model, plus band-averaged
-AUROC over relative-depth thirds and sliding 4-layer windows.
+AUROC over several fixed relative-depth ranges.
 
 Sweep set: the 400-sample LUH subsets (per project decision, 2026-08-18).
 Bands chosen from this sweep are selected on the evaluation set — any
@@ -25,61 +25,17 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils import load_jsonl_records
+from src.evaluation.metrics import auroc
+from src.improvement.eca import FEATURES, layer_features
 
 MODELS = ("llava", "qwen", "internvl")
 DATASETS = ("hallusionbench", "vilp", "mmvet")
-EPS = 1e-8
-
-FEATURES = ("aAI", "aAQ", "aAV", "aAR", "U_direct", "G_V", "G_R", "U_ECA")
-
-
-def auroc(scores: np.ndarray, labels: np.ndarray) -> float:
-    pos, neg = scores[labels == 1], scores[labels == 0]
-    if len(pos) == 0 or len(neg) == 0:
-        return float("nan")
-    combined = np.concatenate([neg, pos])
-    sorted_idx = np.argsort(combined, kind="mergesort")
-    sorted_vals = combined[sorted_idx]
-    ranks = np.empty(len(combined))
-    i = 0
-    while i < len(sorted_vals):
-        j = i
-        while j + 1 < len(sorted_vals) and sorted_vals[j + 1] == sorted_vals[i]:
-            j += 1
-        ranks[sorted_idx[i : j + 1]] = (i + j) / 2.0 + 1.0
-        i = j + 1
-    n_neg = len(neg)
-    rank_sum_pos = ranks[n_neg:].sum()
-    return float((rank_sum_pos - len(pos) * (len(pos) + 1) / 2.0) / (len(pos) * n_neg))
-
-
-def layer_features(e: dict) -> dict[int, dict[str, float]]:
-    """Per-layer feature chain from one sample's recorded masses."""
-    H = e["n_heads"]
-    st = e["section_tokens"]
-    sizes = [st["vision"], st["reasoning"], st["answer"]]
-    out = {}
-    for l, m in e["layer_masses"].items():
-        a = [[m[g][b] / (H * sizes[g]) for b in range(5)] for g in range(3)]
-        aVI, aVQ = a[0][0], a[0][1]
-        aRI, aRQ, aRV = a[1][0], a[1][1], a[1][2]
-        aAI, aAQ, aAV, aAR = a[2][0], a[2][1], a[2][2], a[2][3]
-        G_V = aVI / (aVI + aVQ + EPS)
-        G_R = (aRI + aRV * G_V) / (aRI + aRQ + aRV + EPS)
-        G_A = (aAI + aAV * G_V + aAR * G_R) / (aAI + aAQ + aAV + aAR + EPS)
-        out[int(l)] = {
-            "aAI": aAI, "aAQ": aAQ, "aAV": aAV, "aAR": aAR,
-            "U_direct": (aAV + aAR) / (aAV + aAR + aAI + aAQ + EPS),
-            "G_V": G_V, "G_R": G_R,
-            "U_ECA": 1.0 - G_A,
-        }
-    return out
 
 
 def load(model: str, ids: set):
     comps, judge = {}, {}
     for ds in DATASETS:
-        p = PROJECT_ROOT / f"results/eca_components/{model}/{ds}.jsonl"
+        p = PROJECT_ROOT / f"results/eca_components_v3/{model}/{ds}.jsonl"
         if p.exists():
             for obj in load_jsonl_records(p):
                 if obj.get("record_type") != "sample":
@@ -103,7 +59,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ids-dir", type=Path, default=PROJECT_ROOT / "results/analysis/eca/luh_ids")
     parser.add_argument("--features", nargs="+", default=list(FEATURES))
-    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "results/analysis/eca/layer_sweep.json")
+    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "results/analysis/eca/layer_sweep_v3.json")
     args = parser.parse_args()
 
     data = {}
@@ -130,14 +86,13 @@ def main():
                     continue
                 sc = np.array([comps[s][l][feat] for s in sids])
                 v = auroc(sc, labels)
+                assert v is not None
                 vals[m] = v
                 row += f"{v:10.4f}"
-            rel = min(l / (Ls[m] - 1) for m in MODELS if m in vals) if vals else 0.0
-            row += f"   (rel≈{rel:.2f})"
             print(row)
             results[feat]["per_layer"][str(l)] = vals
 
-        # band averages over relative-depth thirds and last-third quarters
+        # Band averages over fixed relative-depth ranges.
         print(f"-- {feat}: relative-depth band means --")
         bands = {
             "early [0,1/3)": lambda rel: rel < 1 / 3,
@@ -158,6 +113,7 @@ def main():
                     for s in sids
                 ])
                 v = auroc(sc, labels)
+                assert v is not None
                 vals[m] = v
                 row += f"{v:10.4f}"
             results[feat]["bands"][bname] = vals

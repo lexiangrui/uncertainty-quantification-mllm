@@ -1,4 +1,4 @@
-from .backend import GcarBackend
-from .eca import EcaResult, compute_eca
+from .backend import EcaBackend
+from .eca import EcaResult, compute_eca, layer_features
 
-__all__ = ["GcarBackend", "EcaResult", "compute_eca"]
+__all__ = ["EcaBackend", "EcaResult", "compute_eca", "layer_features"]

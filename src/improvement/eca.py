@@ -7,36 +7,38 @@ I → V → R → A?
 Five token regions are distinguished:
 
     I  image tokens                (original visual evidence)
-    Q  question tokens             (prompt text minus image)
+    Q  prompt-text tokens          (system/question/control, minus image)
     V  <vision>…</vision>          (self-generated visual description)
     R  <reasoning>…</reasoning>    (self-generated reasoning)
     A  <answer>…</answer>          (self-generated answer)
 
 For every decoder layer and every source group S ∈ {V, R, A} we record the
-attention mass from the group's prediction rows (row t-1 predicts token t,
-the PAS convention) to every destination bucket in {I, Q, V, R, A}:
+    attention mass from the group's prediction rows (row t-1 predicts token t)
+    to every destination bucket in {I, Q, V, R, A}:
 
     M[l][S][T] = Σ_{rows t∈S} Σ_{heads h} Σ_{j∈T} A^(l,h)[t-1, j]
 
 All derived scores (G_V, G_R, G_A, U_direct, U_ECA per layer) are computed
 offline from these masses, so layer sweeps never need a re-run.
 
-**Memory-efficient exact attention**: same chunked eager scheme as the
-GCAR pipeline — swap ``ALL_ATTENTION_FUNCTIONS["eager"]`` for a chunked
-implementation (post-RoPE Q/K, additive mask, fp32 softmax, adaptive
-~512 MB tiles); rows are accumulated inside the chunk loop.
+**Memory-efficient exact attention**: swap
+``ALL_ATTENTION_FUNCTIONS["eager"]`` for a chunked implementation
+(post-RoPE Q/K, additive mask, fp32 softmax, adaptive ~512 MB tiles);
+rows are accumulated inside the chunk loop.
 """
 from __future__ import annotations
 
 import torch
 from dataclasses import dataclass
 
-from src.improvement.backend import GcarBackend
+from src.improvement.backend import EcaBackend
 
 _CHUNK = 256
 
 GROUPS = ("vision", "reasoning", "answer")
-DESTS = ("image", "question", "vision", "reasoning", "answer")
+DESTS = ("image", "prompt_text", "vision", "reasoning", "answer")
+FEATURES = ("U_image", "U_direct", "U_V", "U_R", "U_ECA")
+EPS = 1e-8
 
 
 @dataclass
@@ -56,7 +58,7 @@ class EcaResult:
         }
 
 
-def _get_decoder_layers(backend: GcarBackend):
+def _get_decoder_layers(backend: EcaBackend):
     base = backend._base_model()
     core = getattr(base, "model", base)
     lang_model = getattr(core, "language_model", core)
@@ -79,19 +81,19 @@ class _EcaAccumulator:
     """Accumulates group→bucket attention mass per decoder layer.
 
     predict_idx: sorted union of the prediction rows of all three groups;
-    group_boundaries: row-count boundaries (exclusive) of vision/reasoning/
-    answer within predict_idx; col_bucket: (seq,) destination bucket per
-    position (-1 = unbucketed, e.g. tag gaps / BOS).
+    row_groups: source-group label aligned one-to-one with predict_idx;
+    col_bucket: destination bucket per sequence position (-1 = XML/control
+    tokens that are intentionally excluded).
     """
 
     def __init__(
         self,
         predict_idx: torch.Tensor,
-        group_boundaries: list[int],
+        row_groups: torch.Tensor,
         col_bucket: torch.Tensor,
     ):
         self.predict_idx = predict_idx.cpu()
-        self.boundaries = torch.tensor(group_boundaries, dtype=torch.long)
+        self.row_groups = row_groups.cpu()
         self.col_bucket = col_bucket.cpu()
         self.module_layers: dict[int, int] = {}
         # layer → [group][bucket] head-summed mass
@@ -118,19 +120,19 @@ class _EcaAccumulator:
 
         # (n_sel, 5): head-summed mass of each selected row per bucket.
         col_rows = rows.sum(dim=0).float()  # (n_sel, seq)
-        if self._onehot is None or self._onehot.shape[0] != probs.shape[3]:
+        if (
+            self._onehot is None
+            or self._onehot.shape[0] != probs.shape[3]
+            or self._onehot.device != probs.device
+        ):
             bucket = self.col_bucket.to(probs.device)
             self._onehot = torch.nn.functional.one_hot(
                 bucket.clamp_min(0), num_classes=5
             ).float() * (bucket >= 0).unsqueeze(-1).float()
         masses = col_rows @ self._onehot  # (n_sel, 5)
 
-        # Group label of each selected row = its index within the sorted
-        # union of prediction rows (predict_idx is the concatenation of the
-        # three groups' contiguous row ranges).
-        row_base = int(self.predict_idx[0].item())
-        idx = sel - row_base
-        labels = torch.searchsorted(self.boundaries.to(probs.device), idx, right=True)
+        mask = (p >= row_start) & (p < row_start + probs.shape[2])
+        labels = self.row_groups.to(probs.device)[mask]
         entry = self.layer_masses.get(layer)
         if entry is None:
             entry = self.layer_masses[layer] = [[0.0] * 5 for _ in GROUPS]
@@ -183,7 +185,7 @@ def _make_chunked_eager(accumulator: _EcaAccumulator):
 
 
 def compute_eca(
-    backend: GcarBackend,
+    backend: EcaBackend,
     full_inputs: dict,
     prompt_length: int,
     section_spans: dict[str, tuple[int, int]],
@@ -192,6 +194,8 @@ def compute_eca(
     input_ids = full_inputs["input_ids"]
     seq_len = int(input_ids.shape[1])
     image_token_id = backend._image_token_id
+    if image_token_id is None:
+        return None
 
     v0, v1 = section_spans["vision"]
     r0, r1 = section_spans["reasoning"]
@@ -207,31 +211,38 @@ def compute_eca(
 
     # Prediction rows per group: row t-1 predicts token t.
     predict_idx = torch.cat([torch.arange(s - 1, e - 1) for s, e in spans.values()])
-    boundaries = [v1 - v0, (v1 - v0) + (r1 - r0), (v1 - v0) + (r1 - r0) + (a1 - a0)]
+    row_groups = torch.cat([
+        torch.full((e - s,), group, dtype=torch.long)
+        for group, (s, e) in enumerate(spans.values())
+    ])
 
     # Destination bucket per position: 0 image, 1 question, 2 V, 3 R, 4 A;
     # tag-gap tokens between sections stay unbucketed (-1).
     col_bucket = torch.full((seq_len,), -1, dtype=torch.long)
-    col_bucket[:prompt_length] = 1  # question side (image set below)
+    col_bucket[:prompt_length] = 1  # non-image prompt side (image set below)
     col_bucket[visual_mask.cpu()] = 0
     col_bucket[v0:v1] = 2
     col_bucket[r0:r1] = 3
     col_bucket[a0:a1] = 4
 
     layers = _get_decoder_layers(backend)
-    accumulator = _EcaAccumulator(predict_idx, boundaries, col_bucket)
+    accumulator = _EcaAccumulator(predict_idx, row_groups, col_bucket)
     accumulator.map_modules(layers)
 
     from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
     # "eager" is not in the default registry (models pass it as a default
     # argument), so get_interface() falls back to our entry once registered.
+    previous_eager = ALL_ATTENTION_FUNCTIONS.get("eager")
     ALL_ATTENTION_FUNCTIONS["eager"] = _make_chunked_eager(accumulator)
     try:
         with torch.inference_mode():
             outputs = backend.model(**full_inputs, use_cache=False)
     finally:
-        del ALL_ATTENTION_FUNCTIONS["eager"]
+        if previous_eager is None:
+            ALL_ATTENTION_FUNCTIONS.pop("eager", None)
+        else:
+            ALL_ATTENTION_FUNCTIONS["eager"] = previous_eager
 
     del outputs
     if torch.cuda.is_available():
@@ -245,3 +256,33 @@ def compute_eca(
         section_tokens={name: spans[name][1] - spans[name][0] for name in GROUPS},
         layer_masses=accumulator.layer_masses,
     )
+
+
+def layer_features(result: dict) -> dict[int, dict[str, float]]:
+    """Convert recorded masses into uncertainty-oriented per-layer features."""
+    heads = result["n_heads"]
+    sizes = result["section_tokens"]
+    row_counts = [sizes[name] for name in GROUPS]
+    features = {}
+    for layer, masses in result["layer_masses"].items():
+        attn = [
+            [mass / (heads * row_counts[group]) for mass in masses[group]]
+            for group in range(len(GROUPS))
+        ]
+        aVI, aVQ, aVV = attn[0][0], attn[0][1], attn[0][2]
+        aRI, aRQ, aRV, aRR = attn[1][0], attn[1][1], attn[1][2], attn[1][3]
+        aAI, aAQ, aAV, aAR, aAA = attn[2]
+
+        g_vision = aVI / (aVI + aVQ + aVV + EPS)
+        g_reasoning = (aRI + aRV * g_vision) / (aRI + aRQ + aRV + aRR + EPS)
+        g_answer = (
+            aAI + aAV * g_vision + aAR * g_reasoning
+        ) / (aAI + aAQ + aAV + aAR + aAA + EPS)
+        features[int(layer)] = {
+            "U_image": 1.0 - aAI,
+            "U_direct": (aAV + aAR + aAA) / (sum(attn[2]) + EPS),
+            "U_V": 1.0 - g_vision,
+            "U_R": 1.0 - g_reasoning,
+            "U_ECA": 1.0 - g_answer,
+        }
+    return features

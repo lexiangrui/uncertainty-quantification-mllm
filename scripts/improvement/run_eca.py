@@ -13,7 +13,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.datasets import iter_dataset
 from src.utils import completed_sample_ids, load_jsonl_records, write_sample_json_line
-from src.improvement import GcarBackend
+from src.improvement import EcaBackend
 from src.improvement.eca import compute_eca
 
 
@@ -42,12 +42,12 @@ def main():
 
     gen_run, records = _load_generation(args.greedy_input)
     dataset = gen_run["dataset"]
-    run = {"eca_output_version": "regions-v2", "greedy_input": str(args.greedy_input.resolve()), "greedy_run": gen_run}
+    run = {"eca_output_version": "regions-v3", "greedy_input": str(args.greedy_input.resolve()), "greedy_run": gen_run}
     completed = completed_sample_ids(args.output, run)
 
-    backend = GcarBackend(args.family, args.model_path,
-                          adapter_path=args.adapter_path,
-                          attn_implementation=args.attn_implementation)
+    backend = EcaBackend(args.family, args.model_path,
+                         adapter_path=args.adapter_path,
+                         attn_implementation=args.attn_implementation)
     backend._load()
 
     written = skipped = 0
@@ -64,19 +64,13 @@ def main():
         if not greedy.get("sections_valid") or not greedy.get("raw_response") or not sample.image:
             skipped += 1
             continue
-        try:
-            full_inputs, prompt_length, section_spans = backend.prepare_inputs_sections(
-                sample.image, sample.question, greedy["raw_response"])
-            if not full_inputs or not section_spans:
-                print(f"skip {sid}: input preparation failed", flush=True)
-                skipped += 1
-                continue
-            result = compute_eca(backend, full_inputs, prompt_length, section_spans)
-        except (RuntimeError, ValueError, torch.cuda.OutOfMemoryError) as exc:
-            print(f"skip {sid}: {type(exc).__name__}: {exc}", flush=True)
+        full_inputs, prompt_length, section_spans = backend.prepare_inputs_sections(
+            sample.image, sample.question, greedy["raw_response"])
+        if not full_inputs or not section_spans:
+            print(f"skip {sid}: input preparation failed", flush=True)
             skipped += 1
-            if torch.cuda.is_available(): torch.cuda.empty_cache()
             continue
+        result = compute_eca(backend, full_inputs, prompt_length, section_spans)
         if result is None:
             print(f"skip {sid}: no decoder-layer masses", flush=True)
             skipped += 1
