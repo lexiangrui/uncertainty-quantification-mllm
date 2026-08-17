@@ -268,23 +268,17 @@ c_i=\exp\!\bigl(\alpha(1-p_i)\bigr),
 
 其中 \(N\) 为单元格内有效样本数。Accuracy 描述最终答案与参考答案一致的比例，Hallucination Rate 描述视觉观察或推理中含无依据内容的样本比例。由于 \(C\) 与 \(H\) 独立，二者并不互补：正确样本中可能含幻觉，错误样本中也可能无幻觉。
 
-**排序能力。** 为评估 UQ 分数能否区分正负样本（以错误 \(E=1-C\) 或幻觉 \(H\) 为正类），使用四个指标。给定分数 \(s_i\) 与二值标签 \(y_i\)：
+**排序能力。** 为评估 UQ 分数能否区分正负样本（以错误 \(E=1-C\) 或幻觉 \(H\) 为正类），使用三个指标。给定分数 \(s_i\) 与二值标签 \(y_i\)：
 
-- **AUROC（Area Under the Receiver Operating Characteristic Curve，ROC 曲线下面积）**。将样本按分数降序排列，以每个分数为阈值计算真正例率（TPR）与假正例率（FPR），ROC 曲线为 FPR–TPR 的关系曲线，AUROC 为其面积。等价地，AUROC 等于随机取一个正样本与一个负样本时，正样本分数高于负样本的概率：\(\mathrm{AUROC}=\mathrm{P}(s_+>s_-)+0.5\,\mathrm{P}(s_+=s_-)\)（并列分数按随机打乱取期望）。AUROC 与类别比例无关，取值 0.5 表示随机排序，1 表示完美排序，小于 0.5 表示反向排序；实现中并列分数使用 mid-rank 精确计算。
+- **AUROC（Area Under the Receiver Operating Characteristic Curve，ROC 曲线下面积）**。将样本按分数降序排列，以每个分数为阈值计算真正例率（TPR）与假正例率（FPR），ROC 曲线为 FPR–TPR 的关系曲线，AUROC 为其面积。等价地，AUROC 等于随机取一个正样本与一个负样本时，正样本分数高于负样本的概率。
 
-- **AUPRC（Area Under the Precision-Recall Curve，PR 曲线下面积）**。以每个分数为阈值计算查准率（Precision，预测为正的样本中真正例比例）与召回率（Recall，真正例中被预测为正的比例），PR 曲线为 Recall–Precision 的关系曲线，AUPRC 为其面积，等价于平均查准率（Average Precision）。与 AUROC 不同，AUPRC 对正类比例敏感：正类越稀有，随机基准的 AUPRC 越低。由于幻觉率在不同单元格差异很大（见 3.1 节），AUPRC 与 AUROC 互补，可反映分数在正类稀有场景下的实际排序价值。
+- **AUPRC（Area Under the Precision-Recall Curve，PR 曲线下面积）**。以每个分数为阈值计算查准率（Precision）与召回率（Recall），PR 曲线为 Recall–Precision 的关系曲线，AUPRC 为其面积，等价于平均查准率（Average Precision）。与 AUROC 不同，AUPRC 对正类比例敏感：正类越稀有，随机基准的 AUPRC 越低。
 
 - **PRR（Prediction Rejection Ratio，预测拒绝比）**。衡量按分数从高到低“拒绝”（即人为不信任）一部分样本后，剩余样本精度的提升幅度。定义 retained-precision 曲线为拒绝比例 \(r\) 下剩余样本的正类比例，其曲线下面积为 \(A\)；随机排序的面积为 \(A_{\mathrm{rand}}=1-p_+\)（\(p_+\) 为正类比例），oracle 排序（按标签降序）的面积为 \(A_{\mathrm{oracle}}\)，则
 \[
 \mathrm{PRR}=\frac{A-A_{\mathrm{rand}}}{A_{\mathrm{oracle}}-A_{\mathrm{rand}}}.
 \]
-PRR 取值 0 表示与随机排序无异，1 表示达到 oracle 排序；它回答了“若只信任分数最高的样本，能多准确地保留正类”这一实际部署问题。实现中并列分数按组内所有排列的精确期望处理。
-
-- **ECE（Expected Calibration Error，期望校准误差）**。衡量分数与经验正类比例之间的校准程度。本实验的 UQ 分数是不确定性分数而非校准概率，因此实现采用标签无关的 min-max 归一化：将分数线性映射到 \([0,1]\) 后等宽划分为 \(B=15\) 个箱，统计每箱内归一化分数均值与标签均值的绝对偏差并取样本加权平均：
-\[
-\mathrm{ECE}=\frac{1}{N}\sum_{b=1}^{B}\left|\sum_{i\in\mathcal{B}_b}\tilde s_i-\sum_{i\in\mathcal{B}_b}y_i\right|,
-\]
-其中 \(\tilde s_i\) 为归一化分数，\(\mathcal{B}_b\) 为第 \(b\) 个箱。该指标描述分数高低的样本是否对应更高（或更低）的经验正类比例；ECE 越小，说明分数与经验风险的对齐越好。需注意其与经典概率校准 ECE 的口径差异：此处不假设分数为概率。
+PRR 取值 0 表示与随机排序无异，1 表示达到 oracle 排序；它回答了“若只信任分数最高的样本，能多准确地保留正类”这一实际部署问题。
 
 ## 3 实验一：评估结果分析与低不确定性子集提取
 

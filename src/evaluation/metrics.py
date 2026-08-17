@@ -92,23 +92,6 @@ def prr(scores: Sequence[float], labels: Sequence[int]) -> float | None:
     return (area - random_area) / (oracle_area - random_area)
 
 
-def ece(scores: Sequence[float], labels: Sequence[int], *, bins: int = 15) -> float:
-    """Calibration gap after a label-free min-max mapping into equal-width bins."""
-    if bins < 1:
-        raise ValueError("bins must be positive")
-    score_array, label_array = _validated(scores, labels)
-    minimum = score_array.min()
-    maximum = score_array.max()
-    if maximum > minimum:
-        normalized = (score_array - minimum) / (maximum - minimum)
-    else:
-        normalized = np.zeros_like(score_array)
-    indices = np.minimum((normalized * bins).astype(np.int64), bins - 1)
-    score_sums = np.bincount(indices, weights=normalized, minlength=bins)
-    label_sums = np.bincount(indices, weights=label_array.astype(np.float64), minlength=bins)
-    return float(np.abs(score_sums - label_sums).sum() / score_array.size)
-
-
 def cluster_bootstrap_indices(
     clusters: Sequence[str], *, n_bootstrap: int, seed: int
 ) -> list[np.ndarray]:

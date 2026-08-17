@@ -8,7 +8,6 @@ from src.evaluation.metrics import (
     auroc,
     bootstrap_summary,
     cluster_bootstrap_indices,
-    ece,
     prr,
 )
 
@@ -47,18 +46,6 @@ def test_single_class_targets_are_undefined() -> None:
         assert metric([0.4, 0.6], [0, 0]) is None
 
 
-def test_ece_uses_min_max_normalization_and_equal_width_bins() -> None:
-    assert ece([0.0, 0.2, 0.8, 1.0], [0, 0, 1, 1], bins=2) == pytest.approx(0.1)
-
-
-def test_ece_with_constant_scores_maps_to_zero_and_stays_defined() -> None:
-    assert ece([2.0, 2.0, 2.0, 2.0], [1, 0, 0, 1]) == pytest.approx(0.5)
-
-
-def test_ece_places_maximum_score_in_last_bin() -> None:
-    assert ece([0.0, 1.0], [0, 1], bins=15) == pytest.approx(0.0)
-
-
 def test_metrics_reject_invalid_inputs() -> None:
     with pytest.raises(ValueError, match="finite"):
         auroc([float("nan"), 1.0], [0, 1])
@@ -68,10 +55,6 @@ def test_metrics_reject_invalid_inputs() -> None:
         auroc([0.1, 0.2], [0])
     with pytest.raises(ValueError, match="non-empty"):
         auroc([], [])
-    with pytest.raises(ValueError, match="bins"):
-        ece([0.1, 0.2], [0, 1], bins=0)
-
-
 def test_cluster_bootstrap_keeps_clusters_together() -> None:
     replicates = cluster_bootstrap_indices(
         ["a", "a", "b", "c"], n_bootstrap=50, seed=3

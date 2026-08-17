@@ -1,19 +1,221 @@
-\section{Method}
-\label{sec:method}
+\clearpage
+\section{Experiment 1: UQ Evaluation Framework Design}
+\label{sec:experiment1_framework}
 
-% TODO: definitions, UQ methods, risk scores, calibration
+\subsection{Experimental Design}
+\label{subsec:experimental_design}
 
-\subsection{Definitions}
-% TODO: hallucination, error, confidence, uncertainty, risk
+\subsubsection{Evaluated Models and Format-Oriented LoRA Fine-Tuning}
+\label{subsubsec:models_lora}
 
-\subsection{Uncertainty Quantification Methods}
-% TODO: at least 3 methods covering at least 2 paradigms
+\textbf{Evaluated models and local deployment.} Experiment~1 evaluates three open-source multimodal large language models, as summarized in \Cref{tab:evaluated_models}: LLaVA-1.5-7B, Qwen2.5-VL-7B-Instruct, and InternVL3.5-8B-HF. They represent a classical vision-language baseline, a recent native multimodal architecture, and a third open-source architecture, respectively. Because all three models must expose per-token logits during generation and the final-layer hidden states required by UMPIRE, I deploy them locally rather than access them through APIs. Model weights are stored locally in Hugging Face Transformers format and loaded in offline mode for generation. Inference uses Transformers with FlashAttention-2.
 
-\subsection{Hallucination Risk Evaluation}
-% TODO: ranking / classification / correlation metrics
+\begin{table}[H]
+\centering
+\caption{The three evaluated multimodal large language models.}
+\label{tab:evaluated_models}
+\small
+\setlength{\tabcolsep}{3.5pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\linewidth}{@{}L{3.6cm}C{0.85cm}Y Y@{}}
+\toprule
+\textbf{Model} & \textbf{Size} & \textbf{Architectural characteristics} & \textbf{Rationale for selection} \\
+\midrule
+\textbf{LLaVA-1.5-7B}\newline {\footnotesize\color{gray!75!black}\nolinkurl{llava-hf/llava-1.5-7b-hf}} & $\sim$7B & Classical two-stage architecture comprising a CLIP vision encoder, a projection layer, and an LLM backbone & Classical open-source vision-language baseline \\
+\addlinespace[3pt]
+\textbf{Qwen2.5-VL-7B-Instruct}\newline {\footnotesize\color{gray!75!black}\nolinkurl{Qwen/Qwen2.5-VL-7B-Instruct}} & $\sim$7B & Recent native multimodal architecture with dynamic resolution and strong OCR and visual reasoning capabilities & Recent open-source instruction-tuned model \\
+\addlinespace[3pt]
+\textbf{InternVL3.5-8B-HF}\newline {\footnotesize\color{gray!75!black}\nolinkurl{OpenGVLab/InternVL3_5-8B-HF}} & $\sim$8B & Native Hugging Face multimodal checkpoint & Third model architecture, included to broaden coverage \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
-\subsection{Post-hoc Calibration}
-% TODO: at least 1 calibration method
+\textbf{Format-oriented LoRA fine-tuning.} Preliminary experiments show that all three models may omit tags, leave tags unclosed, place tags in the wrong order, or continue generating outside the XML structure under both greedy decoding and random sampling. Because the judge and the UQ methods must reliably separate visual evidence, reasoning, and the final answer, I train a separate LoRA adapter for each model solely to control response organization. The training data consist exclusively of XML-supervised examples constructed from VQAv2 train2014. A multimodal teacher model generates three components---visual evidence, reasoning, and a final answer---for real COCO images, which are then converted into a uniform single-line \texttt{<vision>/<reasoning>/<answer>} XML format. After manual spot checks, the data are fixed at 4,000 training examples and 1,000 validation examples. None of the three evaluation datasets is used for training, thereby preventing data leakage.
 
-\subsection{Human Annotation Protocol}
-% TODO: trust labels, consistency metrics
+All three models use the same training configuration, reported in \Cref{tab:lora_config}. LoRA updates only the attention projections \texttt{q\_proj} and \texttt{v\_proj} in the language-model component, while the vision encoder and multimodal alignment component remain frozen. The format fine-tuning therefore does not alter the models' visual perception or image-text alignment capabilities, which avoids confounding format adaptation with changes in hallucination rate or answer accuracy. If the vision component or all model parameters were fine-tuned directly, shifts in the response distribution caused by format adaptation would become entangled with changes in task capability, making it impossible to determine whether subsequent differences arose from the response protocol or from the model itself. Appendix~A.8 describes the comparison used to examine this freezing strategy, including variants that unfreeze the vision encoder or fine-tune all parameters. The validation losses of the three adapters are 0.765 for LLaVA, 0.693 for Qwen, and 0.633 for InternVL. Further details of data construction, training, and acceptance checks are provided in Appendix~A.7.
+
+\begin{table}[H]
+\centering
+\caption{Format-oriented LoRA configuration. All three models use the same data split, target response format, and hyperparameters.}
+\label{tab:lora_config}
+\small
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{0.94\linewidth}{@{}L{3.7cm}Y@{}}
+\toprule
+\textbf{Configuration} & \textbf{Value} \\
+\midrule
+\textbf{Training data} & Constructed from VQAv2 train2014; 4,000 training and 1,000 validation examples \\
+\addlinespace[2pt]
+\textbf{LoRA rank / alpha / dropout} & 8 / 16 / 0.05 \\
+\addlinespace[2pt]
+\textbf{Target modules} & Language-model \texttt{q\_proj} and \texttt{v\_proj} \\
+\addlinespace[2pt]
+\textbf{Learning rate / epochs} & $2\times10^{-4}$ / 1 \\
+\addlinespace[2pt]
+\textbf{Validation loss} & 0.765 (LLaVA) / 0.693 (Qwen) / 0.633 (InternVL) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Example response.} Consider the response of InternVL3.5-8B-HF to a ViLP example, \texttt{vilp-0-case1}, whose correct answer is 4. The question illustrates the construction of ViLP: its initial prior statement, ``Modern drones typically have four propellers,'' agrees with the visual evidence. The model produces the following complete and well-formed single-line XML response. Each of the three tags occurs exactly once in the prescribed order, with no additional text outside the tags, allowing direct parsing by both the judge and the UQ pipeline.
+
+\begin{quote}
+\textbf{Question:} Modern drones typically have four propellers. How many propellers does the drone in the picture have?
+
+\textbf{Response:}
+\begin{lstlisting}
+<vision>The image shows a large drone hovering over a futuristic cityscape. The drone has a central body with four distinct propellers, each attached to a rotor arm extending outward.</vision><reasoning>The drone in the picture clearly has four propellers, which is the standard configuration for modern drones.</reasoning><answer>4</answer>
+\end{lstlisting}
+\end{quote}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.33\linewidth]{vilp_0_case1}
+\caption{Example image for ViLP \texttt{vilp-0-case1}.}
+\label{fig:vilp_format_example}
+\end{figure}
+
+\subsubsection{Evaluation Datasets}
+\label{subsubsec:evaluation_datasets}
+
+For all three datasets, I use the complete evaluation data released through Hugging Face. Sample counts refer to the question instances actually passed to the models, as shown in \Cref{tab:evaluation_datasets}. The three datasets contain 2,247 question instances in total. Evaluating all three models on exactly the same question list produces 6,741 primary question-model responses.
+
+\begin{table}[H]
+\centering
+\caption{Overview of the evaluation datasets.}
+\label{tab:evaluation_datasets}
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\linewidth}{@{}L{2.5cm}C{1.5cm}Y Y@{}}
+\toprule
+Dataset & Question instances & Data and task type & Primary evaluation focus \\
+\midrule
+ViLP & 900 & 300 questions $\times$ 3 question-image-answer (QIA) groups & Conflicts between language priors and factual or counter-prior visual evidence \\
+HallusionBench & 1,129 & 951 image-based questions and 178 non-image questions & Visual illusions, language priors, false premises, and image-text conflicts \\
+MM-Vet & 218 & Single-image open-ended visual question answering across six core capabilities & Visual factual errors and compound capability failures in open-ended responses \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The 900 ViLP instances are 900 evaluated QIA triplets formed from 300 question texts and three image-answer pairings per question, where QIA denotes Question--Image--Answer. The 1,129 HallusionBench instances combine the official image split (951) and non-image split (178); no image is supplied for non-image examples. The construction, question types, and evaluation focus of each dataset are detailed in Appendix~A.1.
+
+\subsubsection{Response Generation Protocol}
+\label{subsubsec:generation_protocol}
+
+All evaluated models use the same fixed single-line XML response protocol:
+
+\begin{lstlisting}
+<vision>Relevant visual evidence.</vision><reasoning>Brief reasoning based on the evidence.</reasoning><answer>Concise final answer.</answer>
+\end{lstlisting}
+
+The response instruction, image, and question are placed in a single user message, without a system message. Two generation streams are produced for every input:
+
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{Greedy primary response:} \texttt{do\_sample=false}, used for correctness and hallucination labeling and for Perplexity computation.
+    \item \textbf{$K=10$ randomly sampled responses:} \texttt{do\_sample=true, temperature=1.0}. Each sampled response is allowed at most 50 rejection-resampling attempts to obtain valid XML and is used by Semantic Entropy and UMPIRE.
+\end{itemize}
+
+Semantic Entropy and UMPIRE share exactly the same sampled responses so that sampling variation does not confound their comparison. During generation, I record the per-token log probabilities of the final answer and the final-layer hidden states, the latter only for UMPIRE. Parsing failures are not silently repaired; instead, they are explicitly reported as experimental outcomes, as described in Appendix~A.5.
+
+\subsubsection{Independent Correctness and Hallucination Labeling}
+\label{subsubsec:independent_labels}
+
+Each greedy primary response is evaluated once by a multimodal LLM judge (\texttt{gpt-5.4}), which returns two independent labels in the same call:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Correctness $C$:} determined solely by the semantic agreement between \texttt{<answer>} and the dataset reference answer.
+    \item \textbf{Hallucination $H$:} determined solely by whether \texttt{<vision>} or \texttt{<reasoning>} contains content unsupported by the image, question, context, or verifiable facts. The judge assigns a score from 0 to 6; a response with \texttt{rating < 3} is labeled as hallucinated and is additionally assigned the type \texttt{vision\_hallucination} or \texttt{reasoning\_hallucination}, as applicable.
+\end{enumerate}
+
+The judge instructions and output format are provided in Appendix~A.6. Because the two labels apply to different parts of a response and are assigned independently, they permit the four combinations in \Cref{tab:correctness_hallucination_labels}. Subsequent UQ evaluation can therefore address error detection and hallucination detection as distinct targets.
+
+\begin{table}[H]
+\centering
+\caption{Four combinations of the correctness label $C$ and hallucination label $H$.}
+\label{tab:correctness_hallucination_labels}
+\small
+\setlength{\tabcolsep}{8pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{0.82\linewidth}{@{}C{1.2cm}C{1.2cm}Y@{}}
+\toprule
+$C$ & $H$ & Interpretation \\
+\midrule
+1 & 0 & The final answer is correct, and neither the visual observation nor the reasoning contains hallucination \\
+1 & 1 & The final answer is correct, but the visual observation or reasoning contains hallucination \\
+0 & 0 & The final answer is incorrect, but neither the visual observation nor the reasoning contains hallucination \\
+0 & 1 & The final answer is incorrect, and the visual observation or reasoning contains hallucination \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsubsection{Three Baseline UQ Methods}
+\label{subsubsec:baseline_uq}
+
+For all three methods, a higher score denotes greater uncertainty. The formal scoring target is consistently restricted to the content of the final-answer component.
+
+\textbf{Perplexity.} Perplexity (PPL) is a standard sequence-probability measure of uncertainty in language models. It quantifies predictive uncertainty through the model's conditional probability of its generated answer. Given a conditional input $q$ comprising the image-text question and the prompt, let $y=(w_1,\ldots,w_N)$ denote the token sequence in the final-answer component. The autoregressive model assigns the sequence probability
+\[
+p_M(y\mid q)=\prod_{j=1}^{N}p_M(w_j\mid q,w_{<j}).
+\]
+The length-normalized negative log-likelihood and perplexity are
+\[
+\operatorname{NLL}(y\mid q)=-\frac{1}{N}\sum_{j=1}^{N}\log p_M(w_j\mid q,w_{<j}),
+\qquad
+\operatorname{PPL}(y\mid q)=\exp\!\left(\operatorname{NLL}(y\mid q)\right).
+\]
+PPL is a local token-level uncertainty measure: it is high when the model generally assigns low probability to the answer tokens that it actually generates under their respective prefixes. Because it does not compare the meanings of repeated generations, it serves as the single-response probability baseline in this experiment.
+
+\textbf{Semantic Entropy.} Semantic Entropy (SE) defines uncertainty over answer meanings rather than surface token sequences, thereby avoiding the treatment of synonymous expressions as contradictory answers. I draw $K=10$ final answers $y_1,\ldots,y_K$ from $p_M(\cdot\mid q)$ and partition them into semantic clusters $\mathcal C=\{c_1,\ldots,c_m\}$ using \textbf{bidirectional entailment relative to the question context}. Two responses $y_a$ and $y_b$ are assigned to the same cluster only when $y_a$ entails $y_b$ and $y_b$ entails $y_a$. To reduce the direct influence of answer length on finite-sample probability mass, I first compute the length-normalized log probability of each sampled answer and then apply a softmax normalization:
+\[
+\ell_i=\frac{1}{|y_i|}\sum_j\log p_M(w_{i,j}\mid q,w_{i,<j}),
+\qquad
+\tilde p_i=\frac{\exp(\ell_i)}{\sum_k\exp(\ell_k)}.
+\]
+The probability of a semantic cluster and the resulting semantic entropy are
+\[
+p(c)=\sum_{i:y_i\in c}\tilde p_i,
+\qquad
+\widehat{\operatorname{SE}}(q)=-\sum_{c\in\mathcal C}p(c)\log p(c).
+\]
+SE is low when the sampled responses concentrate in one or a small number of semantic clusters and high when the model distributes its responses across several distinct answer meanings. The entropy is computed from normalized probability mass rather than the number of samples in each cluster, reducing the direct effect of response length on finite-sample probability estimation.
+
+\textbf{UMPIRE.} UMPIRE (\textit{Uncertainty using Model Probability Indicators and Response Embeddings}) combines two signals into a training-free multimodal uncertainty score: the dispersion of sampled responses in the internal semantic or multimodal representation space of the evaluated MLLM, and the model's conditional probability of each response given the image-text input. For the $K$ sampled final answers $y_i$ to an input $q$, let $\phi_i\in\mathbb{R}^d$ be the $\ell_2$-normalized response representation extracted from the final layer of the evaluated MLLM at the final-answer tokens, and let $\Phi=[\phi_1^\top;\ldots;\phi_K^\top]\in\mathbb{R}^{K\times d}$. The conditional response probability and incoherence factor are defined as
+\[
+p_i=p_M(y_i\mid q)=\prod_{j=1}^{|y_i|}p_M(w_{i,j}\mid q,w_{i,<j}),
+\qquad
+c_i=\exp\!\bigl(\alpha(1-p_i)\bigr),
+\]
+where $\alpha\geq0$ controls the weight of the incoherence term. A smaller $p_i$ indicates that the response receives less internal support from the model under the complete multimodal input and therefore produces a larger $c_i$. Let $C=\operatorname{diag}(c_1,\ldots,c_K)$, and let $\epsilon>0$ be a small constant that prevents numerical degeneracy. UMPIRE is then
+\[
+\operatorname{UMPIRE}(q)=\frac{1}{2K}\log\det\!\left[C\left(\Phi\Phi^\top+\epsilon I_K\right)C\right].
+\]
+This expression decomposes into a semantic-volume term, $\frac{1}{2K}\log\det(\Phi\Phi^\top+\epsilon I_K)$, and a mean-incoherence term, $\frac{\alpha}{K}\sum_i(1-p_i)$. The two terms respectively represent the squared volume spanned by the response representations and their average incoherence. UMPIRE therefore assigns high uncertainty both when the model produces multiple widely separated answers and when the answers vary little but receive weak internal support from the model. The latter case may be missed by methods that depend only on semantic dispersion across responses.
+
+\subsubsection{Evaluation Metrics}
+\label{subsubsec:evaluation_metrics}
+
+All metrics are computed independently within each model-dataset cell; raw scores are never compared across models or datasets. The metrics comprise label statistics, ranking performance, and blind-spot statistics, which respectively address the label distribution, the ability of a score to rank samples, and the amount of hallucination concealed in low-score regions.
+
+\textbf{Label statistics.} The overall levels of the correctness labels $C_i$ and hallucination labels $H_i$ are summarized by
+\[
+\mathrm{Accuracy}=\frac{1}{N}\sum_{i=1}^{N}C_i,
+\qquad
+\mathrm{Hallucination\ Rate}=\frac{1}{N}\sum_{i=1}^{N}H_i,
+\]
+where $N$ is the number of valid samples in the cell. Accuracy is the proportion of final answers that agree with the reference answers, whereas Hallucination Rate is the proportion of responses whose visual observation or reasoning contains unsupported content. Because $C$ and $H$ are independent labels, the two rates are not complementary: a correct response may contain hallucination, and an incorrect response may be hallucination-free.
+
+\textbf{Ranking performance.} To evaluate whether a UQ score separates positive and negative samples, with either error $E=1-C$ or hallucination $H$ treated as the positive class, I use three metrics. Let $s_i$ denote the uncertainty score and $y_i$ the corresponding binary target.
+
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{AUROC (Area Under the Receiver Operating Characteristic Curve).} At each score threshold, the true-positive rate (TPR) and false-positive rate (FPR) define a point on the ROC curve, and AUROC is the area under this curve. Equivalently, AUROC is the probability that a randomly drawn positive sample receives a higher score than a randomly drawn negative sample.
+
+    \item \textbf{AUPRC (Area Under the Precision--Recall Curve).} Precision and recall are computed at each score threshold, and AUPRC is the area under the resulting recall--precision curve, equivalently average precision. Unlike AUROC, AUPRC depends on class prevalence: the rarer the positive class, the lower its random baseline.
+
+    \item \textbf{PRR (Prediction Rejection Ratio).} PRR measures the improvement obtained by rejecting responses from the highest to the lowest uncertainty score. Let $A$ be the area under the retained-precision curve, where retained precision is the proportion of reliable samples remaining at rejection rate $r$. Let $A_{\mathrm{rand}}=1-p_+$ denote the area under random rejection, where $p_+$ is the positive-class prevalence, and let $A_{\mathrm{oracle}}$ denote the area under oracle rejection. Then
+    \[
+    \mathrm{PRR}=\frac{A-A_{\mathrm{rand}}}{A_{\mathrm{oracle}}-A_{\mathrm{rand}}}.
+    \]
+    A PRR of 0 is equivalent to random ranking, whereas a PRR of 1 attains oracle ranking. It therefore quantifies how effectively high-uncertainty rejection preserves reliable responses in a deployment setting.
+\end{itemize}

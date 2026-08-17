@@ -3,7 +3,6 @@ from .metrics import (
     auroc,
     bootstrap_summary,
     cluster_bootstrap_indices,
-    ece,
     prr,
 )
 from .runner import run_metrics
@@ -13,7 +12,6 @@ __all__ = [
     "auroc",
     "bootstrap_summary",
     "cluster_bootstrap_indices",
-    "ece",
     "prr",
     "run_metrics",
 ]

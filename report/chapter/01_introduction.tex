@@ -37,7 +37,7 @@ According to the uncertainty level and the presence of hallucination, model resp
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.92\linewidth]{uncertainty_hallucination_quadrants}
+\includegraphics[width=0.92\linewidth]{四种幻觉类型}
 \caption{Four response categories formed by uncertainty level and hallucination status. The low-uncertainty hallucination (LUH) quadrant highlights the false-negative region that uncertainty quantification methods may fail to identify.}
 \label{fig:uncertainty_hallucination_quadrants}
 \end{figure}
@@ -97,15 +97,18 @@ Based on the above survey, I argue that existing UQ research suffers from four i
 \label{tab:gaps}
 \small
 \setlength{\tabcolsep}{4pt}
-\renewcommand{\arraystretch}{1.15}
+\renewcommand{\arraystretch}{1.2}
 \begin{tabularx}{\linewidth}{@{}L{2.6cm}Y Y@{}}
 \toprule
-Gap & Common practice in existing research & Impact on low-uncertainty hallucination \\
+\textbf{Gap} & \textbf{Common practice in existing research} & \textbf{Impact on low-uncertainty hallucination} \\
 \midrule
-Mechanism assumption & High generation probability or multi-sample consistency is interpreted as reliability & When the same hallucination is stably reproduced, methods such as PPL and Semantic Entropy may simultaneously give low uncertainty \\
-Evaluation target & The correctness of the final answer is used as the hallucination or risk label & It cannot distinguish wrong answers without hallucination from correct answers that contain hallucination, and the effectiveness of UQ may be replaced by the error rate \\
-Measurement object & Only the final answer is scored in terms of probability or semantic dispersion & Unsupported content introduced in the visual observation or reasoning may not be reflected in the UQ score of the short final answer \\
-Perturbation validity & Image blurring and text rewriting are treated as semantically equivalent perturbations & Perturbations may destroy task information or introduce prompt sensitivity, so that a high score reflects artificial information degradation rather than the original hallucination risk \\
+\textbf{Mechanism assumption} & High generation probability or multi-sample consistency is interpreted as reliability & When the same hallucination is stably reproduced, methods such as PPL and Semantic Entropy may simultaneously give low uncertainty \\
+\addlinespace[2pt]
+\textbf{Evaluation target} & The correctness of the final answer is used as the hallucination or risk label & It cannot distinguish wrong answers without hallucination from correct answers that contain hallucination, and the effectiveness of UQ may be replaced by the error rate \\
+\addlinespace[2pt]
+\textbf{Measurement object} & Only the final answer is scored in terms of probability or semantic dispersion & Unsupported content introduced in the visual observation or reasoning may not be reflected in the UQ score of the short final answer \\
+\addlinespace[2pt]
+\textbf{Perturbation validity} & Image blurring and text rewriting are treated as semantically equivalent perturbations & Perturbations may destroy task information or introduce prompt sensitivity, so that a high score reflects artificial information degradation rather than the original hallucination risk \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -115,7 +118,12 @@ This judgment is also supported by a recent systematic study. \citet{agnimo2026e
 \subsection{Research Question}
 \label{subsec:research_question}
 
-Based on the above survey, I formulate the following core research question: how can uncertainty quantification methods identify and predict low-uncertainty hallucination in multimodal large language models?
+Based on the above survey, I formulate the following core research question:
+
+\begin{quote}
+\centering
+\textbf{RQ: How can uncertainty quantification methods identify and predict low-uncertainty hallucination in multimodal large language models?}
+\end{quote}
 
 The low-uncertainty hallucination studied in this report is not a new type of hallucination but a class of samples that existing UQ methods may miss: the response contains content unsupported by the image, the question, the context, or the facts, while the generation probability, sampling consistency, or internal semantic representation score of the method still exhibits low uncertainty. Answering this question requires identifying hallucinated samples that PPL, Semantic Entropy, and UMPIRE jointly place in the low-uncertainty region, namely the consensus LUH missed by all three baselines, and then designing a new uncertainty quantification method based on the common characteristics of these samples and the common failure modes of the three methods. To compute discriminative metrics, I configure 200 positive samples and an equal number of low-uncertainty non-hallucinated negative samples for each model, so that the comparison is confined to the same low-uncertainty region. The report therefore consists of two consecutive experiments.
 
@@ -128,7 +136,7 @@ I first systematically evaluate existing UQ methods, analyze the relationship be
 \text{response generation}
 &\rightarrow \text{independent correctness and hallucination labeling}\\
 &\rightarrow \text{evaluation of existing UQ methods}\\
-&\rightarrow \text{consensus LUH and low-uncertainty non-hallucination extraction}\\
+&\rightarrow \text{low-uncertainty subset extraction}\\
 &\rightarrow \text{new method design and validation}.
 \end{aligned}
 \]
@@ -141,11 +149,3 @@ The first four stages constitute Experiment~1 and the last stage constitutes Exp
     \caption{Overall research pipeline. Experiment~1 generates and independently labels responses, evaluates three baseline UQ methods, and extracts the consensus LUH subset; Experiment~2 develops and validates the new method on the fixed subset.}
     \label{fig:overall_research_pipeline}
 \end{figure}
-
-\subsubsection{Experiment 1: Evaluation of Existing UQ Methods and Extraction of the Consensus LUH Subset}
-
-In a unified model-dataset evaluation matrix, Experiment~1 generates structured responses, performs independent correctness and hallucination labeling, computes three baseline scores (Perplexity, Semantic Entropy, and UMPIRE), and evaluates their error and hallucination detection ability. It then extracts 200 low-uncertainty hallucinated positive samples and 200 low-uncertainty non-hallucinated negative samples per model, forming a fixed 400-sample evaluation subset that serves as the evaluation basis of Experiment~2. The datasets, models, labeling protocol, UQ computation, and subset extraction procedures are detailed in Chapter~2.
-
-\subsubsection{Experiment 2: Improving UQ Methods to Identify Low-Uncertainty Hallucination}
-
-Experiment~2 designs a new UQ method on the fixed low-uncertainty hallucination subset of Experiment~1, so that the new score can identify the low-uncertainty hallucination missed by the three baselines. The new method and the baselines use exactly the same samples, hallucination labels, and evaluation metrics. Acceptance requires three conditions to be satisfied simultaneously: a significant improvement of the ranking metrics on the subset, no degradation on the full test set, and stable reproduction across models and datasets. The detailed method design and validation procedure are described in the following chapters.

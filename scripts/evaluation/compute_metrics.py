@@ -25,7 +25,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Merge UQ scores with greedy-response judge labels for one model x dataset "
-            "run and compute AUROC/AUPRC/PRR/ECE with cluster bootstrap CIs "
+            "run and compute AUROC/AUPRC/PRR with cluster bootstrap CIs "
             "for the error and hallucination targets."
         )
     )
@@ -34,7 +34,6 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--bootstrap-samples", type=int, default=1000)
     parser.add_argument("--bootstrap-seed", type=int, default=0)
-    parser.add_argument("--ece-bins", type=int, default=15)
     args = parser.parse_args()
 
     report = run_metrics(
@@ -43,7 +42,6 @@ def main() -> None:
         output=args.output,
         bootstrap_samples=args.bootstrap_samples,
         bootstrap_seed=args.bootstrap_seed,
-        ece_bins=args.ece_bins,
     )
 
     counts = report["counts"]
@@ -75,8 +73,7 @@ def main() -> None:
                 f"  {name:<{width}}  "
                 f"AUROC={_formatted(metrics['auroc'])}  "
                 f"AUPRC={_formatted(metrics['auprc'])}  "
-                f"PRR={_formatted(metrics['prr'])}  "
-                f"ECE={_formatted(metrics['ece'])}"
+                f"PRR={_formatted(metrics['prr'])}"
             )
     print(f"\nreport written to {args.output}")
 

@@ -18,7 +18,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.evaluation.metrics import auroc, auprc, ece, prr  # noqa: E402
+from src.evaluation.metrics import auroc, auprc, prr  # noqa: E402
 from scripts.analysis.load_joined import (  # noqa: E402
     DATASETS,
     METHODS,
@@ -35,9 +35,8 @@ OUT = RESULTS / "analysis" / "detection"
 
 N_BOOT = 1000
 SEED = 0
-ECE_BINS = 15
-METRICS = ("auroc", "auprc", "prr", "ece")
-METRIC_FNS = {"auroc": auroc, "auprc": auprc, "prr": prr, "ece": lambda s, l: ece(s, l, bins=ECE_BINS)}
+METRICS = ("auroc", "auprc", "prr")
+METRIC_FNS = {"auroc": auroc, "auprc": auprc, "prr": prr}
 TARGETS = ("error", "hallucination")
 
 
@@ -246,7 +245,7 @@ def module_b2(cells: dict[tuple[str, str], list[dict]], b1_rows: list[dict]) -> 
 
 
 def module_b3(cells: dict[tuple[str, str], list[dict]]) -> None:
-    bin_rows, rc_rows = [], []
+    rc_rows = []
     grid = np.round(np.arange(0, 1.0, 0.01), 4)
     for (model, dataset), records in cells.items():
         for target in TARGETS:
@@ -256,29 +255,6 @@ def module_b3(cells: dict[tuple[str, str], list[dict]]) -> None:
                 scores = np.array([records[i]["scores"][method] for i in idx_valid], dtype=float)
                 labels = labels_all[idx_valid]
                 n = len(scores)
-                # ECE bins on min-max normalised scores
-                lo, hi = float(scores.min()), float(scores.max())
-                norm = np.zeros(n) if hi == lo else (scores - lo) / (hi - lo)
-                for b in range(ECE_BINS):
-                    edge_lo, edge_hi = b / ECE_BINS, (b + 1) / ECE_BINS
-                    mask = (norm >= edge_lo) & (norm < edge_hi) if b < ECE_BINS - 1 else (norm >= edge_lo) & (norm <= 1.0)
-                    cnt = int(mask.sum())
-                    if cnt == 0:
-                        bin_rows.append({
-                            "model": model, "dataset": dataset, "target": target, "method": method,
-                            "bin": b, "bin_lo": edge_lo, "bin_hi": edge_hi, "n": 0,
-                            "mean_score_norm": None, "actual_rate": None, "abs_gap": None, "weighted_contrib": 0.0,
-                        })
-                        continue
-                    mean_pred = float(norm[mask].mean())
-                    actual = float(labels[mask].mean())
-                    gap = abs(mean_pred - actual)
-                    bin_rows.append({
-                        "model": model, "dataset": dataset, "target": target, "method": method,
-                        "bin": b, "bin_lo": edge_lo, "bin_hi": edge_hi, "n": cnt,
-                        "mean_score_norm": mean_pred, "actual_rate": actual,
-                        "abs_gap": gap, "weighted_contrib": cnt / n * gap,
-                    })
                 # risk-coverage curve on descending score order
                 order = np.argsort(-scores, kind="mergesort")
                 sorted_labels = labels[order]
@@ -293,12 +269,6 @@ def module_b3(cells: dict[tuple[str, str], list[dict]]) -> None:
                         "rejected_frac": float(frac), "rejected_k": k, "retained_n": retained_n,
                         "retained_precision": float(neg_cum[retained_n - 1] / retained_n),
                     })
-    write_csv(
-        OUT / "b3_ece_bins.csv",
-        ["model", "dataset", "target", "method", "bin", "bin_lo", "bin_hi", "n",
-         "mean_score_norm", "actual_rate", "abs_gap", "weighted_contrib"],
-        bin_rows,
-    )
     write_csv(
         OUT / "b3_risk_coverage.csv",
         ["model", "dataset", "target", "method", "rejected_frac", "rejected_k", "retained_n", "retained_precision"],

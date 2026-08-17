@@ -1,6 +1,7 @@
-% !TEX program = pdflatex
+% !TEX program = xelatex
 \documentclass[11pt,a4paper]{article}
 
+\usepackage{fontspec}
 \usepackage[margin=1in]{geometry}
 \usepackage{microtype}
 \usepackage{amsmath,amssymb}
@@ -17,6 +18,7 @@
 \usepackage{enumitem}
 \usepackage{listings}
 \usepackage[table]{xcolor}
+\usepackage[most]{tcolorbox}
 \usepackage{fancyhdr}
 \usepackage{placeins}
 \usepackage[authoryear,round]{natbib}
@@ -25,11 +27,42 @@
 
 \graphicspath{{figures/}}
 \sisetup{detect-all}
+\setlength{\emergencystretch}{2em}
+% Permit large case-card floats to share a page instead of forcing one card per page.
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.08}
+\renewcommand{\floatpagefraction}{0.75}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{4}
 
 % Reusable column types for compact, readable text tables.
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 \newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+% Comic-style face used only for questions and model responses in case cards.
+\newfontfamily\comicfont{Comic Sans MS}[
+  UprightFont = Comic Sans MS,
+  BoldFont = Comic Sans MS Bold
+]
+
+\newtcolorbox{casecard}[1][]{
+  enhanced,
+  colback=white,
+  colframe=gray!60,
+  boxrule=0.55pt,
+  arc=6mm,
+  outer arc=6mm,
+  left=6mm,
+  right=6mm,
+  top=5mm,
+  bottom=5mm,
+  before skip=8pt,
+  after skip=8pt,
+  #1
+}
 
 \captionsetup{
   font=small,

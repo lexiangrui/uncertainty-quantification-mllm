@@ -153,7 +153,7 @@ bash slurm/generation/submit_uq_grid.sh
 `prompts/judge/closed_source_correctness_hallucination_v1.md` 加载；Judge JSONL 的
 `run` 记录保存 `judge_prompt_version` 和 `judge_prompt_sha256`。
 
-`scripts/evaluation/compute_metrics.py` 将同一模型和数据集的 UQ/Judge JSONL 按 `sample_id` 合并，报告错误检测和幻觉检测的 AUROC、AUPRC、PRR、ECE 及 group-level bootstrap 置信区间。
+`scripts/evaluation/compute_metrics.py` 将同一模型和数据集的 UQ/Judge JSONL 按 `sample_id` 合并，报告错误检测和幻觉检测的 AUROC、AUPRC、PRR 及 group-level bootstrap 置信区间。
 
 `scripts/extract_per_model_subset.py` 为每个模型独立提取 400 样本低不确定性子集
 （200 条 LUH 正例 + 200 条三维 baseline 百分位最近邻匹配的非幻觉负例），产物位于

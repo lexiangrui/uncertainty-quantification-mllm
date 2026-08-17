@@ -12,12 +12,11 @@ from .metrics import (
     auroc,
     bootstrap_summary,
     cluster_bootstrap_indices,
-    ece,
     prr,
 )
 
 
-METRICS_OUTPUT_VERSION = "uq-metrics-v1"
+METRICS_OUTPUT_VERSION = "uq-metrics-v2"
 SINGLE_CLASS_REASON = "target labels contain a single class"
 
 
@@ -169,7 +168,6 @@ def run_metrics(
     output: Path,
     bootstrap_samples: int = 1000,
     bootstrap_seed: int = 0,
-    ece_bins: int = 15,
     confidence: float = 0.95,
 ) -> dict[str, Any]:
     uq_run, uq_records = _load_records(uq_input)
@@ -222,9 +220,6 @@ def run_metrics(
                 "prr": _metric_entry(
                     prr, method_scores, target, replicates, confidence=confidence
                 ),
-                "ece": _metric_entry(
-                    ece, method_scores, target, replicates, confidence=confidence, bins=ece_bins
-                ),
             }
         positives = int(target.sum())
         targets_section[target_name] = {
@@ -246,7 +241,6 @@ def run_metrics(
             "bootstrap_samples": bootstrap_samples,
             "bootstrap_seed": bootstrap_seed,
             "confidence": confidence,
-            "ece_bins": ece_bins,
             "cluster_field": "group_id",
             "positive_targets": {"error": "1 - correct", "hallucination": "hallucination"},
         },

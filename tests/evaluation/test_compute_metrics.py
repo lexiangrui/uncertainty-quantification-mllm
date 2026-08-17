@@ -115,6 +115,7 @@ def test_run_metrics_reports_counts_labels_and_both_targets(tmp_path: Path) -> N
         bootstrap_seed=7,
     )
 
+    assert report["metrics_output_version"] == "uq-metrics-v2"
     assert report["dataset"] == "vilp"
     assert report["model_family"] == "llava_1_5"
     assert report["uq_methods"] == ["perplexity", "semantic_entropy"]
@@ -148,17 +149,16 @@ def test_run_metrics_reports_counts_labels_and_both_targets(tmp_path: Path) -> N
     assert error_target["positives"] == 3
     assert error_target["positive_rate"] == pytest.approx(0.375)
     perplexity = error_target["methods"]["perplexity"]
+    assert set(perplexity) == {"auroc", "auprc", "prr"}
     assert perplexity["auroc"]["value"] == pytest.approx(1.0)
     assert perplexity["auprc"]["value"] == pytest.approx(1.0)
     assert perplexity["prr"]["value"] == pytest.approx(1.0)
-    assert 0.0 <= perplexity["ece"]["value"] <= 1.0
     assert perplexity["auroc"]["ci_low"] == pytest.approx(1.0)
     assert perplexity["auroc"]["ci_high"] == pytest.approx(1.0)
     entropy = error_target["methods"]["semantic_entropy"]
     assert entropy["auroc"]["value"] == pytest.approx(0.5)
     assert entropy["auprc"]["value"] == pytest.approx(0.375)
     assert entropy["prr"]["value"] == pytest.approx(0.0)
-    assert entropy["ece"]["value"] == pytest.approx(0.375)
 
     hallucination_target = report["targets"]["hallucination"]
     assert hallucination_target["positives"] == 0
@@ -166,9 +166,6 @@ def test_run_metrics_reports_counts_labels_and_both_targets(tmp_path: Path) -> N
         for name in ("auroc", "auprc", "prr"):
             assert method[name]["value"] is None
             assert method[name]["reason"] == "target labels contain a single class"
-        assert method["ece"]["value"] is not None
-    entropy_ece = hallucination_target["methods"]["semantic_entropy"]["ece"]
-    assert entropy_ece["value"] == pytest.approx(0.0)
 
     written = json.loads(output.read_text())
     assert written == report
