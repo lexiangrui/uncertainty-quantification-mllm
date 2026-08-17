@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Ablation experiments for EPAR.
+"""Ablation experiments for GCAR.
 
 Two blocks, both computed offline from the per-layer 5-region breakdown
-recorded in results/epar_components (single forward pass per sample):
+recorded in results/gcar_components (single forward pass per sample):
 
-A. 注意力来源消融 (V1 vs V5): fix EPAR's layer window (first 4 layers) and
+A. 注意力来源消融: fix GCAR's layer window (first 4 layers) and
    swap only the attention source feeding the score —
-     视觉来源  s = -A_vis/total        (VGS/V1 的来源)
+     视觉来源  s = -A_vis/total
      prompt来源 s = +A_txt/total        (方向由 dev 定)
-     自生成来源 s = +A_prelim/total     (EPAR/V5 的来源)
-   plus the original VGS (visual source, last-2/3 layers) as reference.
+     生成上下文来源 s = +A_prelim/total  (GCAR)
 
-B. EPAR 细节消融: prelim region definition (scaffold/prefix/self) and layer
+B. GCAR 细节消融: prelim region definition (scaffold/prefix/self) and layer
    window (width & position).
 
 Direction convention: higher score = higher hallucination risk; source signs
@@ -35,7 +34,7 @@ from src.utils import load_jsonl_records
 MODELS = ("llava", "qwen", "internvl")
 DATASETS = ("hallusionbench", "vilp", "mmvet")
 DEV = "llava"
-EPAR_LAYERS = 4
+GCAR_LAYERS = 4
 
 
 def auroc(scores: np.ndarray, labels: np.ndarray) -> float:
@@ -72,14 +71,14 @@ def region_score(comps: dict, sids: list, layers: range | list, idxs: tuple[int,
 def load(model: str, subset_ids: set):
     comps, judge = {}, {}
     for ds in DATASETS:
-        p = PROJECT_ROOT / f"results/epar_components/{model}/{ds}.jsonl"
+        p = PROJECT_ROOT / f"results/gcar_components/{model}/{ds}.jsonl"
         if p.exists():
             for obj in load_jsonl_records(p):
                 if obj.get("record_type") != "sample":
                     continue
                 sid = obj.get("sample", {}).get("sample_id")
                 if sid in subset_ids:
-                    comps[sid] = obj.get("epar") or obj.get("vgs")
+                    comps[sid] = obj.get("gcar")
         p = PROJECT_ROOT / f"results/judging/{model}/{ds}.jsonl"
         if p.exists():
             for obj in load_jsonl_records(p):
@@ -95,7 +94,7 @@ def load(model: str, subset_ids: set):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--subset", type=Path, default=PROJECT_ROOT / "results/analysis/luh/per_model_subsets.json")
-    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "results/analysis/luh/epar_ablation.json")
+    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "results/analysis/luh/gcar_ablation.json")
     args = parser.parse_args()
 
     subsets = json.loads(args.subset.read_text(encoding="utf-8"))
@@ -107,11 +106,11 @@ def main():
 
     results = {"source_ablation": {}, "detail_ablation": {"prelim_region": {}, "layer_window_width": {}, "layer_window_position": {}}}
 
-    # ---------------- A. attention-source ablation (V1 vs V5) ----------------
+    # ---------------- A. attention-source ablation ----------------
     # signs fixed on dev: visual negative, prelim positive, prompt-text positive
     sources = [
-        ("视觉来源 -A_vis/total (V1/VGS)", (0,), -1.0),
-        ("自生成来源 A_prelim/total (V5/EPAR)", (1, 2), +1.0),
+        ("视觉来源 -A_vis/total", (0,), -1.0),
+        ("生成上下文来源 A_prelim/total (GCAR)", (1, 2), +1.0),
         ("prompt来源 A_txt/total", (4,), +1.0),
     ]
     print("== A. 注意力来源消融 (层窗口=前4层, 只换来源) ==")
@@ -120,29 +119,21 @@ def main():
     dev_sids, dev_labels, dev_comps = data[DEV]
     rows = {}
     for name, idxs, sign in sources:
-        a = auroc(region_score(dev_comps, dev_sids, range(EPAR_LAYERS), idxs, sign), dev_labels)
+        a = auroc(region_score(dev_comps, dev_sids, range(GCAR_LAYERS), idxs, sign), dev_labels)
         fixed_sign = sign if a >= 0.5 else -sign  # direction fixed on dev
         vals = {}
         row = f"{name:38s}"
         for m in MODELS:
             sids, labels, comps = data[m]
-            v = auroc(region_score(comps, sids, range(EPAR_LAYERS), idxs, fixed_sign), labels)
+            v = auroc(region_score(comps, sids, range(GCAR_LAYERS), idxs, fixed_sign), labels)
             vals[m] = v
             row += f"{v:10.4f}"
-        # original VGS reference: visual source over last-2/3 layers
-        if idxs == (0,):
-            refs = []
-            for m in MODELS:
-                sids, labels, comps = data[m]
-                L = max(int(k) for k in comps[sids[0]]["layer_breakdown"]) + 1
-                refs.append(f"{m}={auroc(region_score(comps, sids, range(L // 3, L), (0,), -1.0), labels):.4f}")
-            row += "   (VGS 原层段参照: " + " ".join(refs) + ")"
         rows[name] = vals
         print(row)
     results["source_ablation"] = rows
 
     # ---------------- B1. prelim region definition ----------------
-    print("\n== B1. EPAR 细节: prelim 区域定义 (前4层) ==")
+    print("\n== B1. GCAR 细节: prelim 区域定义 (前4层) ==")
     print(hdr)
     variants = [
         ("scaffold+prefix (无self, 最终定义)", (1, 2)),
@@ -157,7 +148,7 @@ def main():
         row = f"{name:38s}"
         for m in MODELS:
             sids, labels, comps = data[m]
-            v = auroc(region_score(comps, sids, range(EPAR_LAYERS), idxs, +1.0), labels)
+            v = auroc(region_score(comps, sids, range(GCAR_LAYERS), idxs, +1.0), labels)
             vals[m] = v
             row += f"{v:10.4f}"
         rows[name] = vals
@@ -165,7 +156,7 @@ def main():
     results["detail_ablation"]["prelim_region"] = rows
 
     # ---------------- B2. layer window width ----------------
-    print("\n== B2. EPAR 细节: 层窗口宽度 [0..k] ==")
+    print("\n== B2. GCAR 细节: 层窗口宽度 [0..k] ==")
     print(hdr)
     Lmax = {m: max(int(k) for k in data[m][2][data[m][0][0]]["layer_breakdown"]) + 1 for m in MODELS}
     rows = {}
@@ -183,7 +174,7 @@ def main():
     results["detail_ablation"]["layer_window_width"] = rows
 
     # ---------------- B3. layer window position (4-layer sliding) ----------------
-    print("\n== B3. EPAR 细节: 4层窗口位置 [j..j+3] ==")
+    print("\n== B3. GCAR 细节: 4层窗口位置 [j..j+3] ==")
     print(hdr)
     rows = {}
     for j in [0, 2, 4, 8, 12, 20, 24]:

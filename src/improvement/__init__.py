@@ -1,4 +1,4 @@
-from .backend import EparBackend
-from .epar import EparResult, compute_epar
+from .backend import GcarBackend
+from .gcar import GcarResult, compute_gcar
 
-__all__ = ["EparBackend", "EparResult", "compute_epar"]
+__all__ = ["GcarBackend", "GcarResult", "compute_gcar"]

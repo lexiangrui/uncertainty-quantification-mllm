@@ -1,4 +1,4 @@
-"""Model backend for EPAR — model loading and teacher-forcing input construction.
+"""Model backend for GCAR — model loading and teacher-forcing input construction.
 
 Loads a multimodal model per family (LLaVA-1.5 / Qwen2.5-VL / InternVL3.5)
 and builds teacher-forcing inputs: prompt + re-tokenized greedy response,
@@ -14,10 +14,10 @@ from src.generation.parser import answer_character_span
 from src.generation.prompt import build_prompt
 
 
-class EparBackend:
-    """Loads a multimodal model and builds teacher-forcing inputs for EPAR.
+class GcarBackend:
+    """Loads a multimodal model and builds teacher-forcing inputs for GCAR.
 
-    EPAR needs attention weights, so attention must return them — pass
+    GCAR needs attention weights, so attention must return them — pass
     ``attn_implementation="eager"`` (the default here).
     """
 

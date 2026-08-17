@@ -1,4 +1,4 @@
-"""EPAR (Early Prelim Attention Ratio) — attention-based UQ.
+"""GCAR (Generated-Context Attention Ratio) — attention-based UQ.
 
 Measures the fraction of answer-generation attention routed to the model's
 own already-generated text (prelim: reasoning scaffolding + answer prefix,
@@ -10,7 +10,7 @@ Each answer row (position p, predicting the next answer token) has its
 causal context [0, p] split into five disjoint regions — visual / scaffold /
 prefix / self / prompt_text — and all five masses are recorded for every
 decoder layer, so any score variant is recoverable offline
-(see scripts/analysis/ablate_epar.py).
+(see scripts/analysis/ablate_gcar.py).
 
 **Memory-efficient exact attention**: ``attn_implementation='eager'`` makes
 transformers materialize a full (heads × seq × seq) matrix per layer —
@@ -29,27 +29,27 @@ import math
 import torch
 from dataclasses import dataclass
 
-from src.improvement.backend import EparBackend
+from src.improvement.backend import GcarBackend
 
 _CHUNK = 256
 
-# EPAR aggregation window: the first four decoder layers, frozen on the dev
+# GCAR aggregation window: the first four decoder layers, frozen on the dev
 # model (llava); insensitive between 1 and 4 layers (see ablation).
-_EPAR_LAYERS = 4
+_GCAR_LAYERS = 4
 
 
 @dataclass
-class EparResult:
-    # EPAR: prelim mass fraction over the first four decoder layers.
+class GcarResult:
+    # GCAR: generated-context mass fraction over the first four decoder layers.
     score: float | None
-    prelim_attn_ratio: float | None  # identical to score (explicit name)
+    generated_context_attn_ratio: float | None  # identical to score
     # Diagnostic: visual mass fraction over the selected (last-2/3) layers.
     vision_attn_ratio: float | None
     n_answer_tokens: int
     n_visual_tokens: int
     # Region masses over the selected (last-2/3) layers.
     visual_attn_sum: float | None = None
-    prelim_attn_sum: float | None = None  # scaffold + prefix + self
+    generated_context_attn_sum: float | None = None  # scaffold + prefix + self
     prompt_text_attn_sum: float | None = None
     # Mass-weighted normalized entropy of the answer→visual attention
     # distribution (1 = uniform over visual tokens, 0 = single patch).
@@ -64,12 +64,12 @@ class EparResult:
     def to_dict(self) -> dict:
         return {
             "score": self.score,
-            "prelim_attn_ratio": self.prelim_attn_ratio,
+            "generated_context_attn_ratio": self.generated_context_attn_ratio,
             "vision_attn_ratio": self.vision_attn_ratio,
             "n_answer_tokens": self.n_answer_tokens,
             "n_visual_tokens": self.n_visual_tokens,
             "visual_attn_sum": self.visual_attn_sum,
-            "prelim_attn_sum": self.prelim_attn_sum,
+            "generated_context_attn_sum": self.generated_context_attn_sum,
             "prompt_text_attn_sum": self.prompt_text_attn_sum,
             "visual_attn_entropy": self.visual_attn_entropy,
             "layer_breakdown": self.layer_breakdown,
@@ -77,7 +77,7 @@ class EparResult:
         }
 
 
-def _get_decoder_layers(backend: EparBackend):
+def _get_decoder_layers(backend: GcarBackend):
     base = backend._base_model()
     core = getattr(base, "model", base)
     lang_model = getattr(core, "language_model", core)
@@ -96,7 +96,7 @@ def _repeat_kv(x: torch.Tensor, n: int) -> torch.Tensor:
     )
 
 
-class _EparAccumulator:
+class _GcarAccumulator:
     """Accumulates answer→region attention mass for every decoder layer.
 
     For every answer row (position p predicts the next answer token) the
@@ -126,7 +126,7 @@ class _EparAccumulator:
         self.module_layers: dict[int, int] = {}
         self.visual_sum = 0.0
         self.total_sum = 0.0
-        self.prelim_sum = 0.0
+        self.generated_context_sum = 0.0
         self.prompt_text_sum = 0.0
         # answer span start in absolute positions (predict rows are
         # [ans_start-1, ans_end-1])
@@ -188,7 +188,7 @@ class _EparAccumulator:
         b[4] += txt
         if layer in self.selected:
             self.visual_sum += vis
-            self.prelim_sum += sca + pre + sel_
+            self.generated_context_sum += sca + pre + sel_
             self.prompt_text_sum += txt
             self.total_sum += vis + sca + pre + sel_ + txt
 
@@ -216,9 +216,9 @@ class _EparAccumulator:
             return None
         return float(h_sum / s_sum)
 
-    def epar(self) -> float | None:
-        """Prelim (scaffold+prefix) fraction over the first _EPAR_LAYERS layers."""
-        rows = [self.layer_breakdown.get(i) for i in range(_EPAR_LAYERS)]
+    def gcar(self) -> float | None:
+        """Generated-context fraction over the first _GCAR_LAYERS layers."""
+        rows = [self.layer_breakdown.get(i) for i in range(_GCAR_LAYERS)]
         if not all(rows):
             return None
         num = sum(r[1] + r[2] for r in rows)
@@ -228,7 +228,7 @@ class _EparAccumulator:
         return num / tot
 
 
-def _make_chunked_eager(accumulator: _EparAccumulator):
+def _make_chunked_eager(accumulator: _GcarAccumulator):
     def chunked_eager(module, query, key, value, attention_mask, scaling, dropout=0.0, **kwargs):
         is_causal = kwargs.get("is_causal")
         is_decoder = id(module) in accumulator.module_layers
@@ -267,24 +267,24 @@ def _make_chunked_eager(accumulator: _EparAccumulator):
     return chunked_eager
 
 
-def compute_epar(
-    backend: EparBackend,
+def compute_gcar(
+    backend: GcarBackend,
     full_inputs: dict,
     prompt_length: int,
     answer_span: tuple[int, int],
-) -> EparResult:
-    """Compute EPAR via chunked eager attention."""
+) -> GcarResult:
+    """Compute GCAR via chunked eager attention."""
     input_ids = full_inputs["input_ids"]
     image_token_id = backend._image_token_id
     ans_start, ans_end = answer_span
     n_ans = ans_end - ans_start
     if n_ans < 1:
-        return EparResult(None, None, None, 0, 0)
+        return GcarResult(None, None, None, 0, 0)
 
     visual_mask = (input_ids[0] == image_token_id)
     n_visual = visual_mask.sum().item()
     if n_visual == 0:
-        return EparResult(None, None, None, n_ans, 0)
+        return GcarResult(None, None, None, n_ans, 0)
 
     predict_idx = torch.arange(ans_start - 1, ans_end - 1)
     visual_idx = visual_mask.nonzero(as_tuple=True)[0].cpu()
@@ -293,7 +293,7 @@ def compute_epar(
     n_layers = len(layers)
     selected = set(range(n_layers // 3, n_layers))
 
-    accumulator = _EparAccumulator(predict_idx, visual_idx, selected, prompt_length)
+    accumulator = _GcarAccumulator(predict_idx, visual_idx, selected, prompt_length)
     accumulator.map_modules(layers)
 
     from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
@@ -312,18 +312,18 @@ def compute_epar(
         torch.cuda.empty_cache()
 
     if accumulator.total_sum < 1e-12:
-        return EparResult(None, None, None, n_ans, n_visual)
+        return GcarResult(None, None, None, n_ans, n_visual)
 
-    epar = accumulator.epar()
+    gcar = accumulator.gcar()
     vision_ratio = accumulator.visual_sum / accumulator.total_sum
-    return EparResult(
-        score=epar,
-        prelim_attn_ratio=epar,
+    return GcarResult(
+        score=gcar,
+        generated_context_attn_ratio=gcar,
         vision_attn_ratio=vision_ratio,
         n_answer_tokens=n_ans,
         n_visual_tokens=n_visual,
         visual_attn_sum=accumulator.visual_sum,
-        prelim_attn_sum=accumulator.prelim_sum,
+        generated_context_attn_sum=accumulator.generated_context_sum,
         prompt_text_attn_sum=accumulator.prompt_text_sum,
         visual_attn_entropy=accumulator.dispersion(),
         layer_breakdown=accumulator.layer_breakdown,
