@@ -15,7 +15,13 @@ configs/judges/openai.env.example
 # Heavy generated artifacts.
 logs/
 results/
-slurm/
+slurm/*
+!slurm/generation/
+!slurm/generation/**
+!slurm/evaluation/
+!slurm/evaluation/**
+!slurm/lora/
+!slurm/lora/**
 GASP/cache/
 *.pt
 *.pth
