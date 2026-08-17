@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Final evaluation of the improved VGS (EPAR) on LUH subsets / full test set.
+"""Final evaluation of EPAR on LUH subsets / full test set.
 
-Improved score (frozen 2026-08-16): EPAR — Early Prelim Attention Ratio
+EPAR — Early Prelim Attention Ratio:
 
-    s_EPAR = A_prelim^(0..3) / (A_vis^(0..3) + A_prelim^(0..3) + A_text^(0..3))
+    s_EPAR = A_prelim^(0..3) / (A_vis + A_prelim + A_text)^(0..3)
 
-Attention masses from the answer-prediction rows, averaged over all heads of
-the FIRST FOUR decoder layers, summed over answer rows. A_prelim is the mass
-on already-generated tokens (scaffolding + answer prefix), A_vis on visual
-tokens, A_text on prompt text. Higher = more hallucination risk.
+Attention masses from the answer-prediction rows, all heads of the first
+four decoder layers, summed over answer rows. A_prelim is the mass on
+already-generated tokens before the current position (scaffolding + answer
+prefix, excluding the row's own position), A_vis on visual tokens, A_text
+on prompt text. Higher = more hallucination risk.
 
 Reports AUROC (group-level cluster bootstrap CI), AUPRC, PRR, ECE for
-PPL / SE / UMPIRE / VGS (old) / EPAR per model.
+PPL / SE / UMPIRE / EPAR per model.
 """
 from __future__ import annotations
 
@@ -31,7 +32,7 @@ from src.utils import load_jsonl_records
 MODELS = ("llava", "qwen", "internvl")
 DATASETS = ("hallusionbench", "vilp", "mmvet")
 BASELINES = ("perplexity", "semantic_entropy", "umpire")
-METHODS = (*BASELINES, "vgs", "vgs2")  # "vgs" omitted automatically when absent
+METHODS = (*BASELINES, "epar")
 
 
 def _trapz(y, x=None):
@@ -134,15 +135,20 @@ def bootstrap_auroc_ci(scores, labels, groups, n=1000, seed=0):
 _EPAR_LAYERS = 4  # first four decoder layers, frozen
 
 
-def vgs2_score(v: dict) -> float | None:
-    """Frozen EPAR from v4-fulllayers components (first 4 layers)."""
+def epar_score(v: dict) -> float | None:
+    """EPAR from v5-regions components (first 4 layers).
+
+    layer_breakdown rows are [vis, scaffold, prefix, self, text];
+    prelim = scaffold + prefix (the row's own position is excluded, per
+    PAS's prelim definition of strictly-previous tokens).
+    """
     lb = (v or {}).get("layer_breakdown") or {}
     rows = [lb.get(str(i)) for i in range(_EPAR_LAYERS)]
     if not all(rows):
         return None
     vis = sum(r[0] for r in rows)
-    pre = sum(r[1] for r in rows)
-    txt = sum(r[2] for r in rows)
+    pre = sum(r[1] + r[2] for r in rows)
+    txt = sum(r[4] for r in rows)
     tot = vis + pre + txt
     if tot < 1e-12:
         return None
@@ -154,27 +160,18 @@ def load_all(model, subset_ids, group_ids):
     def wanted(sid):
         return subset_ids is None or sid in subset_ids
 
-    vgs, vgs2, uq, judge = {}, {}, {}, {}
+    epar, uq, judge = {}, {}, {}
     for ds in DATASETS:
-        p = PROJECT_ROOT / f"results/vgs/{model}/{ds}.jsonl"
-        if p.exists():
-            for obj in load_jsonl_records(p):
-                if obj.get("record_type") != "sample":
-                    continue
-                sid = obj.get("sample", {}).get("sample_id")
-                r = obj.get("vgs", {}).get("vision_attn_ratio")
-                if wanted(sid) and r is not None:
-                    vgs[sid] = -float(r)
-        p = PROJECT_ROOT / f"results/vgs_components/{model}/{ds}.jsonl"
+        p = PROJECT_ROOT / f"results/epar_components/{model}/{ds}.jsonl"
         if p.exists():
             for obj in load_jsonl_records(p):
                 if obj.get("record_type") != "sample":
                     continue
                 sid = obj.get("sample", {}).get("sample_id")
                 if wanted(sid):
-                    sc = vgs2_score(obj.get("vgs"))
+                    sc = epar_score(obj.get("epar") or obj.get("vgs"))
                     if sc is not None:
-                        vgs2[sid] = sc
+                        epar[sid] = sc
         p = PROJECT_ROOT / f"results/uq/{model}/{ds}.jsonl"
         if p.exists():
             for obj in load_jsonl_records(p):
@@ -200,23 +197,21 @@ def load_all(model, subset_ids, group_ids):
                     if j.get("valid") is True:
                         judge[sid] = 1 if j.get("hallucination") else 0
 
-    pool = subset_ids if subset_ids is not None else set(vgs2) | set(uq) | set(judge)
-    sids = sorted(s for s in pool if s in vgs2 and s in uq and s in judge)
+    pool = subset_ids if subset_ids is not None else set(epar) | set(uq) | set(judge)
+    sids = sorted(s for s in pool if s in epar and s in uq and s in judge)
     labels = np.array([judge[s] for s in sids])
     groups = np.array([str(group_ids[s]) for s in sids], dtype=object)
     data = {}
     for m in BASELINES:
         data[m] = np.array([uq[s][m] for s in sids])
-    data["vgs2"] = np.array([vgs2[s] for s in sids])
-    if all(s in vgs for s in sids):
-        data["vgs"] = np.array([vgs[s] for s in sids])
+    data["epar"] = np.array([epar[s] for s in sids])
     return sids, labels, groups, data
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--subset", type=Path, default=PROJECT_ROOT / "results/analysis/luh/per_model_subsets.json")
-    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "results/analysis/luh/vgs2_final_evaluation.json")
+    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "results/analysis/luh/epar_final_evaluation.json")
     parser.add_argument("--bootstrap-samples", type=int, default=1000)
     parser.add_argument("--full-set", action="store_true",
                         help="evaluate on all judged samples instead of the LUH subsets")
@@ -246,8 +241,6 @@ def main():
         sids, labels, groups, data = load_all(model, subset_ids, group_ids)
         results[model] = {"n": len(sids), "n_pos": int(labels.sum()), "metrics": {}}
         for m in METHODS:
-            if m not in data:
-                continue
             sc = data[m]
             a = auroc(sc, labels)
             lo, hi = bootstrap_auroc_ci(sc, labels, groups, args.bootstrap_samples)

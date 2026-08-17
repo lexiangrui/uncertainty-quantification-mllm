@@ -1,8 +1,16 @@
-"""Visual Grounding Score (VGS) — attention-based UQ.
+"""EPAR (Early Prelim Attention Ratio) — attention-based UQ.
 
-Measures the fraction of attention from answer tokens directed at visual
-tokens vs. text tokens.  Low visual grounding → answer generated from
-language context → hallucination risk.
+Measures the fraction of answer-generation attention routed to the model's
+own already-generated text (prelim: reasoning scaffolding + answer prefix,
+excluding the row's own position) in the FIRST FOUR decoder layers.  High
+self-routing → the answer is generated from self-reinforcement rather than
+visual evidence → hallucination risk.
+
+Each answer row (position p, predicting the next answer token) has its
+causal context [0, p] split into five disjoint regions — visual / scaffold /
+prefix / self / prompt_text — and all five masses are recorded for every
+decoder layer, so any score variant is recoverable offline
+(see scripts/analysis/ablate_epar.py).
 
 **Memory-efficient exact attention**: ``attn_implementation='eager'`` makes
 transformers materialize a full (heads × seq × seq) matrix per layer —
@@ -11,8 +19,8 @@ Instead we swap the registry entry ``ALL_ATTENTION_FUNCTIONS["eager"]``
 for a *chunked* implementation: query rows are processed in blocks of
 ``_CHUNK`` so peak memory is one (heads × chunk × seq) tile, while the
 math (post-RoPE Q/K, additive mask, fp32 softmax) is identical to eager.
-The VGS rows (answer-predicting positions) are accumulated inside the
-chunk loop and never stored in full.
+The answer rows are accumulated inside the chunk loop and never stored in
+full.
 """
 from __future__ import annotations
 
@@ -21,28 +29,33 @@ import math
 import torch
 from dataclasses import dataclass
 
-from src.improvement.backend import VgsBackend
+from src.improvement.backend import EparBackend
 
 _CHUNK = 256
 
+# EPAR aggregation window: the first four decoder layers, frozen on the dev
+# model (llava); insensitive between 1 and 4 layers (see ablation).
+_EPAR_LAYERS = 4
+
 
 @dataclass
-class VgsResult:
+class EparResult:
+    # EPAR: prelim mass fraction over the first four decoder layers.
     score: float | None
+    prelim_attn_ratio: float | None  # identical to score (explicit name)
+    # Diagnostic: visual mass fraction over the selected (last-2/3) layers.
     vision_attn_ratio: float | None
-    vision_attn_mean: float | None
     n_answer_tokens: int
     n_visual_tokens: int
-    # v3 components: attention mass per region (answer rows, selected layers).
-    # visual + prelim + prompt_text partitions the full causal context of
-    # every answer row, so vision_attn_ratio == visual/(sum of the three).
+    # Region masses over the selected (last-2/3) layers.
     visual_attn_sum: float | None = None
-    prelim_attn_sum: float | None = None
+    prelim_attn_sum: float | None = None  # scaffold + prefix + self
     prompt_text_attn_sum: float | None = None
-    # Mass-weighted normalized entropy of the answer->visual attention
+    # Mass-weighted normalized entropy of the answer→visual attention
     # distribution (1 = uniform over visual tokens, 0 = single patch).
     visual_attn_entropy: float | None = None
-    # Per-layer region sums for every decoder layer: {layer: [vis, prelim, text]}
+    # Per-layer region sums for every decoder layer:
+    # {layer: [vis, scaffold, prefix, self, text]}
     layer_breakdown: dict[int, list[float]] | None = None
     # Per-layer dispersion accumulators: {layer: [h_sum, s_sum]}; dispersion
     # over a layer range = sum(h)/sum(s).
@@ -51,8 +64,8 @@ class VgsResult:
     def to_dict(self) -> dict:
         return {
             "score": self.score,
+            "prelim_attn_ratio": self.prelim_attn_ratio,
             "vision_attn_ratio": self.vision_attn_ratio,
-            "vision_attn_mean": self.vision_attn_ratio,
             "n_answer_tokens": self.n_answer_tokens,
             "n_visual_tokens": self.n_visual_tokens,
             "visual_attn_sum": self.visual_attn_sum,
@@ -64,7 +77,7 @@ class VgsResult:
         }
 
 
-def _get_decoder_layers(backend: VgsBackend):
+def _get_decoder_layers(backend: EparBackend):
     base = backend._base_model()
     core = getattr(base, "model", base)
     lang_model = getattr(core, "language_model", core)
@@ -83,19 +96,20 @@ def _repeat_kv(x: torch.Tensor, n: int) -> torch.Tensor:
     )
 
 
-class _VgsAccumulator:
-    """Accumulates answer→region attention mass per selected decoder layer.
+class _EparAccumulator:
+    """Accumulates answer→region attention mass for every decoder layer.
 
     For every answer row (position p predicts the next answer token) the
-    causal context [0, p] is partitioned into three disjoint regions:
+    causal context [0, p] is partitioned into five disjoint regions:
 
     - visual: image token positions
-    - prelim: generated tokens [prompt_length, p] (scaffolding + answer
-      prefix) — the "self-generated text" the model can copy from
+    - scaffold: generated tokens before the answer span [prompt_length, ans_start-1]
+    - prefix: answer tokens strictly before the row's own position [ans_start, p-1]
+    - self: the row's own position {p} (self-attention; excluded from prelim)
     - prompt_text: prompt positions [0, prompt_length) minus visual
 
-    visual + prelim + prompt_text equals the full context of every row,
-    so the classic VGS ratio is visual / (sum of the three).
+    visual + scaffold + prefix + self + prompt_text equals the full context
+    of every row; prelim = scaffold + prefix.
     """
 
     def __init__(
@@ -114,8 +128,11 @@ class _VgsAccumulator:
         self.total_sum = 0.0
         self.prelim_sum = 0.0
         self.prompt_text_sum = 0.0
-        # Per-layer region sums [vis, prelim, text] for every decoder layer,
-        # so any layer range can be reconstructed offline.
+        # answer span start in absolute positions (predict rows are
+        # [ans_start-1, ans_end-1])
+        self.ans_start = int(self.predict_idx[0].item()) + 1
+        # Per-layer region sums [vis, scaffold, prefix, self, text] for every
+        # decoder layer, so any layer range can be reconstructed offline.
         self.layer_breakdown: dict[int, list[float]] = {}
         # Per-layer dispersion accumulators [weighted entropy sum, visual
         # mass]; dispersion over a layer range = sum(h)/sum(s) over the range.
@@ -142,27 +159,38 @@ class _VgsAccumulator:
         # to position j, summed over heads.
         col_rows = rows.sum(dim=0).float()  # (n_sel, seq)
         vis_rows = col_rows[:, vidx].sum(dim=-1)  # (n_sel,)
-        # prelim of row p covers [prompt_length, p]
         pl = self.prompt_length
-        prelim_rows = torch.stack(
-            [col_rows[k, pl : int(p_k.item()) + 1].sum() for k, p_k in enumerate(sel)]
-        )
+        as_ = self.ans_start
+        parts = []
+        for k, p_k in enumerate(sel):
+            pos = int(p_k.item())
+            scaffold = col_rows[k, pl : min(pos, as_ - 1) + 1].sum()
+            prefix = col_rows[k, as_ : pos].sum()
+            self_mass = col_rows[k, pos].sum()
+            parts.append((scaffold, prefix, self_mass))
+        scaffold_rows = torch.stack([a for a, _, _ in parts])
+        prefix_rows = torch.stack([b for _, b, _ in parts])
+        self_rows = torch.stack([c for _, _, c in parts])
         text_rows = col_rows[:, :pl].sum(dim=-1) - vis_rows
 
         vis = vis_rows.sum().item()
-        pre = prelim_rows.sum().item()
+        sca = scaffold_rows.sum().item()
+        pre = prefix_rows.sum().item()
+        sel_ = self_rows.sum().item()
         txt = text_rows.sum().item()
         b = self.layer_breakdown.get(layer)
         if b is None:
-            b = self.layer_breakdown[layer] = [0.0, 0.0, 0.0]
+            b = self.layer_breakdown[layer] = [0.0, 0.0, 0.0, 0.0, 0.0]
         b[0] += vis
-        b[1] += pre
-        b[2] += txt
+        b[1] += sca
+        b[2] += pre
+        b[3] += sel_
+        b[4] += txt
         if layer in self.selected:
             self.visual_sum += vis
-            self.prelim_sum += pre
+            self.prelim_sum += sca + pre + sel_
             self.prompt_text_sum += txt
-            self.total_sum += vis + pre + txt
+            self.total_sum += vis + sca + pre + sel_ + txt
 
         # Dispersion: normalized entropy of the per-(head, row) visual
         # attention distribution, renormalized over visual positions.
@@ -188,8 +216,19 @@ class _VgsAccumulator:
             return None
         return float(h_sum / s_sum)
 
+    def epar(self) -> float | None:
+        """Prelim (scaffold+prefix) fraction over the first _EPAR_LAYERS layers."""
+        rows = [self.layer_breakdown.get(i) for i in range(_EPAR_LAYERS)]
+        if not all(rows):
+            return None
+        num = sum(r[1] + r[2] for r in rows)
+        tot = sum(sum(r) for r in rows)
+        if tot < 1e-12:
+            return None
+        return num / tot
 
-def _make_chunked_eager(accumulator: _VgsAccumulator):
+
+def _make_chunked_eager(accumulator: _EparAccumulator):
     def chunked_eager(module, query, key, value, attention_mask, scaling, dropout=0.0, **kwargs):
         is_causal = kwargs.get("is_causal")
         is_decoder = id(module) in accumulator.module_layers
@@ -228,24 +267,24 @@ def _make_chunked_eager(accumulator: _VgsAccumulator):
     return chunked_eager
 
 
-def compute_vgs(
-    backend: VgsBackend,
+def compute_epar(
+    backend: EparBackend,
     full_inputs: dict,
     prompt_length: int,
     answer_span: tuple[int, int],
-) -> VgsResult:
-    """Compute Visual Grounding Score via chunked eager attention."""
+) -> EparResult:
+    """Compute EPAR via chunked eager attention."""
     input_ids = full_inputs["input_ids"]
     image_token_id = backend._image_token_id
     ans_start, ans_end = answer_span
     n_ans = ans_end - ans_start
     if n_ans < 1:
-        return VgsResult(None, None, None, 0, 0)
+        return EparResult(None, None, None, 0, 0)
 
     visual_mask = (input_ids[0] == image_token_id)
     n_visual = visual_mask.sum().item()
     if n_visual == 0:
-        return VgsResult(None, None, None, n_ans, 0)
+        return EparResult(None, None, None, n_ans, 0)
 
     predict_idx = torch.arange(ans_start - 1, ans_end - 1)
     visual_idx = visual_mask.nonzero(as_tuple=True)[0].cpu()
@@ -254,7 +293,7 @@ def compute_vgs(
     n_layers = len(layers)
     selected = set(range(n_layers // 3, n_layers))
 
-    accumulator = _VgsAccumulator(predict_idx, visual_idx, selected, prompt_length)
+    accumulator = _EparAccumulator(predict_idx, visual_idx, selected, prompt_length)
     accumulator.map_modules(layers)
 
     from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
@@ -273,13 +312,14 @@ def compute_vgs(
         torch.cuda.empty_cache()
 
     if accumulator.total_sum < 1e-12:
-        return VgsResult(None, None, None, n_ans, n_visual)
+        return EparResult(None, None, None, n_ans, n_visual)
 
+    epar = accumulator.epar()
     vision_ratio = accumulator.visual_sum / accumulator.total_sum
-    return VgsResult(
-        score=-vision_ratio,
+    return EparResult(
+        score=epar,
+        prelim_attn_ratio=epar,
         vision_attn_ratio=vision_ratio,
-        vision_attn_mean=vision_ratio,
         n_answer_tokens=n_ans,
         n_visual_tokens=n_visual,
         visual_attn_sum=accumulator.visual_sum,

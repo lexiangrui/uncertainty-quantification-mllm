@@ -1,4 +1,4 @@
-from .backend import VgsBackend
-from .vgs import VgsResult, compute_vgs
+from .backend import EparBackend
+from .epar import EparResult, compute_epar
 
-__all__ = ["VgsBackend", "VgsResult", "compute_vgs"]
+__all__ = ["EparBackend", "EparResult", "compute_epar"]
