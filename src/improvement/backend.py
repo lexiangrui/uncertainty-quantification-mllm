@@ -110,22 +110,38 @@ class EcaBackend:
         inputs = self.processor(**kwargs)
         return {k: v.to(self.device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
 
-    def _section_token_spans(
+    def _piecewise_encode(
         self, raw_response: str, char_spans: dict[str, tuple[int, int]]
     ) -> tuple[list[int], dict[str, tuple[int, int]]] | None:
-        """Map XML content to tokens wholly contained in each character span."""
+        """Tokenize XML structure and section content as separate pieces.
+
+        Tag text and section content are encoded independently and then
+        concatenated, so BPE can never merge a tag fragment into a content
+        token (no '.</'-style boundary tokens), every non-empty section
+        yields at least one token (no samples are dropped), and each
+        section's token span is exact.  Compared with tokenizing the whole
+        response this adds ~2-4 tokens per sample at the piece boundaries;
+        the pipeline re-encodes the response for teacher forcing anyway,
+        so this is a deterministic and tag-free convention.
+        """
         tok = getattr(self.processor, "tokenizer", self.processor)
-        if not getattr(tok, "is_fast", False):
-            raise ValueError("ECA requires a fast tokenizer with offset mapping")
-        encoded = tok(raw_response, add_special_tokens=False, return_offsets_mapping=True)
-        offsets = encoded["offset_mapping"]
-        spans = {}
-        for name, (cs, ce) in char_spans.items():
-            hits = [i for i, (start, end) in enumerate(offsets) if cs <= start < end <= ce]
-            if not hits:
-                return None
-            spans[name] = (hits[0], hits[-1] + 1)
-        return list(encoded["input_ids"]), spans
+        gen_ids: list[int] = []
+        spans: dict[str, tuple[int, int]] = {}
+        pos = 0
+        for name, (cs, ce) in sorted(char_spans.items(), key=lambda kv: kv[1][0]):
+            structure = raw_response[pos:cs]
+            if structure:
+                gen_ids.extend(tok.encode(structure, add_special_tokens=False))
+            start = len(gen_ids)
+            gen_ids.extend(tok.encode(raw_response[cs:ce], add_special_tokens=False))
+            spans[name] = (start, len(gen_ids))
+            pos = ce
+        tail = raw_response[pos:]
+        if tail:
+            gen_ids.extend(tok.encode(tail, add_special_tokens=False))
+        if any(spans[name][1] - spans[name][0] < 1 for name in char_spans):
+            return None
+        return gen_ids, spans
 
     def prepare_inputs_sections(self, image, question, raw_response: str):
         """Teacher-forcing inputs plus absolute token spans of all sections.
@@ -140,7 +156,7 @@ class EcaBackend:
             char_spans = section_character_spans(raw_response, "xml")
         except ValueError:
             return None, None, None
-        mapped = self._section_token_spans(raw_response, char_spans)
+        mapped = self._piecewise_encode(raw_response, char_spans)
         if mapped is None:
             return None, None, None
         gen_ids, tok_spans = mapped

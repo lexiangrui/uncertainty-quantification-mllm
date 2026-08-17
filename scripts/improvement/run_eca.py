@@ -42,7 +42,7 @@ def main():
 
     gen_run, records = _load_generation(args.greedy_input)
     dataset = gen_run["dataset"]
-    run = {"eca_output_version": "regions-v3", "greedy_input": str(args.greedy_input.resolve()), "greedy_run": gen_run}
+    run = {"eca_output_version": "regions-v4", "greedy_input": str(args.greedy_input.resolve()), "greedy_run": gen_run}
     completed = completed_sample_ids(args.output, run)
 
     backend = EcaBackend(args.family, args.model_path,
