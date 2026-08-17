@@ -61,3 +61,23 @@ def answer_character_span(
     while end > start and text[end - 1].isspace():
         end -= 1
     return start, end
+
+
+def section_character_spans(
+    text: str, response_format: str = "xml"
+) -> dict[str, tuple[int, int]]:
+    """Character spans of the vision/reasoning/answer sections (space-stripped)."""
+    match = _pattern(response_format).fullmatch(text)
+    if match is None:
+        raise ValueError(f"response cannot be separated using {response_format} format")
+    spans = {}
+    for name in ("vision", "reasoning", "answer"):
+        if not match.group(name).strip():
+            raise ValueError(f"response section is empty: {name}")
+        start, end = match.span(name)
+        while start < end and text[start].isspace():
+            start += 1
+        while end > start and text[end - 1].isspace():
+            end -= 1
+        spans[name] = (start, end)
+    return spans
