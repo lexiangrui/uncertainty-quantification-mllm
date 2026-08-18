@@ -20,10 +20,12 @@ cd /home/lexiangrui/Uncertainty-Quantification-of-MLLM
 mkdir -p logs/generation
 
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
+BATCH_SIZE=5
 case "$MODEL" in
   llava)    FAM=llava_1_5;  MP=/opt/lexiangrui/models/llava-1.5-7b-hf;     AD=results/lora/llava/adapter ;;
-  qwen)     FAM=qwen2_5_vl; MP=/opt/lexiangrui/models/Qwen2.5-VL-7B-Instruct; AD=results/lora/qwen/adapter ;;
+  qwen)     FAM=qwen2_5_vl; MP=/opt/lexiangrui/models/Qwen2.5-VL-7B-Instruct; AD=results/lora/qwen/adapter; BATCH_SIZE=2 ;;
   internvl) FAM=internvl3_5; MP=/opt/lexiangrui/models/InternVL3_5-8B-HF;    AD=results/lora/internvl/adapter ;;
   *) echo "unknown MODEL=$MODEL" >&2; exit 1 ;;
 esac
@@ -48,7 +50,8 @@ echo "=== [1/2] Running greedy generation: model=$MODEL dataset=$DATASET ==="
   --phase greedy \
   --num-samples 0 \
   --seed 42 \
-  --max-new-tokens 512
+  --max-new-tokens 512 \
+  --max-batch-size "$BATCH_SIZE"
 
 echo "=== [2/2] Running sampled generation (K=10): model=$MODEL dataset=$DATASET ==="
 ~/.venvs/vlm-transformers/bin/python scripts/generation/generate_responses.py \
@@ -62,6 +65,7 @@ echo "=== [2/2] Running sampled generation (K=10): model=$MODEL dataset=$DATASET
   --num-samples 10 \
   --reject-resample-k 50 \
   --seed 42 \
-  --max-new-tokens 512
+  --max-new-tokens 512 \
+  --max-batch-size "$BATCH_SIZE"
 
 echo "=== Generation completed successfully for $MODEL on $DATASET ==="
