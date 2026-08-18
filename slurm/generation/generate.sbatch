@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=gen
-#SBATCH --partition=batch
+#SBATCH --partition=batch,debug01
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=16
