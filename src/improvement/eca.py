@@ -37,7 +37,7 @@ _CHUNK = 256
 
 GROUPS = ("vision", "reasoning", "answer")
 DESTS = ("image", "prompt_text", "vision", "reasoning", "answer")
-FEATURES = ("U_direct", "U_direct_no_aa")
+FEATURES = ("U_direct",)
 EPS = 1e-8
 
 
@@ -277,7 +277,7 @@ DIRECT_LAYERS = (0, 1)
 
 
 def layer_features(result: dict) -> dict[int, dict[str, float]]:
-    """Per-layer U_direct (standard) and U_direct_no_aa (ablated denominator without A->A)."""
+    """Per-layer U_direct: ratio of self-generated context attention relative to all prior context (without A->A)."""
     heads = result["n_heads"]
     sizes = result["section_tokens"]
     n_answer = sizes["answer"]
@@ -285,19 +285,14 @@ def layer_features(result: dict) -> dict[int, dict[str, float]]:
     for layer, masses in result["layer_masses"].items():
         a = [m / (heads * n_answer) for m in masses[2]]  # answer prediction rows
         aAI, aAQ, aAV, aAR = a[0], a[1], a[2], a[3]
-        aAA = a[4] if len(a) > 4 else 0.0
 
-        # 1. Standard U_direct: denominator contains all past tokens (I + Q + V + R + A = 1.0)
-        denom_full = aAI + aAQ + aAV + aAR + aAA
-        u_direct = (aAV + aAR) / (denom_full + EPS)
-
-        # 2. Ablated U_direct_no_aa: denominator excludes intra-answer self-attention A->A,
-        # measuring the ratio of self-generated context (V+R) relative to all prior context (I+Q+V+R).
-        denom_no_aa = aAI + aAQ + aAV + aAR
-        u_direct_no_aa = (aAV + aAR) / (denom_no_aa + EPS)
+        # Canonical U_direct:
+        # Measures the proportion of prior context attention directed to self-generated rationale (V+R)
+        # relative to total prior context (I+Q + V+R), cleanly excluding intra-answer self-attention (A->A).
+        denom = aAI + aAQ + aAV + aAR
+        u_direct = (aAV + aAR) / (denom + EPS)
 
         features[int(layer)] = {
             "U_direct": u_direct,
-            "U_direct_no_aa": u_direct_no_aa,
         }
     return features

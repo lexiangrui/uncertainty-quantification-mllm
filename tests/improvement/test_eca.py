@@ -105,7 +105,7 @@ def test_accumulator_rejects_invalid_bucket():
         )
 
 
-def test_layer_features_computes_u_direct_and_u_direct_no_aa():
+def test_layer_features_computes_canonical_u_direct():
     # masses for answer rows: aAI=1.0, aAQ=2.0, aAV=3.0, aAR=4.0, aAA=5.0
     # heads=1, n_answer=1
     result = {
@@ -121,10 +121,8 @@ def test_layer_features_computes_u_direct_and_u_direct_no_aa():
     }
 
     feats = layer_features(result)[0]
-    # U_direct: (3.0 + 4.0) / (1.0 + 2.0 + 3.0 + 4.0 + 5.0) = 7.0 / 15.0
-    assert feats["U_direct"] == pytest.approx(7.0 / 15.0)
-    # U_direct_no_aa: (3.0 + 4.0) / (1.0 + 2.0 + 3.0 + 4.0) = 7.0 / 10.0 = 0.70
-    assert feats["U_direct_no_aa"] == pytest.approx(7.0 / 10.0)
+    # Canonical U_direct: (3.0 + 4.0) / (1.0 + 2.0 + 3.0 + 4.0) = 7.0 / 10.0 = 0.70
+    assert feats["U_direct"] == pytest.approx(7.0 / 10.0)
 
 
 def test_get_decoder_layers_handles_various_architectures():
