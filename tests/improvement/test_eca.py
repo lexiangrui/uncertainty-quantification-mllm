@@ -7,26 +7,15 @@ from src.improvement.backend import EcaBackend
 from src.improvement.eca import _EcaAccumulator, layer_features
 
 
-class _FastTokenizer:
-    is_fast = True
+class _MockTokenizer:
     eos_token_id = 99
     pad_token_id = 0
 
-    def __init__(self, text, input_ids, offsets):
-        self.text = text
-        self.input_ids = input_ids
-        self.offsets = offsets
+    def __init__(self, token_map: dict[tuple[int, ...], str]):
+        self.token_map = token_map
 
-    def decode(self, token_ids, *, skip_special_tokens, clean_up_tokenization_spaces):
-        assert skip_special_tokens
-        assert not clean_up_tokenization_spaces
-        return self.text
-
-    def __call__(self, text, *, add_special_tokens, return_offsets_mapping):
-        assert text == self.text
-        assert not add_special_tokens
-        assert return_offsets_mapping
-        return {"input_ids": self.input_ids, "offset_mapping": self.offsets}
+    def decode(self, token_ids, *, skip_special_tokens=True, clean_up_tokenization_spaces=False):
+        return self.token_map.get(tuple(token_ids), "")
 
 
 class _Processor:
@@ -40,90 +29,75 @@ def _backend(tokenizer):
     return backend
 
 
-def test_exact_generated_ids_are_preserved_and_boundary_tokens_become_tags():
-    text = "x" * 79
-    token_ids = list(range(1, 10))
-    tokenizer = _FastTokenizer(
-        text,
-        token_ids,
-        [
-            (0, 8),
-            (8, 13),
-            (13, 19),
-            (19, 40),
-            (40, 44),
-            (44, 46),
-            (46, 64),
-            (64, 69),
-            (69, 79),
-        ],
-    )
+def test_continuous_slice_token_alignment():
+    # Token stream representing "<vision>see</vision><reasoning>think</reasoning><answer>4</answer>"
+    token_ids = [10, 11, 12, 13, 14, 15, 20, 21, 22, 23, 24, 25, 30, 31, 32, 33, 34, 35]
+    # token 10-15: vision (<vision>see</vision>)
+    # token 20-25: reasoning (<reasoning>think</reasoning>)
+    # token 30-35: answer (<answer>4</answer>)
+    token_map = {}
+    for i in range(1, len(token_ids) + 1):
+        sub = token_ids[:i]
+        if i <= 6:
+            text = "<vision>see</vision>"[: i * 3]
+        elif i <= 12:
+            text = "<vision>see</vision><reasoning>think</reasoning>"[: 20 + (i - 6) * 4]
+        else:
+            text = "<vision>see</vision><reasoning>think</reasoning><answer>4</answer>"[: 48 + (i - 12) * 3]
+        token_map[tuple(sub)] = text
 
-    ids, buckets = _backend(tokenizer)._align_generated_tokens(
-        text,
-        token_ids + [tokenizer.eos_token_id],
-        {"vision": (8, 18), "reasoning": (40, 45), "answer": (64, 69)},
+    tok = _MockTokenizer(token_map)
+    backend = _backend(tok)
+
+    ids, buckets = backend._align_generated_tokens(
+        "<vision>see</vision><reasoning>think</reasoning><answer>4</answer>",
+        token_ids + [tok.eos_token_id],
     )
 
     assert ids == token_ids
-    assert buckets == [5, 2, 5, 5, 3, 5, 5, 4, 5]
+    assert len(buckets) == len(token_ids)
+    # Tokens 0..5 in bucket 2 (vision), 6..11 in bucket 3 (reasoning), 12..17 in bucket 4 (answer)
+    assert buckets[:6] == [2] * 6
+    assert buckets[6:12] == [3] * 6
+    assert buckets[12:] == [4] * 6
 
 
-def test_alignment_requires_fast_tokenizer():
-    tokenizer = _FastTokenizer("text", [1], [(0, 4)])
-    tokenizer.is_fast = False
-
-    with pytest.raises(ValueError, match="fast tokenizer"):
-        _backend(tokenizer)._align_generated_tokens(
-            "text", [1], {"vision": (0, 4), "reasoning": (0, 4), "answer": (0, 4)}
-        )
-
-
-def test_alignment_rejects_ids_changed_by_full_response_encoding():
-    tokenizer = _FastTokenizer("text", [1], [(0, 4)])
-
-    with pytest.raises(ValueError, match="stable under full-response encoding"):
-        _backend(tokenizer)._align_generated_tokens(
-            "text", [2], {"vision": (0, 4), "reasoning": (0, 4), "answer": (0, 4)}
-        )
+def test_alignment_rejects_missing_section():
+    # Only vision and reasoning, missing answer
+    token_map = {
+        (1,): "<vision>",
+        (1, 2): "<vision>v</vision>",
+        (1, 2, 3): "<vision>v</vision><reasoning>",
+        (1, 2, 3, 4): "<vision>v</vision><reasoning>r</reasoning>",
+    }
+    tok = _MockTokenizer(token_map)
+    with pytest.raises(ValueError, match="does not contain valid"):
+        _backend(tok)._align_generated_tokens("raw_missing_answer", [1, 2, 3, 4])
 
 
-def test_alignment_rejects_section_without_xml_free_token():
-    tokenizer = _FastTokenizer(
-        "aaaabbbbcccc<", [1, 2, 3], [(0, 4), (4, 8), (8, 13)]
-    )
-
-    with pytest.raises(ValueError, match="answer has no XML-free generated token"):
-        _backend(tokenizer)._align_generated_tokens(
-            "aaaabbbbcccc<",
-            [1, 2, 3],
-            {"vision": (0, 4), "reasoning": (4, 8), "answer": (8, 12)},
-        )
-
-
-def test_accumulator_preserves_groups_and_six_buckets():
+def test_accumulator_preserves_groups_and_five_buckets():
     module = object()
     accumulator = _EcaAccumulator(
         predict_idx=torch.tensor([10, 11, 20, 21, 30]),
         row_groups=torch.tensor([0, 0, 1, 1, 2]),
-        col_bucket=torch.tensor([0, 5, 5, 5]),
+        col_bucket=torch.tensor([0, 1, 2, 3, 4]),
     )
     accumulator.module_layers[id(module)] = 0
 
     for row_start, rows in ((10, 2), (20, 2), (30, 1)):
-        probs = torch.zeros((1, 1, rows, 4))
+        probs = torch.zeros((1, 1, rows, 5))
         probs[..., 0] = 1.0
         accumulator.accumulate(module, probs, row_start)
 
     assert accumulator.layer_masses[0] == [
-        [2.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [2.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        [2.0, 0.0, 0.0, 0.0, 0.0],
+        [2.0, 0.0, 0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0, 0.0, 0.0],
     ]
 
 
 def test_accumulator_rejects_invalid_bucket():
-    with pytest.raises(ValueError, match=r"\[0, 5\]"):
+    with pytest.raises(ValueError, match=r"\[0, 4\]"):
         _EcaAccumulator(
             predict_idx=torch.tensor([0]),
             row_groups=torch.tensor([0]),
@@ -131,17 +105,69 @@ def test_accumulator_rejects_invalid_bucket():
         )
 
 
-def test_layer_features_returns_only_direct_attention_ratio():
+def test_layer_features_computes_u_direct_and_u_direct_no_aa():
+    # masses for answer rows: aAI=1.0, aAQ=2.0, aAV=3.0, aAR=4.0, aAA=5.0
+    # heads=1, n_answer=1
     result = {
         "n_heads": 1,
         "section_tokens": {"vision": 1, "reasoning": 1, "answer": 1},
         "layer_masses": {
             "0": [
-                [0.0] * 6,
-                [0.0] * 6,
-                [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+                [0.0] * 5,
+                [0.0] * 5,
+                [1.0, 2.0, 3.0, 4.0, 5.0],
             ]
         },
     }
 
-    assert layer_features(result)[0] == pytest.approx({"U_direct": 7.0 / 15.0})
+    feats = layer_features(result)[0]
+    # U_direct: (3.0 + 4.0) / (1.0 + 2.0 + 3.0 + 4.0 + 5.0) = 7.0 / 15.0
+    assert feats["U_direct"] == pytest.approx(7.0 / 15.0)
+    # U_direct_no_aa: (3.0 + 4.0) / (1.0 + 2.0 + 3.0 + 4.0) = 7.0 / 10.0 = 0.70
+    assert feats["U_direct_no_aa"] == pytest.approx(7.0 / 10.0)
+
+
+def test_get_decoder_layers_handles_various_architectures():
+    from types import SimpleNamespace
+    from src.improvement.eca import _get_decoder_layers
+
+    # Case 1: base.model.layers
+    b1 = SimpleNamespace(_base_model=lambda: SimpleNamespace(model=SimpleNamespace(layers=[1, 2, 3])))
+    assert _get_decoder_layers(b1) == [1, 2, 3]
+
+    # Case 2: base.language_model.model.layers
+    b2 = SimpleNamespace(_base_model=lambda: SimpleNamespace(language_model=SimpleNamespace(model=SimpleNamespace(layers=[4, 5]))))
+    assert _get_decoder_layers(b2) == [4, 5]
+
+    # Case 3: base.layers
+    b3 = SimpleNamespace(_base_model=lambda: SimpleNamespace(layers=[6]))
+    assert _get_decoder_layers(b3) == [6]
+
+
+def test_prepare_inputs_sections_pops_position_ids_and_pads():
+    token_map = {
+        (1,): "<vision>",
+        (1, 2): "<vision>v</vision><reasoning>",
+        (1, 2, 3): "<vision>v</vision><reasoning>r</reasoning><answer>a</answer>",
+    }
+    backend = _backend(_MockTokenizer(token_map))
+    backend.device = torch.device("cpu")
+    backend._image_token_id = 0
+    backend._prepare_prompt = lambda img, q: {
+        "input_ids": torch.tensor([[10, 20]]),
+        "attention_mask": torch.tensor([[1, 1]]),
+        "position_ids": torch.tensor([[[0, 1]]]),
+        "mm_token_type_ids": torch.tensor([[0, 0]]),
+    }
+
+    raw = "<vision>v</vision><reasoning>r</reasoning><answer>a</answer>"
+    full_inputs, prompt_length, buckets = backend.prepare_inputs_sections(
+        None, "question", raw, [1, 2, 3]
+    )
+
+    assert prompt_length == 2
+    assert "position_ids" not in full_inputs
+    assert full_inputs["input_ids"].shape == (1, 5)
+    assert full_inputs["attention_mask"].shape == (1, 5)
+    assert full_inputs["mm_token_type_ids"].shape == (1, 5)
+    assert full_inputs["mm_token_type_ids"].tolist() == [[0, 0, 0, 0, 0]]

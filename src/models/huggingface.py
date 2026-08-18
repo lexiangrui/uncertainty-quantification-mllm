@@ -23,26 +23,12 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
     ) -> None:
         if not model_path.is_dir():
             raise NotADirectoryError(model_path)
-        if family == "internvl3_5":
-            from transformers import AutoProcessor, InternVLForConditionalGeneration
-
-            model_class = InternVLForConditionalGeneration
-        elif family == "qwen2_5_vl":
-            from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
-
-            model_class = Qwen2_5_VLForConditionalGeneration
-        elif family == "llava_1_5":
-            from transformers import AutoProcessor, LlavaForConditionalGeneration
-
-            model_class = LlavaForConditionalGeneration
-        else:
+        if family not in {"internvl3_5", "qwen2_5_vl", "llava_1_5"}:
             raise ValueError(f"unknown model family: {family}")
 
         self.family = family
         self.model_id = model_path.name
         self.model_path = model_path
-        self.model_class = model_class
-        self.processor_class = AutoProcessor
         self.attn_implementation = attn_implementation
         self.adapter_path = adapter_path
         # Slurm export preserves an explicitly empty value for non-Qwen jobs;
@@ -95,7 +81,18 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
                     "device; resubmit on a healthy GPU node instead of falling back to a "
                     "Hub kernel or CPU attention."
                 )
-        self.processor = self.processor_class.from_pretrained(
+        from transformers import AutoProcessor
+
+        if self.family == "internvl3_5":
+            from transformers import InternVLForConditionalGeneration as model_class
+        elif self.family == "qwen2_5_vl":
+            from transformers import Qwen2_5_VLForConditionalGeneration as model_class
+        elif self.family == "llava_1_5":
+            from transformers import LlavaForConditionalGeneration as model_class
+        else:
+            raise ValueError(f"unknown model family: {self.family}")
+
+        self.processor = AutoProcessor.from_pretrained(
             self.model_path, local_files_only=True
         )
         device_map = (
@@ -117,7 +114,7 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         )
         if self.attn_implementation is not None:
             model_kwargs["attn_implementation"] = self.attn_implementation
-        self.model = self.model_class.from_pretrained(
+        self.model = model_class.from_pretrained(
             self.model_path, **model_kwargs
         ).eval()
         if self.attn_implementation == "flash_attention_2":

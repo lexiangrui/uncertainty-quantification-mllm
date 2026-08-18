@@ -36,11 +36,8 @@ from src.improvement.backend import EcaBackend
 _CHUNK = 256
 
 GROUPS = ("vision", "reasoning", "answer")
-# Bucket 5 ("tags") records XML tag / whitespace tokens on the generated side
-# so the keep-vs-remove XML-tag ablation is computable offline; it is never
-# part of the semantic feature definitions.
-DESTS = ("image", "prompt_text", "vision", "reasoning", "answer", "tags")
-FEATURES = ("U_direct",)
+DESTS = ("image", "prompt_text", "vision", "reasoning", "answer")
+FEATURES = ("U_direct", "U_direct_no_aa")
 EPS = 1e-8
 
 
@@ -49,7 +46,7 @@ class EcaResult:
     n_visual_tokens: int
     n_heads: int
     section_tokens: dict[str, int]  # rows per group = section token count
-    # {layer: [[mI, mQ, mV, mR, mA, mTags] per source group, in GROUPS order]}
+    # {layer: [[mI, mQ, mV, mR, mA] per source group, in GROUPS order]}
     layer_masses: dict[int, list[list[float]]]
 
     def to_dict(self) -> dict:
@@ -63,12 +60,20 @@ class EcaResult:
 
 def _get_decoder_layers(backend: EcaBackend):
     base = backend._base_model()
-    core = getattr(base, "model", base)
-    lang_model = getattr(core, "language_model", core)
-    decoder = getattr(lang_model, "model", lang_model)
-    layers = getattr(decoder, "layers", None)
-    if layers is not None:
-        return list(layers)
+    candidates = [
+        getattr(base, "language_model", None),
+        getattr(getattr(base, "model", None), "language_model", None),
+        getattr(base, "model", None),
+        base,
+    ]
+    for c in candidates:
+        if c is None:
+            continue
+        for target in (c, getattr(c, "model", None)):
+            if target is not None:
+                layers = getattr(target, "layers", None)
+                if layers is not None:
+                    return list(layers)
     raise RuntimeError("cannot locate decoder layers")
 
 
@@ -85,7 +90,7 @@ class _EcaAccumulator:
 
     predict_idx: sorted union of the prediction rows of all three groups;
     row_groups: source-group label aligned one-to-one with predict_idx;
-    col_bucket: destination bucket per sequence position (0..5).
+    col_bucket: destination bucket per sequence position (0..4).
     """
 
     def __init__(
@@ -100,7 +105,7 @@ class _EcaAccumulator:
         if self.col_bucket.ndim != 1 or torch.any(
             (self.col_bucket < 0) | (self.col_bucket >= len(DESTS))
         ):
-            raise ValueError("col_bucket values must be in [0, 5]")
+            raise ValueError(f"col_bucket values must be in [0, {len(DESTS) - 1}]")
         self.module_layers: dict[int, int] = {}
         # layer → [group][bucket] head-summed mass
         self.layer_masses: dict[int, list[list[float]]] = {}
@@ -124,7 +129,7 @@ class _EcaAccumulator:
         rows = probs[0][:, sel - row_start, :]  # (heads, n_sel, seq)
         self.n_heads = probs.shape[1]
 
-        # (n_sel, 6): head-summed mass of each selected row per bucket.
+        # (n_sel, 5): head-summed mass of each selected row per bucket.
         col_rows = rows.sum(dim=0).float()  # (n_sel, seq)
         if (
             self._onehot is None
@@ -132,20 +137,20 @@ class _EcaAccumulator:
             or self._onehot.device != probs.device
         ):
             bucket = self.col_bucket.to(probs.device)
-            self._onehot = torch.nn.functional.one_hot(bucket, num_classes=6).float()
-        masses = col_rows @ self._onehot  # (n_sel, 6)
+            self._onehot = torch.nn.functional.one_hot(bucket, num_classes=len(DESTS)).float()
+        masses = col_rows @ self._onehot  # (n_sel, 5)
 
         mask = (p >= row_start) & (p < row_start + probs.shape[2])
         labels = self.row_groups.to(probs.device)[mask]
         entry = self.layer_masses.get(layer)
         if entry is None:
-            entry = self.layer_masses[layer] = [[0.0] * 6 for _ in GROUPS]
+            entry = self.layer_masses[layer] = [[0.0] * len(DESTS) for _ in GROUPS]
         for g in range(len(GROUPS)):
             m = masses[labels == g]
             if m.numel():
                 row = m.sum(dim=0).tolist()
                 acc = entry[g]
-                for b in range(6):
+                for b in range(len(DESTS)):
                     acc[b] += row[b]
 
 
@@ -229,10 +234,8 @@ def compute_eca(
         for group, name in enumerate(GROUPS)
     ])
 
-    # Destination bucket per position: 0 image, 1 question, 2 V, 3 R, 4 A,
-    # 5 generated-side XML tags / gaps.  Every position is bucketed.
-    col_bucket = torch.full((seq_len,), 5, dtype=torch.long)  # tags default
-    col_bucket[:prompt_length] = 1  # non-image prompt side (image set below)
+    # Destination bucket per position: 0 image, 1 question, 2 V, 3 R, 4 A.
+    col_bucket = torch.full((seq_len,), 1, dtype=torch.long)
     col_bucket[visual_mask.cpu()] = 0
     col_bucket[prompt_length:] = generated_bucket_tensor
 
@@ -274,15 +277,27 @@ DIRECT_LAYERS = (0, 1)
 
 
 def layer_features(result: dict) -> dict[int, dict[str, float]]:
-    """Per-layer U_direct from the recorded masses (XML-tag-free)."""
+    """Per-layer U_direct (standard) and U_direct_no_aa (ablated denominator without A->A)."""
     heads = result["n_heads"]
     sizes = result["section_tokens"]
     n_answer = sizes["answer"]
     features = {}
     for layer, masses in result["layer_masses"].items():
-        a = [m / (heads * n_answer) for m in masses[2]]  # answer rows
-        aAI, aAQ, aAV, aAR, aAA = a[0], a[1], a[2], a[3], a[4]
+        a = [m / (heads * n_answer) for m in masses[2]]  # answer prediction rows
+        aAI, aAQ, aAV, aAR = a[0], a[1], a[2], a[3]
+        aAA = a[4] if len(a) > 4 else 0.0
+
+        # 1. Standard U_direct: denominator contains all past tokens (I + Q + V + R + A = 1.0)
+        denom_full = aAI + aAQ + aAV + aAR + aAA
+        u_direct = (aAV + aAR) / (denom_full + EPS)
+
+        # 2. Ablated U_direct_no_aa: denominator excludes intra-answer self-attention A->A,
+        # measuring the ratio of self-generated context (V+R) relative to all prior context (I+Q+V+R).
+        denom_no_aa = aAI + aAQ + aAV + aAR
+        u_direct_no_aa = (aAV + aAR) / (denom_no_aa + EPS)
+
         features[int(layer)] = {
-            "U_direct": (aAV + aAR) / (aAI + aAQ + aAV + aAR + aAA + EPS),
+            "U_direct": u_direct,
+            "U_direct_no_aa": u_direct_no_aa,
         }
     return features

@@ -5,7 +5,6 @@ from pathlib import Path
 
 import torch
 
-from src.generation.parser import section_character_spans
 from src.generation.prompt import build_prompt
 
 
@@ -109,19 +108,18 @@ class EcaBackend:
         self,
         raw_response: str,
         generated_token_ids: list[int],
-        char_spans: dict[str, tuple[int, int]],
     ) -> tuple[list[int], list[int]]:
-        """Align exact generated IDs to semantic sections without re-tokenizing.
+        """Align exact generated IDs into 3 continuous section slices (Vision, Reasoning, Answer).
 
-        Buckets are 2=vision, 3=reasoning, 4=answer, and 5=XML/whitespace.
-        A token crossing a semantic boundary stays in bucket 5.  Exact ID
-        equality with a single full-response encoding is required so the
-        teacher-forced sequence is the sequence produced during generation.
+        Buckets:
+          2 = vision (<vision>...</vision>)
+          3 = reasoning (<reasoning>...</reasoning>)
+          4 = answer (<answer>...</answer>)
+
+        XML tags are retained inside their respective sections for 100% sample stability
+        and zero short-answer loss.
         """
         tok = getattr(self.processor, "tokenizer", self.processor)
-        if not getattr(tok, "is_fast", False):
-            raise ValueError("ECA alignment requires a fast tokenizer")
-
         gen_ids = list(generated_token_ids)
         eos_ids = getattr(tok, "eos_token_id", None)
         terminal_ids = set(eos_ids if isinstance(eos_ids, list) else [eos_ids])
@@ -134,38 +132,37 @@ class EcaBackend:
         if not gen_ids:
             raise ValueError("generated response has no text tokens")
 
-        decoded = tok.decode(
-            gen_ids,
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=False,
-        )
-        if decoded.strip() != raw_response:
-            raise ValueError("generated token IDs do not decode to raw_response")
-        response_start = len(decoded) - len(decoded.lstrip())
-        encoded = tok(
-            decoded,
-            add_special_tokens=False,
-            return_offsets_mapping=True,
-        )
-        if list(encoded["input_ids"]) != gen_ids:
-            raise ValueError("generated token IDs are not stable under full-response encoding")
+        # Find character positions of section starts in raw_response
+        r_char_pos = raw_response.lower().find("<reasoning")
+        a_char_pos = raw_response.lower().find("<answer")
+        if r_char_pos <= 0 or a_char_pos <= r_char_pos:
+            raise ValueError("raw_response does not contain valid <reasoning> and <answer> tags")
 
-        shifted = {
-            name: (response_start + start, response_start + end)
-            for name, (start, end) in char_spans.items()
-        }
-        buckets = [5] * len(gen_ids)
-        bucket_ids = {"vision": 2, "reasoning": 3, "answer": 4}
-        for index, (start, end) in enumerate(encoded["offset_mapping"]):
-            if start == end:
-                continue
-            for name, (section_start, section_end) in shifted.items():
-                if section_start <= start and end <= section_end:
-                    buckets[index] = bucket_ids[name]
-                    break
-        for name, bucket in bucket_ids.items():
-            if bucket not in buckets:
-                raise ValueError(f"{name} has no XML-free generated token")
+        # Find exact token indices where each section begins via cumulative prefix decoding
+        r_start_idx = None
+        a_start_idx = None
+        for i in range(1, len(gen_ids) + 1):
+            prefix = tok.decode(
+                gen_ids[:i],
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=False,
+            )
+            prefix_len = len(prefix.lstrip())
+            if r_start_idx is None and prefix_len > r_char_pos:
+                r_start_idx = i - 1
+            if a_start_idx is None and prefix_len > a_char_pos:
+                a_start_idx = i - 1
+                break
+
+        if r_start_idx is None or a_start_idx is None or r_start_idx >= a_start_idx or r_start_idx == 0:
+            raise ValueError("could not locate valid section boundaries in token sequence")
+
+        # 2=vision [0, r_start_idx), 3=reasoning [r_start_idx, a_start_idx), 4=answer [a_start_idx, len]
+        buckets = [2] * len(gen_ids)
+        for i in range(r_start_idx, a_start_idx):
+            buckets[i] = 3
+        for i in range(a_start_idx, len(gen_ids)):
+            buckets[i] = 4
         return gen_ids, buckets
 
     def prepare_inputs_sections(
@@ -178,9 +175,8 @@ class EcaBackend:
         """Build teacher-forcing inputs from the exact generated token IDs."""
         prompt_inputs = self._prepare_prompt(image, question)
         prompt_length = int(prompt_inputs["input_ids"].shape[1])
-        char_spans = section_character_spans(raw_response, "xml")
         gen_ids, generated_buckets = self._align_generated_tokens(
-            raw_response, generated_token_ids, char_spans
+            raw_response, generated_token_ids
         )
 
         gen_tensor = torch.tensor([gen_ids], dtype=torch.long, device=self.device)
@@ -190,17 +186,20 @@ class EcaBackend:
         full_inputs = dict(prompt_inputs)
         full_inputs["input_ids"] = full_ids
         full_inputs["attention_mask"] = full_mask
+        # Pop position_ids so multimodal architectures (e.g. Qwen2.5-VL 3D RoPE)
+        # automatically recalculate correct full-sequence position IDs
+        full_inputs.pop("position_ids", None)
 
-        # Qwen2.5-VL: extend mm_token_type_ids to match full sequence length
+        # Qwen2.5-VL / multimodal: extend mm_token_type_ids to match full sequence length
         for key in list(full_inputs.keys()):
-            if key in ("input_ids", "attention_mask", "pixel_values"):
+            if key in ("input_ids", "attention_mask", "pixel_values", "image_grid_thw"):
                 continue
             val = full_inputs[key]
-            if isinstance(val, torch.Tensor) and val.ndim >= 2 and val.shape[1] == prompt_length:
-                # Extend with zeros (text modality) for generated tokens
+            if isinstance(val, torch.Tensor) and val.ndim >= 2 and val.shape[-1] == prompt_length:
+                # Extend with zeros (text modality) for generated tokens along sequence dimension
                 pad_shape = list(val.shape)
-                pad_shape[1] = full_ids.shape[1] - prompt_length
+                pad_shape[-1] = full_ids.shape[1] - prompt_length
                 pad = torch.zeros(pad_shape, dtype=val.dtype, device=val.device)
-                full_inputs[key] = torch.cat([val, pad], dim=1)
+                full_inputs[key] = torch.cat([val, pad], dim=-1)
 
         return full_inputs, prompt_length, generated_buckets

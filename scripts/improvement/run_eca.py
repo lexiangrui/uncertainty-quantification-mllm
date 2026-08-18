@@ -90,14 +90,21 @@ def main():
         if not greedy.get("sections_valid") or not greedy.get("raw_response") or not sample.image:
             skipped += 1
             continue
-        token_ids = _greedy_token_ids(record, args.greedy_input)
-        full_inputs, prompt_length, generated_buckets = backend.prepare_inputs_sections(
-            sample.image, sample.question, greedy["raw_response"], token_ids
-        )
+        try:
+            token_ids = _greedy_token_ids(record, args.greedy_input)
+            full_inputs, prompt_length, generated_buckets = backend.prepare_inputs_sections(
+                sample.image, sample.question, greedy["raw_response"], token_ids
+            )
+        except (ValueError, FileNotFoundError) as error:
+            print(f"skip {sid}: {error}", flush=True)
+            skipped += 1
+            continue
+
         result = compute_eca(backend, full_inputs, prompt_length, generated_buckets)
         if result is None:
             print(f"skip {sid}: no decoder-layer masses", flush=True)
             skipped += 1
+            del full_inputs
             continue
 
         write_sample_json_line(args.output, run, {"sample": {"sample_id": sid}, "eca": result.to_dict()})
