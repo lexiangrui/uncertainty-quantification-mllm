@@ -175,7 +175,7 @@ bash slurm/generation/submit_uq_grid.sh
 - **评测表现**：在 400 条 LUH 难例子集上，LLaVA-1.5、Qwen2.5-VL 和 InternVL3.5 的 AUROC 分别达到 **0.7147**、**0.6003** 和 **0.5970**，显著超越所有传统 Baseline。
 - **运行命令**：
   ```bash
-  # 提取 ERA 5 桶注意力分量
+  # 提取 ERA 5 个语义分区的注意力分量
   python scripts/improvement/run_era.py --greedy-input ... --output ...
   # 运行难例子集对比评估
   python scripts/analysis/evaluate_era.py
