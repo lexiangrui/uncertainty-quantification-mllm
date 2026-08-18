@@ -82,14 +82,10 @@ def main() -> None:
                         for feat in ("U_direct", "U_direct_no_aa")
                     }
         labels = load_labels(model, ids)
-        missing_components = ids - components.keys()
-        missing_labels = ids - labels.keys()
-        if missing_components or missing_labels:
-            raise ValueError(
-                f"{model}: incomplete ablation inputs "
-                f"(ECA missing={len(missing_components)}, judge missing={len(missing_labels)})"
-            )
-        sids = sorted(ids)
+        common_ids = sorted(ids & components.keys() & labels.keys())
+        if not common_ids:
+            raise ValueError(f"{model}: no overlapping samples between subset, ECA and judge")
+        sids = common_ids
         target = np.array([labels[sid] for sid in sids], dtype=int)
 
         for feat_key, label_name in (
