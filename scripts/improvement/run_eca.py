@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compute ECA per-layer evidence-chain attention masses via a single forward pass."""
+"""Compute ECA per-layer direct-attention masses via a single forward pass."""
 from __future__ import annotations
 
 import argparse
@@ -22,6 +22,19 @@ def _load_generation(path):
     return rows[0]["run"], rows[1:]
 
 
+def _greedy_token_ids(record: dict, generation_path: Path) -> list[int]:
+    descriptor = record.get("generation_tokens") or {}
+    relative = descriptor.get("path")
+    if not isinstance(relative, str) or "greedy" not in descriptor.get("keys", []):
+        raise ValueError("generation record has no greedy token-ID sidecar")
+    sidecar = generation_path.parent / relative
+    payload = torch.load(sidecar, map_location="cpu", weights_only=True)
+    token_ids = payload.get("greedy")
+    if not isinstance(token_ids, torch.Tensor) or token_ids.ndim != 1:
+        raise ValueError(f"invalid greedy token IDs: {sidecar}")
+    return [int(value) for value in token_ids.tolist()]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--greedy-input", required=True, type=Path)
@@ -42,8 +55,19 @@ def main():
 
     gen_run, records = _load_generation(args.greedy_input)
     dataset = gen_run["dataset"]
-    run = {"eca_output_version": "regions-v5", "greedy_input": str(args.greedy_input.resolve()), "greedy_run": gen_run}
+    run = {
+        "method": "eca",
+        "token_alignment": "exact_generated_ids",
+        "greedy_input": str(args.greedy_input.resolve()),
+        "greedy_run": gen_run,
+    }
     completed = completed_sample_ids(args.output, run)
+    records_by_id = {}
+    for record in records:
+        sid = record.get("sample", {}).get("sample_id")
+        if not isinstance(sid, str) or sid in records_by_id:
+            raise ValueError(f"invalid or duplicate generation sample_id: {sid!r}")
+        records_by_id[sid] = record
 
     backend = EcaBackend(args.family, args.model_path,
                          adapter_path=args.adapter_path,
@@ -53,9 +77,11 @@ def main():
     written = skipped = 0
     for sample in iter_dataset(dataset, args.dataset_source, args.limit):
         sid = sample.sample_id
-        if sid in completed or (sample_ids_filter and sid not in sample_ids_filter):
+        if sid in completed or (
+            sample_ids_filter is not None and sid not in sample_ids_filter
+        ):
             continue
-        record = next((r for r in records if r.get("sample", {}).get("sample_id") == sid), None)
+        record = records_by_id.get(sid)
         if not record:
             print(f"skip {sid}: generation record missing", flush=True)
             skipped += 1
@@ -64,13 +90,11 @@ def main():
         if not greedy.get("sections_valid") or not greedy.get("raw_response") or not sample.image:
             skipped += 1
             continue
-        full_inputs, prompt_length, section_spans = backend.prepare_inputs_sections(
-            sample.image, sample.question, greedy["raw_response"])
-        if not full_inputs or not section_spans:
-            print(f"skip {sid}: input preparation failed", flush=True)
-            skipped += 1
-            continue
-        result = compute_eca(backend, full_inputs, prompt_length, section_spans)
+        token_ids = _greedy_token_ids(record, args.greedy_input)
+        full_inputs, prompt_length, generated_buckets = backend.prepare_inputs_sections(
+            sample.image, sample.question, greedy["raw_response"], token_ids
+        )
+        result = compute_eca(backend, full_inputs, prompt_length, generated_buckets)
         if result is None:
             print(f"skip {sid}: no decoder-layer masses", flush=True)
             skipped += 1

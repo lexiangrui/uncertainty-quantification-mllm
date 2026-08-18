@@ -6,8 +6,7 @@ The method averages per-layer U_direct over absolute decoder layers
 and is therefore in-sample — labelled as such in the docs).
 
 Methods compared on identical samples and judge labels:
-  PPL / SE / UMPIRE (baselines), ECA (U_direct @ layers), and GCAR
-  (predecessor reference, first 4 layers, from gcar_components_v2).
+  PPL / SE / UMPIRE (baselines) and ECA (U_direct @ layers).
 """
 from __future__ import annotations
 
@@ -44,17 +43,6 @@ def layers_mean(feats: dict[int, dict[str, float]], layers: list[int]) -> dict[s
     return {k: float(np.mean([feats[l][k] for l in ls])) for k in feats[ls[0]]}
 
 
-def gcar_score(v: dict) -> float | None:
-    """GCAR reference from gcar_components_v2 (first 4 layers, tag-free)."""
-    lb = (v or {}).get("layer_breakdown") or {}
-    rows = [lb.get(str(i)) for i in range(4)]
-    if not all(rows) or any(len(r) != 6 for r in rows):
-        return None
-    num = sum(r[1] + r[2] for r in rows)
-    tot = sum(sum(r) - r[3] for r in rows)
-    return num / tot if tot > 1e-12 else None
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--subset", type=Path, default=PROJECT_ROOT / "results/analysis/luh/per_model_subsets.json")
@@ -62,7 +50,7 @@ def main():
     parser.add_argument("--layers", nargs="+", type=int, default=list(DIRECT_LAYERS),
                         help="absolute decoder layers to average (default: 0 1)")
     parser.add_argument("--features", nargs="+", default=list(FEATURES))
-    parser.add_argument("--components-dir", type=Path, default=PROJECT_ROOT / "results/eca_components_v4")
+    parser.add_argument("--components-dir", type=Path, default=PROJECT_ROOT / "results/eca_components")
     parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "results/analysis/eca/final_evaluation.json")
     parser.add_argument("--bootstrap-samples", type=int, default=1000)
     args = parser.parse_args()
@@ -87,7 +75,7 @@ def main():
     for model in args.models:
         sub = subsets[model]
         subset_ids = set(sub["positive_ids"]) | set(sub["negative_ids"])
-        feats, gcar, uq, judge = {}, {}, {}, {}
+        feats, uq, judge = {}, {}, {}
         for ds in DATASETS:
             p = args.components_dir / f"{model}/{ds}.jsonl"
             if p.exists():
@@ -97,16 +85,6 @@ def main():
                     sid = obj.get("sample", {}).get("sample_id")
                     if sid in subset_ids:
                         feats[sid] = layers_mean(layer_features(obj["eca"]), args.layers)
-            p = PROJECT_ROOT / f"results/gcar_components_v2/{model}/{ds}.jsonl"
-            if p.exists():
-                for obj in load_jsonl_records(p):
-                    if obj.get("record_type") != "sample":
-                        continue
-                    sid = obj.get("sample", {}).get("sample_id")
-                    if sid in subset_ids:
-                        sc = gcar_score(obj.get("gcar"))
-                        if sc is not None:
-                            gcar[sid] = sc
             p = PROJECT_ROOT / f"results/uq/{model}/{ds}.jsonl"
             if p.exists():
                 for obj in load_jsonl_records(p):
@@ -132,14 +110,19 @@ def main():
                         if j.get("valid") is True:
                             judge[sid] = 1 if j.get("hallucination") else 0
 
-        sids = sorted(s for s in subset_ids if s in feats and s in uq and s in judge)
+        for source, available in (("ECA", feats), ("UQ", uq), ("judge", judge)):
+            missing = subset_ids - available.keys()
+            if missing:
+                raise ValueError(
+                    f"{model}: {source} is missing {len(missing)} subset samples; "
+                    f"first IDs: {sorted(missing)[:5]}"
+                )
+        sids = sorted(subset_ids)
         labels = np.array([judge[s] for s in sids])
         groups = np.array([str(group_ids.get((model, s), s)) for s in sids], dtype=object)
         data = {m: np.array([uq[s][m] for s in sids]) for m in BASELINES}
         for f in args.features:
             data[f] = np.array([feats[s][f] for s in sids])
-        if all(s in gcar for s in sids):
-            data["gcar"] = np.array([gcar[s] for s in sids])
         results[model] = {"n": len(sids), "n_pos": int(labels.sum()), "metrics": {}}
         replicates = cluster_bootstrap_indices(
             groups.tolist(), n_bootstrap=args.bootstrap_samples, seed=0

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Layer sweep for ECA on the LUH subsets.
 
-Per layer (heads averaged, PAS row convention) compute the feature chain
-    U_image / U_direct / U_V / U_R / U_ECA
-and report AUROC vs relative layer depth per model, plus band-averaged
-AUROC over several fixed relative-depth ranges.
+Per layer (heads averaged, PAS row convention), compute U_direct and report
+AUROC vs relative layer depth per model, plus band-averaged AUROC over fixed
+relative-depth ranges.
 
 Sweep set: the 400-sample LUH subsets (per project decision, 2026-08-18).
 Bands chosen from this sweep are selected on the evaluation set — any
@@ -35,7 +34,7 @@ DATASETS = ("hallusionbench", "vilp", "mmvet")
 def load(model: str, ids: set):
     comps, judge = {}, {}
     for ds in DATASETS:
-        p = PROJECT_ROOT / f"results/eca_components_v4/{model}/{ds}.jsonl"
+        p = PROJECT_ROOT / f"results/eca_components/{model}/{ds}.jsonl"
         if p.exists():
             for obj in load_jsonl_records(p):
                 if obj.get("record_type") != "sample":
@@ -51,7 +50,14 @@ def load(model: str, ids: set):
                 sid = obj.get("sample", {}).get("sample_id")
                 if sid in ids and obj.get("judge", {}).get("valid") is True:
                     judge[sid] = 1 if obj["judge"]["hallucination"] else 0
-    sids = [s for s in sorted(comps) if s in judge]
+    missing_comps = ids - comps.keys()
+    missing_judge = ids - judge.keys()
+    if missing_comps or missing_judge:
+        raise ValueError(
+            f"{model}: incomplete sweep inputs "
+            f"(ECA missing={len(missing_comps)}, judge missing={len(missing_judge)})"
+        )
+    sids = sorted(ids)
     return sids, np.array([judge[s] for s in sids], dtype=int), comps
 
 
@@ -59,7 +65,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ids-dir", type=Path, default=PROJECT_ROOT / "results/analysis/eca/luh_ids")
     parser.add_argument("--features", nargs="+", default=list(FEATURES))
-    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "results/analysis/eca/layer_sweep_v3.json")
+    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "results/analysis/eca/layer_sweep.json")
     args = parser.parse_args()
 
     data = {}

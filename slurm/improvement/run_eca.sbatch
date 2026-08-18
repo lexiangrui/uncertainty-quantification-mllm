@@ -6,15 +6,15 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=08:00:00
-#SBATCH --output=logs/eca/%x-%j.out
-#SBATCH --error=logs/eca/%x-%j.out
+#SBATCH --output=slurm-%x-%j.out
+#SBATCH --error=slurm-%x-%j.out
 
 # Usage: sbatch --export=MODEL=llava run_eca.sbatch [extra run_eca.py args...]
 set -euo pipefail
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
 cd /home/lexiangrui/Uncertainty-Quantification-of-MLLM
-mkdir -p logs/eca results/eca_components_v4/"$MODEL"
+mkdir -p results/eca_components/"$MODEL"
 shift_args=("$@")
 
 case "$MODEL" in
@@ -32,7 +32,7 @@ for dataset in vilp hallusionbench mmvet; do
   esac
   ~/.venvs/vlm-transformers/bin/python scripts/improvement/run_eca.py \
     --greedy-input results/generation/"$MODEL"/greedy/"$dataset".jsonl \
-    --output results/eca_components_v4/"$MODEL"/"$dataset".jsonl \
+    --output results/eca_components/"$MODEL"/"$dataset".jsonl \
     --family "$FAM" \
     --model-path "$MP" \
     --adapter-path "$AD" \

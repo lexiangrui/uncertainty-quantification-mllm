@@ -85,8 +85,7 @@ class _EcaAccumulator:
 
     predict_idx: sorted union of the prediction rows of all three groups;
     row_groups: source-group label aligned one-to-one with predict_idx;
-    col_bucket: destination bucket per sequence position (-1 = XML/control
-    tokens that are intentionally excluded).
+    col_bucket: destination bucket per sequence position (0..5).
     """
 
     def __init__(
@@ -98,6 +97,10 @@ class _EcaAccumulator:
         self.predict_idx = predict_idx.cpu()
         self.row_groups = row_groups.cpu()
         self.col_bucket = col_bucket.cpu()
+        if self.col_bucket.ndim != 1 or torch.any(
+            (self.col_bucket < 0) | (self.col_bucket >= len(DESTS))
+        ):
+            raise ValueError("col_bucket values must be in [0, 5]")
         self.module_layers: dict[int, int] = {}
         # layer → [group][bucket] head-summed mass
         self.layer_masses: dict[int, list[list[float]]] = {}
@@ -121,7 +124,7 @@ class _EcaAccumulator:
         rows = probs[0][:, sel - row_start, :]  # (heads, n_sel, seq)
         self.n_heads = probs.shape[1]
 
-        # (n_sel, 5): head-summed mass of each selected row per bucket.
+        # (n_sel, 6): head-summed mass of each selected row per bucket.
         col_rows = rows.sum(dim=0).float()  # (n_sel, seq)
         if (
             self._onehot is None
@@ -130,7 +133,7 @@ class _EcaAccumulator:
         ):
             bucket = self.col_bucket.to(probs.device)
             self._onehot = torch.nn.functional.one_hot(bucket, num_classes=6).float()
-        masses = col_rows @ self._onehot  # (n_sel, 5)
+        masses = col_rows @ self._onehot  # (n_sel, 6)
 
         mask = (p >= row_start) & (p < row_start + probs.shape[2])
         labels = self.row_groups.to(probs.device)[mask]
@@ -160,7 +163,12 @@ def _make_chunked_eager(accumulator: _EcaAccumulator):
         # extreme sequences (Qwen2.5-VL global-attention ViT layers can see
         # tens of thousands of visual tokens on high-resolution images).
         budget = 512 * 1024 * 1024
-        chunk = max(64, min(_CHUNK, int(budget / (query.shape[1] * kv_len * 4))))
+        bytes_per_row = query.shape[1] * kv_len * 4
+        if bytes_per_row > budget:
+            raise RuntimeError(
+                "one fp32 attention-probability row exceeds the 512 MiB budget"
+            )
+        chunk = max(1, min(_CHUNK, budget // bytes_per_row))
 
         out = torch.empty_like(query)
         for s in range(0, q_len, chunk):
@@ -177,8 +185,8 @@ def _make_chunked_eager(accumulator: _EcaAccumulator):
                     ~causal.view(1, 1, e - s, kv_len), torch.finfo(scores.dtype).min
                 )
             # else: bidirectional (ViT global attention) — no mask
-            probs = torch.softmax(scores, dim=-1, dtype=torch.float32).to(query.dtype)
-            out[:, :, s:e, :] = torch.matmul(probs, value_states)
+            probs = torch.softmax(scores, dim=-1, dtype=torch.float32)
+            out[:, :, s:e, :] = torch.matmul(probs.to(value_states.dtype), value_states)
             accumulator.accumulate(module, probs, s)
         return out.transpose(1, 2).contiguous(), None
 
@@ -189,20 +197,24 @@ def compute_eca(
     backend: EcaBackend,
     full_inputs: dict,
     prompt_length: int,
-    section_spans: dict[str, tuple[int, int]],
+    generated_buckets: list[int],
 ) -> EcaResult | None:
-    """Compute per-layer evidence-chain attention masses."""
+    """Compute per-layer direct-attention masses."""
     input_ids = full_inputs["input_ids"]
     seq_len = int(input_ids.shape[1])
     image_token_id = backend._image_token_id
     if image_token_id is None:
         return None
 
-    v0, v1 = section_spans["vision"]
-    r0, r1 = section_spans["reasoning"]
-    a0, a1 = section_spans["answer"]
-    spans = {"vision": (v0, v1), "reasoning": (r0, r1), "answer": (a0, a1)}
-    if any(e - s < 1 for s, e in spans.values()):
+    if len(generated_buckets) != seq_len - prompt_length:
+        raise ValueError("generated bucket count does not match the response length")
+    generated_bucket_tensor = torch.tensor(generated_buckets, dtype=torch.long)
+    positions = {
+        name: torch.nonzero(generated_bucket_tensor == bucket, as_tuple=False).flatten()
+        + prompt_length
+        for name, bucket in zip(GROUPS, (2, 3, 4), strict=True)
+    }
+    if any(index.numel() == 0 for index in positions.values()):
         return None
 
     visual_mask = (input_ids[0] == image_token_id)
@@ -211,10 +223,10 @@ def compute_eca(
         return None
 
     # Prediction rows per group: row t-1 predicts token t.
-    predict_idx = torch.cat([torch.arange(s - 1, e - 1) for s, e in spans.values()])
+    predict_idx = torch.cat([positions[name] - 1 for name in GROUPS])
     row_groups = torch.cat([
-        torch.full((e - s,), group, dtype=torch.long)
-        for group, (s, e) in enumerate(spans.values())
+        torch.full((positions[name].numel(),), group, dtype=torch.long)
+        for group, name in enumerate(GROUPS)
     ])
 
     # Destination bucket per position: 0 image, 1 question, 2 V, 3 R, 4 A,
@@ -222,9 +234,7 @@ def compute_eca(
     col_bucket = torch.full((seq_len,), 5, dtype=torch.long)  # tags default
     col_bucket[:prompt_length] = 1  # non-image prompt side (image set below)
     col_bucket[visual_mask.cpu()] = 0
-    col_bucket[v0:v1] = 2
-    col_bucket[r0:r1] = 3
-    col_bucket[a0:a1] = 4
+    col_bucket[prompt_length:] = generated_bucket_tensor
 
     layers = _get_decoder_layers(backend)
     accumulator = _EcaAccumulator(predict_idx, row_groups, col_bucket)
@@ -254,7 +264,7 @@ def compute_eca(
     return EcaResult(
         n_visual_tokens=n_visual,
         n_heads=accumulator.n_heads,
-        section_tokens={name: spans[name][1] - spans[name][0] for name in GROUPS},
+        section_tokens={name: positions[name].numel() for name in GROUPS},
         layer_masses=accumulator.layer_masses,
     )
 
