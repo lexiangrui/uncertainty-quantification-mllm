@@ -39,7 +39,8 @@
 | 多模态 LLM Judge | 完成 | 9 个文件、6,741 条 frozen greedy 标签 |
 | 指标计算 | 完成 | 9 个指标报告位于 `results/metrics/` |
 | 结果数据分析 | 完成 | 描述性统计、检测性能对比与 LUH 画像位于 `results/analysis/{descriptive,detection,luh_profile}/` |
-| 下一步研究 | 规划中 | 在模型独立的低不确定性幻觉子集上改进 UQ，使其能够识别现有方法漏检的 LUH |
+| 实验二（改进 UQ 方法：ERA） | 完成 | 早期推理归因（Early Rationale Attribution）单前向 UQ 方法，产物见 `docs/ERA早期推理归因不确定性量化方法.md` 与 `src/improvement/` |
+| 下一步研究方向 | 推进中 | 全基准泛化评估、ERA 引导的自适应解码/幻觉抑制与细粒度归因定位 |
 
 采样数固定为 K=10；每个 sample 最多进行 50 次 XML 格式拒绝重采样。greedy 回答和 Judge 标签复用原第一阶段 K=5 运行中的 greedy 部分，不重新生成或重新 Judge；samples、hidden 和 UQ 已按 K=10 重算。目录不再使用 K 作为层级。
 
@@ -54,7 +55,7 @@
 │   ├── umpire_repro/
 │   ├── vauq-repro/                # 保留的独立论文复现
 │   └── vl_uncertainty_repro/      # 保留的独立论文复现
-├── docs/                          # 工程说明、实验设计与历史研究笔记
+├── docs/                          # 工程说明、实验设计与 ERA 方法说明
 ├── prompts/                       # 生成、LoRA 与闭源 Judge 的版本化 Prompt
 ├── results/
 │   ├── generation/<mllm>/{greedy,samples}/
@@ -62,17 +63,19 @@
 │   ├── uq/<mllm>/
 │   ├── judging/<mllm>/
 │   ├── metrics/<mllm>/
-│   ├── analysis/{descriptive,correlation,luh}/
+│   ├── analysis/{descriptive,detection,luh,era}/
 │   └── lora/<mllm>/adapter/
 ├── scripts/
 │   ├── extract_per_model_subset.py     # 每模型 LUH 困难子集提取
-│   ├── analysis/                       # 实验一结果分析（A/B/C1 模块）
+│   ├── improvement/run_era.py          # ERA 特征提取入口
+│   ├── analysis/                       # 实验一结果分析与 ERA 评估
 │   ├── evaluation/compute_metrics.py
 │   ├── generation/generate_responses.py
 │   ├── judging/judge_responses.py
 │   └── uq/compute_uq.py
 ├── src/                           # 数据集、模型、生成、Judge、UQ 和指标公共代码
-├── slurm/                         # LoRA、生成和 UQ 作业入口
+│   └── improvement/               # ERA 改进方法核心实现
+├── slurm/                         # LoRA、生成、UQ 与 ERA 作业入口
 └── tests/
 ```
 
@@ -165,11 +168,31 @@ bash slurm/generation/submit_uq_grid.sh
 （LUH 画像与漏检归因）。产物位于 `results/analysis/{descriptive,detection,luh_profile}/`，
 方案与字段审计见 [实验一结果分析](docs/实验一结果分析.md)。
 
+### 4. 实验二：改进方法 ERA（Early Rationale Attribution）
+
+针对三大传统 Baseline 在低不确定性幻觉（LUH）难例子集上失效（AUROC 仅接近 0.5）的问题，本项目提出了 **ERA（Early Rationale Attribution，早期推理归因）**：
+- **核心机理**：单次前向解耦浅层解码器（Layer 0-1）注意力流向，量化答案决策对自身生成思考（$V+R$）相较于真实外部输入（$I+Q$）的相对依赖比率 $U_{\mathrm{ERA}}$。
+- **评测表现**：在 400 条 LUH 难例子集上，LLaVA-1.5、Qwen2.5-VL 和 InternVL3.5 的 AUROC 分别达到 **0.7147**、**0.6003** 和 **0.5970**，显著超越所有传统 Baseline。
+- **运行命令**：
+  ```bash
+  # 提取 ERA 5 桶注意力分量
+  python scripts/improvement/run_era.py --greedy-input ... --output ...
+  # 运行难例子集对比评估
+  python scripts/analysis/evaluate_era.py
+  ```
+详情见 [ERA 早期推理归因不确定性量化方法](docs/ERA早期推理归因不确定性量化方法.md)。
+
 ## 下一步研究方向
 
-下一步将在每个模型独立构造的低不确定性幻觉子集上改进不确定性量化方法，使新方法能够识别 PPL、Semantic Entropy 和 UMPIRE 难以发现的低不确定性幻觉。每个模型的困难子集包含 200 条低不确定性幻觉正例和 200 条三维 baseline 百分位最近邻匹配的非幻觉负例，三种 baseline 在该子集上的 AUROC 接近 0.5。
+在完成第一阶段主实验与第二阶段 ERA 改进方法的研究后，后续拟重点推进以下三个研究方向：
 
-当前仓库不保留具体改进方法实现；后续方案将在开发模型上确定后冻结，并在其他模型和数据集上做跨模型验证。子集提取流程见 [低不确定性子集提取说明](docs/低不确定性子集提取说明.md)。
+1. **全量基准与跨任务泛化评估（Full-Benchmark Generalization）**：
+   - 将 ERA 从 400 条 LUH 难例子集向全量数据集（ViLP 900 样本、HallusionBench 1,129 样本、MM-Vet 218 样本）以及更多多模态基准（如 POPE、MME）拓展，系统评估其在全局幻觉预测上的鲁棒性。
+2. **ERA 引导的自适应解码与幻觉主动抑制（ERA-Guided Decoding & Mitigation）**：
+   - 将 ERA 从事后检测（Post-hoc Detection）推向生成期主动干预（In-generation Mitigation）。利用浅层注意力异常信号，设计动态注意力调节（Attention Steering）或候选响应自适应重排（Adaptive Re-ranking），直接在推理阶段阻断过度自依赖幻觉。
+3. **实体与属性级细粒度归因（Fine-Grained Entity Attribution & Localization）**：
+   - 进一步细化注意力在自生成上下文（$V$ 与 $R$）各实体、属性与关系 token 上的流动分布，将不确定性精准溯源到具体的幻觉发生点（视觉误识 vs 逻辑谬误）。
+
 
 ## LoRA adapter
 
