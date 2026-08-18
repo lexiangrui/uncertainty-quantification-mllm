@@ -38,6 +38,5 @@ $$
 - **多模态输入构造与对齐**：[`src/improvement/backend.py`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/src/improvement/backend.py)
 - **批量特征提取入口**：[`scripts/improvement/run_era.py`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/scripts/improvement/run_era.py)
 - **LUH 难例全量评估**：[`scripts/analysis/evaluate_era.py`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/scripts/analysis/evaluate_era.py)
-- **分母形式消融**：[`scripts/analysis/ablate_denominator.py`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/scripts/analysis/ablate_denominator.py)
 - **集群调度脚本**：[`slurm/improvement/run_era.sbatch`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/slurm/improvement/run_era.sbatch)
 - **针对性单元测试**：[`tests/improvement/test_era.py`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/tests/improvement/test_era.py)
