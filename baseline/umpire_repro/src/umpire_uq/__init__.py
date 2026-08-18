@@ -1,3 +1,3 @@
-from .method import METHOD_VERSION, UmpireMethod
+from .method import UmpireMethod
 
-__all__ = ["METHOD_VERSION", "UmpireMethod"]
+__all__ = ["UmpireMethod"]

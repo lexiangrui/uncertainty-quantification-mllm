@@ -7,9 +7,6 @@ import torch
 import torch.nn.functional as F
 
 
-METHOD_VERSION = "paper-official-main-v1"
-
-
 class UmpireMethod:
     required_responses = "samples"
 
@@ -22,7 +19,6 @@ class UmpireMethod:
     def runtime_config(self) -> dict:
         return {
             "name": "umpire",
-            "method_version": METHOD_VERSION,
             "paper": "arXiv:2602.24195v1",
             "official_repository": "daohieu17ctt/UMPIRE",
             "response_representation": "normalized_last_layer_final_response_token",

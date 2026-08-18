@@ -16,7 +16,6 @@ from .metrics import (
 )
 
 
-METRICS_OUTPUT_VERSION = "uq-metrics-v2"
 SINGLE_CLASS_REASON = "target labels contain a single class"
 
 
@@ -230,7 +229,6 @@ def run_metrics(
         }
 
     report = {
-        "metrics_output_version": METRICS_OUTPUT_VERSION,
         "uq_input": str(uq_input.resolve()),
         "judge_input": str(judge_input.resolve()),
         "dataset": greedy_run.get("dataset"),

@@ -10,7 +10,7 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
-from .prompts import LORA_XML_INSTRUCTION, LORA_XML_PROMPT_SHA256, LORA_XML_PROMPT_VERSION
+from .prompts import LORA_XML_INSTRUCTION, LORA_XML_PROMPT_SHA256
 
 
 def append_eos(text: str, eos_token: str | None) -> str:
@@ -267,7 +267,6 @@ def train(config: dict, max_train_samples: int | None = None) -> None:
         "assistant_target_ends_with_eos": True,
         "eos_token": processor.tokenizer.eos_token,
         "eos_token_id": processor.tokenizer.eos_token_id,
-        "prompt_version": LORA_XML_PROMPT_VERSION,
         "prompt_sha256": LORA_XML_PROMPT_SHA256,
     }
     (output_dir / "training_config.json").write_text(

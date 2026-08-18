@@ -6,9 +6,6 @@ from dataclasses import dataclass
 from src.llm_judge.nli import PairwiseNLIJudge
 
 
-METHOD_VERSION = "probability-weighted-v2"
-
-
 @dataclass(frozen=True)
 class SemanticEntropyResult:
     semantic_entropy: float
@@ -27,7 +24,6 @@ class SemanticEntropyMethod:
     def runtime_config(self) -> dict:
         return {
             "name": "semantic_entropy",
-            "method_version": METHOD_VERSION,
             "entailment_model": self.entailment.model_id,
             "equivalence": "exact_text_or_strict_bidirectional_entailment",
             "probability": "answer_mean_log_prob_from_transient_raw_logits",

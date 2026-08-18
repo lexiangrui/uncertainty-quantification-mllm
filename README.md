@@ -121,8 +121,8 @@ python3 scripts/generation/generate_responses.py \
 上限为 50。samples 阶段同时写入
 每条采样答案末 token 的最后一层向量到 `results/hidden/<model>/<dataset>/`；不会写入
 greedy 回答或读取 greedy 文件。
-生成指令从 `prompts/generation/xml_lora_zero_shot_v1.md` 显式加载；运行 JSONL 的
-`run` 记录中保存 `prompt_version` 和 `prompt_sha256`，用于锁定实际使用的内容。
+生成指令从 `prompts/generation/xml_lora_zero_shot.md` 显式加载；运行 JSONL 的
+`run` 记录中保存 `prompt_sha256` 用于锁定实际使用的内容。
 
 三模型 × 三数据集的批量提交也按阶段分开执行，不存在同时生成 greedy 与 samples 的入口：
 
@@ -150,8 +150,8 @@ bash slurm/generation/submit_uq_grid.sh
 `scripts/judging/judge_responses.py` 通过 OpenAI-compatible Responses API 调用多模态 Judge，
 并且只接受 `--greedy-input`。服务配置仅从 `OPENAI_BASE_URL` 和 `OPENAI_API_KEY` 环境变量读取。
 闭源 Judge 的评分指令从
-`prompts/judge/closed_source_correctness_hallucination_v1.md` 加载；Judge JSONL 的
-`run` 记录保存 `judge_prompt_version` 和 `judge_prompt_sha256`。
+`prompts/judge/closed_source_judge.md` 加载；Judge JSONL 的
+`run` 记录保存 `judge_prompt_sha256`。
 
 `scripts/evaluation/compute_metrics.py` 将同一模型和数据集的 UQ/Judge JSONL 按 `sample_id` 合并，报告错误检测和幻觉检测的 AUROC、AUPRC、PRR 及 group-level bootstrap 置信区间。
 
@@ -183,16 +183,9 @@ bash slurm/generation/submit_uq_grid.sh
 
 ## 测试
 
-测试依赖未随仓库固定安装。安装项目所需依赖后，可运行第一阶段相关测试：
+测试依赖未随仓库固定安装。安装项目所需依赖后，可通过根目录 `pytest.ini` 直接运行第一阶段相关测试：
 
 ```bash
-pytest -q \
-  tests \
-  LoRA/tests \
-  baseline/perplexity_repro/tests \
-  baseline/semantic_uncertainty_repro/tests \
-  baseline/umpire_repro/tests \
-  --ignore=LoRA/tests/test_reject_resample.py
+pytest
 ```
 
-`LoRA/tests/test_reject_resample.py` 依赖已移除的实现，暂不作为当前验收范围。

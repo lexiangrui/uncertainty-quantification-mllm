@@ -17,7 +17,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "LoRA" / "src"))
 
 from lora_format.format_evaluation import evaluate_response  # noqa: E402
-from src.generation.prompt import XML_LORA_PROMPT_VERSION, build_prompt  # noqa: E402
+from src.generation.prompt import XML_LORA_PROMPT_SHA256, build_prompt  # noqa: E402
 
 
 def read_rows(path: Path) -> list[dict]:
@@ -104,7 +104,7 @@ def main() -> None:
         "model_path": str(args.model_path.resolve()),
         "adapter_path": str(args.adapter_path.resolve()),
         "test_jsonl": str(args.test_jsonl.resolve()),
-        "prompt_version": XML_LORA_PROMPT_VERSION,
+        "prompt_sha256": XML_LORA_PROMPT_SHA256,
         "greedy": {"do_sample": False},
         "sampling": {"do_sample": True, "temperature": 1.0, "num_samples": 10},
         "max_new_tokens": args.max_new_tokens,

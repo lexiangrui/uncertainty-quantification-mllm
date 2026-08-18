@@ -13,7 +13,7 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset, Subset
 
 from .llava_sft import append_eos, read_jsonl
-from .prompts import LORA_XML_INSTRUCTION, LORA_XML_PROMPT_SHA256, LORA_XML_PROMPT_VERSION
+from .prompts import LORA_XML_INSTRUCTION, LORA_XML_PROMPT_SHA256
 
 
 FAMILIES = ("llava_1_5", "qwen2_5_vl", "internvl3_5")
@@ -341,5 +341,5 @@ def train(
 
     model.save_pretrained(output, safe_serialization=True)
     processor.save_pretrained(output)
-    run = {**config, "train_samples": len(rows), "validation_samples": len(validation_rows), "total_updates": total_updates, "trainable_parameters": sum(p.numel() for _, p in trainable), "target_format": "inline_xml", "target_contains_newline": False, "end_token_id": end_token_id, "checkpoint": str(latest_checkpoint), "prompt_version": LORA_XML_PROMPT_VERSION, "prompt_sha256": LORA_XML_PROMPT_SHA256}
+    run = {**config, "train_samples": len(rows), "validation_samples": len(validation_rows), "total_updates": total_updates, "trainable_parameters": sum(p.numel() for _, p in trainable), "target_format": "inline_xml", "target_contains_newline": False, "end_token_id": end_token_id, "checkpoint": str(latest_checkpoint), "prompt_sha256": LORA_XML_PROMPT_SHA256}
     (output / "training_config.json").write_text(json.dumps(run, ensure_ascii=False, indent=2) + "\n")

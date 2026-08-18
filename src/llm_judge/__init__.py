@@ -8,7 +8,6 @@ from .qwen_vl import (
 )
 from .qwen_text import build_text_judge_prompt, parse_text_judge_verdict
 from .closed_source import (
-    JUDGE_PROMPT_VERSION,
     JUDGE_PROMPT_SHA256,
     JUDGE_SYSTEM_PROMPT,
     ClosedSourceJudge,
@@ -29,7 +28,6 @@ __all__ = [
     "MMHAL_SYSTEM_PROMPT",
     "build_multimodal_judge_messages",
     "parse_multimodal_judge_response",
-    "JUDGE_PROMPT_VERSION",
     "JUDGE_PROMPT_SHA256",
     "JUDGE_SYSTEM_PROMPT",
     "build_closed_source_messages",

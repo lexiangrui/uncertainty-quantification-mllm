@@ -9,7 +9,7 @@ from typing import Protocol
 import torch
 
 from src.generation.runner import ResponseSignals
-from src.generation.records import FORMAT_SKIP_POLICY, has_valid_response_format
+from src.generation.records import FORMAT_SKIP_POLICY
 from src.utils import completed_sample_ids, load_jsonl_records, write_sample_json_line
 
 
@@ -135,7 +135,6 @@ def run_split_uq(
     if None in greedy_by_id or len(greedy_by_id) != len(greedy_records):
         raise ValueError("greedy input has invalid or duplicate sample IDs")
     run = {
-        "uq_output_version": "split-uq-v1",
         "greedy_input": str(greedy_input.resolve()),
         "greedy_run": greedy_run,
         "sample_input": str(sample_input.resolve()),

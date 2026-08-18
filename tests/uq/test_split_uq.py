@@ -64,7 +64,6 @@ def test_split_uq_reads_separate_greedy_samples_and_hidden(tmp_path: Path) -> No
 
     assert run_split_uq(greedy_input=greedy, sample_input=samples, output=output, methods=(FakeMethod(),)) == (1, 0)
     rows = [json.loads(line) for line in output.read_text().splitlines()]
-    assert rows[0]["run"]["uq_output_version"] == "split-uq-v1"
     assert rows[1]["uq"]["fake"]["score"] == pytest.approx(-0.2)
     assert run_split_uq(greedy_input=greedy, sample_input=samples, output=output, methods=(FakeMethod(),)) == (0, 1)
 

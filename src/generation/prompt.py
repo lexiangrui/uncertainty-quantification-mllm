@@ -8,10 +8,8 @@ from src.utils.prompts import load_prompt
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _XML_PROMPT = load_prompt(
-    _PROJECT_ROOT / "prompts" / "generation" / "xml_lora_zero_shot_v1.md",
-    version="xml-lora-zero-shot-v1",
+    _PROJECT_ROOT / "prompts" / "generation" / "xml_lora_zero_shot.md"
 )
-XML_LORA_PROMPT_VERSION = _XML_PROMPT.version
 XML_LORA_PROMPT_SHA256 = _XML_PROMPT.sha256
 
 
@@ -23,12 +21,11 @@ class GenerationPrompt:
 
 @dataclass(frozen=True)
 class PromptSpec:
-    version: str
     response_format: str
 
 
 PROMPT_SPECS = {
-    "xml_lora": PromptSpec(XML_LORA_PROMPT_VERSION, "xml"),
+    "xml_lora": PromptSpec("xml"),
 }
 
 
