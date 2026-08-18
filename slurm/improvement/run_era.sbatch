@@ -6,15 +6,15 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=08:00:00
-#SBATCH --output=slurm-%x-%j.out
-#SBATCH --error=slurm-%x-%j.out
+#SBATCH --output=logs/era/%x-%j.out
+#SBATCH --error=logs/era/%x-%j.out
 
-# Usage: sbatch --export=MODEL=llava run_era.sbatch [extra run_era.py args...]
+# Usage: sbatch --export=MODEL=llava slurm/improvement/run_era.sbatch [extra run_era.py args...]
 set -euo pipefail
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
 cd /home/lexiangrui/Uncertainty-Quantification-of-MLLM
-mkdir -p results/era_components/"$MODEL"
+mkdir -p logs/era results/era_components/"$MODEL"
 shift_args=("$@")
 
 case "$MODEL" in
