@@ -30,27 +30,9 @@ U_{\mathrm{ERA}} =
 \frac{\alpha(A\to V) + \alpha(A\to R)}{\alpha(A\to I) + \alpha(A\to Q) + \alpha(A\to V) + \alpha(A\to R) + \epsilon}
 $$
 
-### 理论优势：
-1. **回答长度不变性（Length Invariance）**：
-   分母严格排除了 Answer 内部的局部自回归自注意力（$\alpha(A\to A)$），彻底消除了回答长短、格式词数量对注意力分母的稀释效应。
-2. **纯粹的相对锚定比率（Grounding Odds Ratio）**：
-   $$U_{\mathrm{ERA}} = \frac{\text{自生成先验 (Generated Rationale)}}{\text{外部事实输入 (Ground-truth Inputs)} + \text{自生成先验 (Generated Rationale)}}$$
-   值域在 $[0, 1)$：接近 1 表示答案完全由自生幻觉链主导，接近 0 表示答案完全锚定于客观事实。
-3. **极高计算效率**：
-   仅需**单次 Teacher-Forcing 前向传播**，无需多轮重采样（如 SE、UMPIRE），亦无需外部 NLI 判别器。
-
 ---
 
-## 三、Token 对齐协议
-
-采用原生 Token 序列增量前缀切片：
-1. 直接读取生成阶段保存的 greedy token IDs，剥离尾部 EOS / PAD；
-2. 基于增量解码定位 `<reasoning` 与 `<answer` 的起始 token 索引，切分为三个连续区间；
-3. 零重编码，100% 保持 Teacher Forcing 序列的原生性，短答案样本有效率 100%。
-
----
-
-## 四、工程实现与文件清单
+## 三、工程实现与文件清单
 
 - **核心算法实现**：[`src/improvement/era.py`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/src/improvement/era.py)
 - **多模态输入构造与对齐**：[`src/improvement/backend.py`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/src/improvement/backend.py)
