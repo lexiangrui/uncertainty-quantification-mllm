@@ -30,8 +30,9 @@ for dataset in vilp hallusionbench mmvet; do
     hallusionbench) SRC=/opt/lexiangrui/datasets/HallusionBench/data ;;
     mmvet) SRC=/opt/lexiangrui/datasets/MMVet/data/test-00000-of-00001.parquet ;;
   esac
+  GREEDY_BASE="${GREEDY_DIR:-results/generation_exact}"
   ~/.venvs/vlm-transformers/bin/python scripts/improvement/run_eca.py \
-    --greedy-input results/generation/"$MODEL"/greedy/"$dataset".jsonl \
+    --greedy-input "$GREEDY_BASE"/"$MODEL"/greedy/"$dataset".jsonl \
     --output results/eca_components/"$MODEL"/"$dataset".jsonl \
     --family "$FAM" \
     --model-path "$MP" \
