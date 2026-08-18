@@ -15,8 +15,8 @@ ECA (from eca_components_v4, six-bucket masses incl. tags):
   保留           U_direct = (aAV + aAR + aTags)  / (aAI+aAQ+aAV+aAR+aAA+aTags)
   (tags are self-generated text; the keep variant treats them as such)
 
-Layer band: GCAR first 4 layers (frozen); ECA early band [0, 1/3) per the
-sweep.  LUH subsets, in-sample — same caveat as the other ablations.
+Layer band: GCAR first 4 layers (frozen); ECA layers 0-1 (DIRECT_LAYERS,
+frozen).  LUH subsets, in-sample — same caveat as the other ablations.
 """
 from __future__ import annotations
 
@@ -128,7 +128,7 @@ def main():
         results["gcar"][name] = vals
         print(row)
 
-    print("\n== ECA U_direct：自生成项含/不含 XML 标签（early 带 [0,1/3)）==")
+    print("\n== ECA U_direct：自生成项含/不含 XML 标签（层 0–1）==")
     print(hdr)
     results["eca_U_direct"] = {}
     for name, keep in variants:
@@ -148,8 +148,7 @@ def main():
                             comps[sid] = obj["eca"]
             sids = [s for s in sorted(comps) if s in judge]
             labels = np.array([judge[s] for s in sids], dtype=int)
-            L = max(int(k) for k in comps[sids[0]]["layer_masses"]) + 1
-            v = auroc(eca_direct_variant(comps, sids, band_layers(L, (0.0, 1 / 3)), keep), labels)
+            v = auroc(eca_direct_variant(comps, sids, [0, 1], keep), labels)
             vals[m] = v
             row += f"{v:10.4f}"
         results["eca_U_direct"][name] = vals

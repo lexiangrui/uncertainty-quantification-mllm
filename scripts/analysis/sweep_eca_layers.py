@@ -35,7 +35,7 @@ DATASETS = ("hallusionbench", "vilp", "mmvet")
 def load(model: str, ids: set):
     comps, judge = {}, {}
     for ds in DATASETS:
-        p = PROJECT_ROOT / f"results/eca_components_v3/{model}/{ds}.jsonl"
+        p = PROJECT_ROOT / f"results/eca_components_v4/{model}/{ds}.jsonl"
         if p.exists():
             for obj in load_jsonl_records(p):
                 if obj.get("record_type") != "sample":

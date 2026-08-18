@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Evaluation of ECA on the LUH subsets.
+"""Evaluation of ECA (U_direct) on the LUH subsets.
 
-Layer band is passed explicitly; it is specified in relative depth so it
-maps to each model's layer count.  Per model the per-layer feature values
-are averaged inside the band (U_ECA = mean_l U_ECA^(l)).  Bands chosen
-from the LUH sweep are in-sample for the band choice — label as such.
+The method averages per-layer U_direct over absolute decoder layers
+(default 0 1, frozen 2026-08-18; the layer choice comes from the LUH sweep
+and is therefore in-sample — labelled as such in the docs).
 
 Methods compared on identical samples and judge labels:
-  PPL / SE / UMPIRE (baselines) and the uncertainty-oriented ECA features.
+  PPL / SE / UMPIRE (baselines), ECA (U_direct @ layers), and GCAR
+  (predecessor reference, first 4 layers, from gcar_components_v2).
 """
 from __future__ import annotations
 
@@ -30,34 +30,42 @@ from src.evaluation.metrics import (
     cluster_bootstrap_indices,
     prr,
 )
-from src.improvement.eca import FEATURES, layer_features
+from src.improvement.eca import DIRECT_LAYERS, FEATURES, layer_features
 
 MODELS = ("llava", "qwen", "internvl")
 DATASETS = ("hallusionbench", "vilp", "mmvet")
 BASELINES = ("perplexity", "semantic_entropy", "umpire")
 
 
-def band_mean(feats: dict[int, dict[str, float]], band: tuple[float, float]) -> dict[str, float]:
-    L = max(feats) + 1
-    ls = [l for l in sorted(feats) if band[0] <= l / (L - 1) <= band[1]]
+def layers_mean(feats: dict[int, dict[str, float]], layers: list[int]) -> dict[str, float]:
+    ls = [l for l in layers if l in feats]
     if not ls:
-        raise ValueError(f"layer band {band} selects no layer out of {L}")
+        raise ValueError(f"layers {layers} select none out of {sorted(feats)}")
     return {k: float(np.mean([feats[l][k] for l in ls])) for k in feats[ls[0]]}
+
+
+def gcar_score(v: dict) -> float | None:
+    """GCAR reference from gcar_components_v2 (first 4 layers, tag-free)."""
+    lb = (v or {}).get("layer_breakdown") or {}
+    rows = [lb.get(str(i)) for i in range(4)]
+    if not all(rows) or any(len(r) != 6 for r in rows):
+        return None
+    num = sum(r[1] + r[2] for r in rows)
+    tot = sum(sum(r) - r[3] for r in rows)
+    return num / tot if tot > 1e-12 else None
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--subset", type=Path, default=PROJECT_ROOT / "results/analysis/luh/per_model_subsets.json")
     parser.add_argument("--models", nargs="+", default=list(MODELS))
-    parser.add_argument("--band-rel", nargs=2, type=float, required=True, metavar=("LO", "HI"),
-                        help="locked layer band as relative depth, e.g. 0.33 1.0")
+    parser.add_argument("--layers", nargs="+", type=int, default=list(DIRECT_LAYERS),
+                        help="absolute decoder layers to average (default: 0 1)")
     parser.add_argument("--features", nargs="+", default=list(FEATURES))
-    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "results/analysis/eca/final_evaluation_v3.json")
+    parser.add_argument("--components-dir", type=Path, default=PROJECT_ROOT / "results/eca_components_v4")
+    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "results/analysis/eca/final_evaluation.json")
     parser.add_argument("--bootstrap-samples", type=int, default=1000)
     args = parser.parse_args()
-    band = tuple(args.band_rel)
-    if not 0.0 <= band[0] <= band[1] <= 1.0:
-        parser.error("--band-rel must satisfy 0 <= LO <= HI <= 1")
 
     subsets = json.loads(args.subset.read_text(encoding="utf-8"))
     group_ids = {}
@@ -74,21 +82,31 @@ def main():
                         group_ids[(model, sid)] = f"{ds}:{group_id}"
 
     results = {}
-    print(f"locked band (relative depth): [{band[0]}, {band[1]}]")
+    print(f"ECA layers: {args.layers}")
     print(f"{'model':10s} {'n':>4s} {'method':18s} {'AUROC':>7s} {'CI95':>17s} {'AUPRC':>7s} {'PRR':>7s}")
     for model in args.models:
         sub = subsets[model]
         subset_ids = set(sub["positive_ids"]) | set(sub["negative_ids"])
-        feats, uq, judge = {}, {}, {}
+        feats, gcar, uq, judge = {}, {}, {}, {}
         for ds in DATASETS:
-            p = PROJECT_ROOT / f"results/eca_components_v3/{model}/{ds}.jsonl"
+            p = args.components_dir / f"{model}/{ds}.jsonl"
             if p.exists():
                 for obj in load_jsonl_records(p):
                     if obj.get("record_type") != "sample":
                         continue
                     sid = obj.get("sample", {}).get("sample_id")
                     if sid in subset_ids:
-                        feats[sid] = band_mean(layer_features(obj["eca"]), band)
+                        feats[sid] = layers_mean(layer_features(obj["eca"]), args.layers)
+            p = PROJECT_ROOT / f"results/gcar_components_v2/{model}/{ds}.jsonl"
+            if p.exists():
+                for obj in load_jsonl_records(p):
+                    if obj.get("record_type") != "sample":
+                        continue
+                    sid = obj.get("sample", {}).get("sample_id")
+                    if sid in subset_ids:
+                        sc = gcar_score(obj.get("gcar"))
+                        if sc is not None:
+                            gcar[sid] = sc
             p = PROJECT_ROOT / f"results/uq/{model}/{ds}.jsonl"
             if p.exists():
                 for obj in load_jsonl_records(p):
@@ -120,6 +138,8 @@ def main():
         data = {m: np.array([uq[s][m] for s in sids]) for m in BASELINES}
         for f in args.features:
             data[f] = np.array([feats[s][f] for s in sids])
+        if all(s in gcar for s in sids):
+            data["gcar"] = np.array([gcar[s] for s in sids])
         results[model] = {"n": len(sids), "n_pos": int(labels.sum()), "metrics": {}}
         replicates = cluster_bootstrap_indices(
             groups.tolist(), n_bootstrap=args.bootstrap_samples, seed=0

@@ -40,7 +40,7 @@ GROUPS = ("vision", "reasoning", "answer")
 # so the keep-vs-remove XML-tag ablation is computable offline; it is never
 # part of the semantic feature definitions.
 DESTS = ("image", "prompt_text", "vision", "reasoning", "answer", "tags")
-FEATURES = ("U_image", "U_direct", "U_V", "U_R", "U_ECA")
+FEATURES = ("U_direct",)
 EPS = 1e-8
 
 
@@ -259,32 +259,20 @@ def compute_eca(
     )
 
 
+# Decoder layers the method averages over (frozen 2026-08-18).
+DIRECT_LAYERS = (0, 1)
+
+
 def layer_features(result: dict) -> dict[int, dict[str, float]]:
-    """Convert recorded masses into uncertainty-oriented per-layer features."""
+    """Per-layer U_direct from the recorded masses (XML-tag-free)."""
     heads = result["n_heads"]
     sizes = result["section_tokens"]
-    row_counts = [sizes[name] for name in GROUPS]
+    n_answer = sizes["answer"]
     features = {}
     for layer, masses in result["layer_masses"].items():
-        attn = [
-            [mass / (heads * row_counts[group]) for mass in masses[group]]
-            for group in range(len(GROUPS))
-        ]
-        aVI, aVQ, aVV = attn[0][0], attn[0][1], attn[0][2]
-        aRI, aRQ, aRV, aRR = attn[1][0], attn[1][1], attn[1][2], attn[1][3]
-        aAI, aAQ, aAV, aAR, aAA, _aTags = attn[2]
-        semantic_a = aAI + aAQ + aAV + aAR + aAA
-
-        g_vision = aVI / (aVI + aVQ + aVV + EPS)
-        g_reasoning = (aRI + aRV * g_vision) / (aRI + aRQ + aRV + aRR + EPS)
-        g_answer = (
-            aAI + aAV * g_vision + aAR * g_reasoning
-        ) / (semantic_a + EPS)
+        a = [m / (heads * n_answer) for m in masses[2]]  # answer rows
+        aAI, aAQ, aAV, aAR, aAA = a[0], a[1], a[2], a[3], a[4]
         features[int(layer)] = {
-            "U_image": 1.0 - aAI,
-            "U_direct": (aAV + aAR) / (semantic_a + EPS),
-            "U_V": 1.0 - g_vision,
-            "U_R": 1.0 - g_reasoning,
-            "U_ECA": 1.0 - g_answer,
+            "U_direct": (aAV + aAR) / (aAI + aAQ + aAV + aAR + aAA + EPS),
         }
     return features
