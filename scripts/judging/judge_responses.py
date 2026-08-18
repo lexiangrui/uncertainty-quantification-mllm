@@ -24,7 +24,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", required=True)
     parser.add_argument("--max-tokens", type=int, default=512)
     parser.add_argument("--limit", type=int)
-    parser.add_argument("--concurrency", type=int, default=1)
+    parser.add_argument("--concurrency", "--max-workers", dest="concurrency", type=int, default=10,
+                        help="Number of concurrent judge API requests (default: 10)")
     return parser.parse_args()
 
 

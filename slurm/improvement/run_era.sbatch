@@ -31,9 +31,6 @@ for dataset in vilp hallusionbench mmvet; do
     mmvet) SRC=/opt/lexiangrui/datasets/MMVet/data/test-00000-of-00001.parquet ;;
   esac
   GREEDY_BASE="${GREEDY_DIR:-results/generation}"
-  if [ ! -d "$GREEDY_BASE"/"$MODEL"/greedy ] && [ -d results_archive_exp1/generation_exact/"$MODEL"/greedy ]; then
-    GREEDY_BASE="results_archive_exp1/generation_exact"
-  fi
   ~/.venvs/vlm-transformers/bin/python scripts/improvement/run_era.py \
     --greedy-input "$GREEDY_BASE"/"$MODEL"/greedy/"$dataset".jsonl \
     --output results/era_components/"$MODEL"/"$dataset".jsonl \
