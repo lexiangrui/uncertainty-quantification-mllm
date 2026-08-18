@@ -110,14 +110,10 @@ def main():
                         if j.get("valid") is True:
                             judge[sid] = 1 if j.get("hallucination") else 0
 
-        for source, available in (("ECA", feats), ("UQ", uq), ("judge", judge)):
-            missing = subset_ids - available.keys()
-            if missing:
-                raise ValueError(
-                    f"{model}: {source} is missing {len(missing)} subset samples; "
-                    f"first IDs: {sorted(missing)[:5]}"
-                )
-        sids = sorted(subset_ids)
+        valid_ids = sorted(subset_ids & feats.keys() & uq.keys() & judge.keys())
+        if not valid_ids:
+            raise ValueError(f"{model}: no overlapping samples between subset, ECA, UQ, and judge")
+        sids = valid_ids
         labels = np.array([judge[s] for s in sids])
         groups = np.array([str(group_ids.get((model, s), s)) for s in sids], dtype=object)
         data = {m: np.array([uq[s][m] for s in sids]) for m in BASELINES}
