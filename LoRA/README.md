@@ -39,8 +39,8 @@ checkpoint-latest.pt
 
 这些是可挂载到基础模型的 LoRA adapter，不是合并后的完整模型权重。
 
-训练时的 XML 指令由根目录的 `prompts/LoRA/xml_lora_instruction_v1.md` 显式加载。
-每次训练写出的 `training_config.json` 会记录 `prompt_version` 和 `prompt_sha256`，以便
+训练时的 XML 指令由根目录的 `prompts/LoRA/xml_lora_instruction.md` 显式加载。
+每次训练写出的 `training_config.json` 会记录 `prompt_sha256`，以便
 对应到具体 Prompt 内容。教师数据生成使用的 system prompt 和 few-shot 示例也在
 `prompts/LoRA/teacher_prompt.md` 与 `prompts/LoRA/few_shot_examples.json`；生成记录保存其哈希。
 

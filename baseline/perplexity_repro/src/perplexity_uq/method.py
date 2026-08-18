@@ -3,9 +3,6 @@ from __future__ import annotations
 import math
 
 
-METHOD_VERSION = "answer-span-v1"
-
-
 class PerplexityMethod:
     required_responses = "greedy"
 
@@ -13,7 +10,6 @@ class PerplexityMethod:
     def runtime_config(self) -> dict:
         return {
             "name": "perplexity",
-            "method_version": METHOD_VERSION,
             "response": "greedy_final_answer",
             "probability": "transient_raw_generation_logits",
             "normalization": "token_mean_negative_log_likelihood",

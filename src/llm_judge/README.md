@@ -40,8 +40,8 @@ greedy 回答不调用 API，而是写入 `judge.valid=false` 的审计记录。
 Prompt 版本、生成输入或运行配置不同则拒绝续写。
 
 闭源 Judge 的 system prompt 位于
-`prompts/judge/closed_source_correctness_hallucination_v1.md`。运行 JSONL 的 `run`
-头记录 `judge_prompt_version` 和 `judge_prompt_sha256`，两者共同确定实际调用的 Prompt。
+`prompts/judge/closed_source_judge.md`。运行 JSONL 的 `run`
+头记录 `judge_prompt_sha256` 确定实际调用的 Prompt 内容。
 
 ## 开源 Judge
 

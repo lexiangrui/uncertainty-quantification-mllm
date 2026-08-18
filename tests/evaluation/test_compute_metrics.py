@@ -11,7 +11,6 @@ from src.evaluation import run_metrics
 GREEDY_RUN = {"dataset": "vilp", "model_family": "llava_1_5", "model_id": "llava"}
 
 UQ_RUN = {
-    "uq_output_version": "split-uq-v1",
     "greedy_run": GREEDY_RUN,
     "uq_methods": [{"name": "perplexity"}, {"name": "semantic_entropy"}],
 }
@@ -115,7 +114,6 @@ def test_run_metrics_reports_counts_labels_and_both_targets(tmp_path: Path) -> N
         bootstrap_seed=7,
     )
 
-    assert report["metrics_output_version"] == "uq-metrics-v2"
     assert report["dataset"] == "vilp"
     assert report["model_family"] == "llava_1_5"
     assert report["uq_methods"] == ["perplexity", "semantic_entropy"]

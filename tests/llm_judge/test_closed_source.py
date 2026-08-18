@@ -12,7 +12,6 @@ from src.datasets.base import BenchmarkSample
 from src.llm_judge.closed_source import (
     JUDGE_SYSTEM_PROMPT,
     JUDGE_PROMPT_SHA256,
-    JUDGE_PROMPT_VERSION,
     ClosedSourceJudge,
     build_closed_source_messages,
     parse_closed_source_response,
@@ -34,8 +33,8 @@ def test_prompt_explicitly_requests_lowercase_json() -> None:
     assert "json" in JUDGE_SYSTEM_PROMPT
 
 
-def test_prompt_sha_matches_versioned_file() -> None:
-    path = Path(__file__).resolve().parents[2] / "prompts" / "judge" / "closed_source_correctness_hallucination_v1.md"
+def test_prompt_sha_matches_file() -> None:
+    path = Path(__file__).resolve().parents[2] / "prompts" / "judge" / "closed_source_judge.md"
     text = path.read_text(encoding="utf-8").strip()
     assert hashlib.sha256(text.encode("utf-8")).hexdigest() == JUDGE_PROMPT_SHA256
 
@@ -129,7 +128,7 @@ def test_runner_writes_and_resumes(monkeypatch, tmp_path: Path) -> None:
     source = tmp_path / "source.parquet"
     source.touch()
     greedy_input = tmp_path / "greedy.jsonl"
-    greedy_run = {"prompt_version": "xml-lora-zero-shot-v1"}
+    greedy_run = {"prompt_sha256": "sample_sha256"}
     greedy_input.write_text(
         json.dumps(
             {
@@ -159,7 +158,6 @@ def test_runner_writes_and_resumes(monkeypatch, tmp_path: Path) -> None:
     assert run_closed_source_judging(**kwargs) == (1, 0)
     rows = [json.loads(line) for line in output.read_text().splitlines()]
     assert rows[0]["record_type"] == "run"
-    assert rows[0]["run"]["judge_prompt_version"] == JUDGE_PROMPT_VERSION
     assert rows[0]["run"]["judge_prompt_sha256"] == JUDGE_PROMPT_SHA256
     record = rows[1]
     assert record["record_type"] == "sample"
@@ -187,7 +185,7 @@ def test_runner_records_unseparated_input_without_api_call(monkeypatch, tmp_path
         json.dumps(
             {
                 "record_type": "run",
-                "run": {"prompt_version": "xml-lora-zero-shot-v1"},
+                "run": {"prompt_sha256": "sample_sha256"},
             }
         )
         + "\n"

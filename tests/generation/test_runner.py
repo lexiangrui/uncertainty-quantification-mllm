@@ -9,7 +9,7 @@ from PIL import Image
 
 from src.datasets.base import BenchmarkSample
 from src.generation.runner import _hidden_sidecar_path, run_generation
-from src.generation.prompt import XML_LORA_PROMPT_SHA256, XML_LORA_PROMPT_VERSION
+from src.generation.prompt import XML_LORA_PROMPT_SHA256
 from src.models.base import GeneratedResponse, GenerationBackend, GenerationRequest
 
 
@@ -126,7 +126,6 @@ def test_sample_generation_writes_answers_tokens_and_resumes(monkeypatch, tmp_pa
     assert run["scheduler"]["mixed_greedy_and_sampling"] is False
     assert run["generation_phase"] == "samples"
     assert run["hidden_state_execution"] == "inline_sample_answer_last_token"
-    assert run["prompt_version"] == XML_LORA_PROMPT_VERSION
     assert run["prompt_sha256"] == XML_LORA_PROMPT_SHA256
     assert record["hidden_states"]["shape"] == [5, 4]
     assert "greedy" not in record
@@ -213,8 +212,8 @@ def test_sample_id_filter_runs_only_requested_records(monkeypatch, tmp_path):
     assert {request.sample_id for request in backend.calls[0]} == {"two"}
 
 
-def test_generation_prompt_sha_matches_versioned_file() -> None:
-    path = Path(__file__).resolve().parents[2] / "prompts" / "generation" / "xml_lora_zero_shot_v1.md"
+def test_generation_prompt_sha_matches_file() -> None:
+    path = Path(__file__).resolve().parents[2] / "prompts" / "generation" / "xml_lora_zero_shot.md"
     text = path.read_text(encoding="utf-8").strip()
     assert hashlib.sha256(text.encode("utf-8")).hexdigest() == XML_LORA_PROMPT_SHA256
 

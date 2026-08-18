@@ -14,10 +14,8 @@ from src.utils.prompts import load_prompt
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _JUDGE_PROMPT = load_prompt(
-    _PROJECT_ROOT / "prompts" / "judge" / "closed_source_correctness_hallucination_v1.md",
-    version="closed-source-correctness-hallucination-v1",
+    _PROJECT_ROOT / "prompts" / "judge" / "closed_source_judge.md"
 )
-JUDGE_PROMPT_VERSION = _JUDGE_PROMPT.version
 JUDGE_PROMPT_SHA256 = _JUDGE_PROMPT.sha256
 JUDGE_SYSTEM_PROMPT = _JUDGE_PROMPT.text
 

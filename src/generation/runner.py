@@ -253,7 +253,7 @@ def _write_token_sidecar(output: Path, state: SampleState, *, include_greedy: bo
         raise
     return {
         "path": str(path.relative_to(output.parent)),
-        "format": "generated-token-ids-v1",
+        "format": "generated-token-ids",
         "keys": list(payload),
     }
 
@@ -437,7 +437,6 @@ def run_generation(
         "model_id": backend.model_id,
         "model_path": str(model_path.resolve()),
         "model_runtime": backend.runtime_config,
-        "prompt_version": prompt_spec.version,
         "prompt_sha256": XML_LORA_PROMPT_SHA256,
         "greedy": {"do_sample": False, "temperature": 0.0, "retry": False},
         "sampling": {
@@ -458,7 +457,6 @@ def run_generation(
         "seed": seed,
         "limit": limit,
         "sample_filter": sorted(sample_ids) if sample_ids is not None else None,
-        "generation_output_version": "split-responses-jsonl-v1",
         "hidden_state_execution": (
             "not_collected" if phase == "greedy" else "inline_sample_answer_last_token"
         ),
