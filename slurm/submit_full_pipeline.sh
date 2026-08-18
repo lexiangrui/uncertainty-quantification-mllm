@@ -22,27 +22,17 @@ echo "================================================================="
 
 for MODEL in ${MODELS[*]}; do
   echo ""
-  echo ">>> [Model: $MODEL] Scheduling 4-stage dependency pipeline..."
+  echo ">>> [Model: $MODEL] Scheduling 2-GPU Generation + Chained UQ..."
 
-  # Stage 1: Generation (GPU)
+  # Stage 1: Generation (2 GPUs per model, sequential datasets: vilp -> hallusionbench -> mmvet)
   GEN_OUT=$(sbatch --export=MODEL="$MODEL" slurm/generation/generate.sbatch)
   GEN_ID=$(echo "$GEN_OUT" | awk '{print $4}')
-  echo "  [Stage 1: Generation] Submitted Job ID: $GEN_ID"
+  echo "  [Stage 1: 2-GPU Generation] Submitted Job ID: $GEN_ID"
 
   # Stage 2: UQ Baseline (GPU, depends on Stage 1)
   UQ_OUT=$(sbatch --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL" slurm/uq/compute_uq.sbatch)
   UQ_ID=$(echo "$UQ_OUT" | awk '{print $4}')
-  echo "  [Stage 2: Baseline UQ] Submitted Job ID: $UQ_ID (afterok:$GEN_ID)"
-
-  # Stage 3: LLM Judge (CPU API, depends on Stage 1)
-  JUDGE_OUT=$(sbatch --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL" slurm/judging/judge.sbatch)
-  JUDGE_ID=$(echo "$JUDGE_OUT" | awk '{print $4}')
-  echo "  [Stage 3: LLM Judge]  Submitted Job ID: $JUDGE_ID (afterok:$GEN_ID)"
-
-  # Stage 4: ERA Feature Extraction (GPU, depends on Stage 1)
-  ERA_OUT=$(sbatch --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL" slurm/improvement/run_era.sbatch)
-  ERA_ID=$(echo "$ERA_OUT" | awk '{print $4}')
-  echo "  [Stage 4: ERA Feature] Submitted Job ID: $ERA_ID (afterok:$GEN_ID)"
+  echo "  [Stage 2: Chained UQ]      Submitted Job ID: $UQ_ID (afterok:$GEN_ID)"
 done
 
 echo ""
