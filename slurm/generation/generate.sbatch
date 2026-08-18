@@ -27,7 +27,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 BATCH_SIZE=5
 case "$MODEL" in
   llava)    FAM=llava_1_5;  MP=/opt/lexiangrui/models/llava-1.5-7b-hf;     AD=results/lora/llava/adapter ;;
-  qwen)     FAM=qwen2_5_vl; MP=/opt/lexiangrui/models/Qwen2.5-VL-7B-Instruct; AD=results/lora/qwen/adapter; BATCH_SIZE=4 ;;
+  qwen)     FAM=qwen2_5_vl; MP=/opt/lexiangrui/models/Qwen2.5-VL-7B-Instruct; AD=results/lora/qwen/adapter ;;
   internvl) FAM=internvl3_5; MP=/opt/lexiangrui/models/InternVL3_5-8B-HF;    AD=results/lora/internvl/adapter ;;
   *) echo "unknown MODEL=$MODEL" >&2; exit 1 ;;
 esac
