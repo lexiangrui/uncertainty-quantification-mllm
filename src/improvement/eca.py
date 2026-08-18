@@ -36,7 +36,10 @@ from src.improvement.backend import EcaBackend
 _CHUNK = 256
 
 GROUPS = ("vision", "reasoning", "answer")
-DESTS = ("image", "prompt_text", "vision", "reasoning", "answer")
+# Bucket 5 ("tags") records XML tag / whitespace tokens on the generated side
+# so the keep-vs-remove XML-tag ablation is computable offline; it is never
+# part of the semantic feature definitions.
+DESTS = ("image", "prompt_text", "vision", "reasoning", "answer", "tags")
 FEATURES = ("U_image", "U_direct", "U_V", "U_R", "U_ECA")
 EPS = 1e-8
 
@@ -46,7 +49,7 @@ class EcaResult:
     n_visual_tokens: int
     n_heads: int
     section_tokens: dict[str, int]  # rows per group = section token count
-    # {layer: [[mI, mQ, mV, mR, mA] per source group, in GROUPS order]}
+    # {layer: [[mI, mQ, mV, mR, mA, mTags] per source group, in GROUPS order]}
     layer_masses: dict[int, list[list[float]]]
 
     def to_dict(self) -> dict:
@@ -126,22 +129,20 @@ class _EcaAccumulator:
             or self._onehot.device != probs.device
         ):
             bucket = self.col_bucket.to(probs.device)
-            self._onehot = torch.nn.functional.one_hot(
-                bucket.clamp_min(0), num_classes=5
-            ).float() * (bucket >= 0).unsqueeze(-1).float()
+            self._onehot = torch.nn.functional.one_hot(bucket, num_classes=6).float()
         masses = col_rows @ self._onehot  # (n_sel, 5)
 
         mask = (p >= row_start) & (p < row_start + probs.shape[2])
         labels = self.row_groups.to(probs.device)[mask]
         entry = self.layer_masses.get(layer)
         if entry is None:
-            entry = self.layer_masses[layer] = [[0.0] * 5 for _ in GROUPS]
+            entry = self.layer_masses[layer] = [[0.0] * 6 for _ in GROUPS]
         for g in range(len(GROUPS)):
             m = masses[labels == g]
             if m.numel():
                 row = m.sum(dim=0).tolist()
                 acc = entry[g]
-                for b in range(5):
+                for b in range(6):
                     acc[b] += row[b]
 
 
@@ -216,9 +217,9 @@ def compute_eca(
         for group, (s, e) in enumerate(spans.values())
     ])
 
-    # Destination bucket per position: 0 image, 1 question, 2 V, 3 R, 4 A;
-    # tag-gap tokens between sections stay unbucketed (-1).
-    col_bucket = torch.full((seq_len,), -1, dtype=torch.long)
+    # Destination bucket per position: 0 image, 1 question, 2 V, 3 R, 4 A,
+    # 5 generated-side XML tags / gaps.  Every position is bucketed.
+    col_bucket = torch.full((seq_len,), 5, dtype=torch.long)  # tags default
     col_bucket[:prompt_length] = 1  # non-image prompt side (image set below)
     col_bucket[visual_mask.cpu()] = 0
     col_bucket[v0:v1] = 2
@@ -271,16 +272,17 @@ def layer_features(result: dict) -> dict[int, dict[str, float]]:
         ]
         aVI, aVQ, aVV = attn[0][0], attn[0][1], attn[0][2]
         aRI, aRQ, aRV, aRR = attn[1][0], attn[1][1], attn[1][2], attn[1][3]
-        aAI, aAQ, aAV, aAR, aAA = attn[2]
+        aAI, aAQ, aAV, aAR, aAA, _aTags = attn[2]
+        semantic_a = aAI + aAQ + aAV + aAR + aAA
 
         g_vision = aVI / (aVI + aVQ + aVV + EPS)
         g_reasoning = (aRI + aRV * g_vision) / (aRI + aRQ + aRV + aRR + EPS)
         g_answer = (
             aAI + aAV * g_vision + aAR * g_reasoning
-        ) / (aAI + aAQ + aAV + aAR + aAA + EPS)
+        ) / (semantic_a + EPS)
         features[int(layer)] = {
             "U_image": 1.0 - aAI,
-            "U_direct": (aAV + aAR) / (sum(attn[2]) + EPS),
+            "U_direct": (aAV + aAR) / (semantic_a + EPS),
             "U_V": 1.0 - g_vision,
             "U_R": 1.0 - g_reasoning,
             "U_ECA": 1.0 - g_answer,

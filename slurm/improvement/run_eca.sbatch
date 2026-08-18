@@ -14,7 +14,7 @@ set -euo pipefail
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
 cd /home/lexiangrui/Uncertainty-Quantification-of-MLLM
-mkdir -p logs/eca results/eca_components_v3/"$MODEL"
+mkdir -p logs/eca results/eca_components_v4/"$MODEL"
 shift_args=("$@")
 
 case "$MODEL" in
@@ -32,7 +32,7 @@ for dataset in vilp hallusionbench mmvet; do
   esac
   ~/.venvs/vlm-transformers/bin/python scripts/improvement/run_eca.py \
     --greedy-input results/generation/"$MODEL"/greedy/"$dataset".jsonl \
-    --output results/eca_components_v3/"$MODEL"/"$dataset".jsonl \
+    --output results/eca_components_v4/"$MODEL"/"$dataset".jsonl \
     --family "$FAM" \
     --model-path "$MP" \
     --adapter-path "$AD" \
