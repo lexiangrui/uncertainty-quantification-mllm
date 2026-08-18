@@ -1,4 +1,4 @@
-"""Model backend for ECA input construction."""
+"""Model backend for ERA (Early Rationale Attribution) input construction."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,10 +8,10 @@ import torch
 from src.generation.prompt import build_prompt
 
 
-class EcaBackend:
-    """Loads a multimodal model and builds teacher-forcing inputs for ECA.
+class EraBackend:
+    """Loads a multimodal model and builds teacher-forcing inputs for ERA.
 
-    ECA needs attention weights, so attention must return them — pass
+    ERA needs attention weights, so attention must return them — pass
     ``attn_implementation="eager"`` (the default here).
     """
 
@@ -203,3 +203,7 @@ class EcaBackend:
                 full_inputs[key] = torch.cat([val, pad], dim=-1)
 
         return full_inputs, prompt_length, generated_buckets
+
+
+# Backward-compatible alias
+EcaBackend = EraBackend
