@@ -14,7 +14,7 @@ set -euo pipefail
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
 cd /home/lexiangrui/Uncertainty-Quantification-of-MLLM
-mkdir -p results/eca_components/"$MODEL"
+mkdir -p results/era_components/"$MODEL"
 shift_args=("$@")
 
 case "$MODEL" in
@@ -30,10 +30,13 @@ for dataset in vilp hallusionbench mmvet; do
     hallusionbench) SRC=/opt/lexiangrui/datasets/HallusionBench/data ;;
     mmvet) SRC=/opt/lexiangrui/datasets/MMVet/data/test-00000-of-00001.parquet ;;
   esac
-  GREEDY_BASE="${GREEDY_DIR:-results/generation_exact}"
+  GREEDY_BASE="${GREEDY_DIR:-results/generation}"
+  if [ ! -d "$GREEDY_BASE"/"$MODEL"/greedy ] && [ -d results_archive_exp1/generation_exact/"$MODEL"/greedy ]; then
+    GREEDY_BASE="results_archive_exp1/generation_exact"
+  fi
   ~/.venvs/vlm-transformers/bin/python scripts/improvement/run_era.py \
     --greedy-input "$GREEDY_BASE"/"$MODEL"/greedy/"$dataset".jsonl \
-    --output results/eca_components/"$MODEL"/"$dataset".jsonl \
+    --output results/era_components/"$MODEL"/"$dataset".jsonl \
     --family "$FAM" \
     --model-path "$MP" \
     --adapter-path "$AD" \
