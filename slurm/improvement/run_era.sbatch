@@ -9,14 +9,13 @@
 #SBATCH --output=logs/era/%x-%j.out
 #SBATCH --error=logs/era/%x-%j.out
 
-# Usage: sbatch --export=MODEL=llava,RUN_ID=my-run slurm/improvement/run_era.sbatch [extra run_era.py args...]
+# Usage: sbatch --export=MODEL=llava slurm/improvement/run_era.sbatch [extra run_era.py args...]
 set -euo pipefail
 source "${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}/slurm/common.sh"
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
-RUN_ID=${RUN_ID:?RUN_ID must identify this pipeline run}
 cd "$PROJECT_ROOT"
-mkdir -p logs/era results/era_components/"$RUN_ID"/"$MODEL"
+mkdir -p logs/era results/era_components/"$MODEL"
 shift_args=("$@")
 
 case "$MODEL" in
@@ -27,18 +26,22 @@ case "$MODEL" in
 esac
 
 for dataset in vilp hallusionbench mmvet; do
+  exec 9>"results/era_components/$MODEL/.${dataset}.lock"
+  flock 9
   case "$dataset" in
     vilp) SRC="$DATA_ROOT/vilp/ViLP.parquet" ;;
     hallusionbench) SRC="$DATA_ROOT/HallusionBench/data" ;;
     mmvet) SRC="$DATA_ROOT/MMVet/data/test-00000-of-00001.parquet" ;;
   esac
-  GREEDY_BASE="${GREEDY_DIR:-results/generation/$RUN_ID/generation}"
+  GREEDY_BASE="${GREEDY_DIR:-results/generation}"
   "$HF_PYTHON" scripts/improvement/run_era.py \
     --greedy-input "$GREEDY_BASE"/"$MODEL"/greedy/"$dataset".jsonl \
-    --output results/era_components/"$RUN_ID"/"$MODEL"/"$dataset".jsonl \
+    --output results/era_components/"$MODEL"/"$dataset".jsonl \
     --family "$FAM" \
     --model-path "$MP" \
     --adapter-path "$AD" \
     --dataset-source "$SRC" \
     "${shift_args[@]}"
+  flock -u 9
+  exec 9>&-
 done

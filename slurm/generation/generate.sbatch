@@ -13,13 +13,12 @@
 # Stage 1: vLLM continuous batching generation (greedy + K=10 samples)
 # Stage 2: HuggingFace single-pass forward backfill for UMPIRE hidden states
 #
-# Usage: sbatch --export=MODEL=llava,RUN_ID=my-run slurm/generation/generate.sbatch
+# Usage: sbatch --export=MODEL=llava slurm/generation/generate.sbatch
 set -euo pipefail
 trap 'echo "SCRIPT FAILED at line $LINENO (exit $?)" >&2' ERR
 source "${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}/slurm/common.sh"
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
-RUN_ID=${RUN_ID:?RUN_ID must identify this pipeline run}
 cd "$PROJECT_ROOT"
 mkdir -p logs/generation
 
@@ -38,9 +37,11 @@ case "$MODEL" in
   *) echo "unknown MODEL=$MODEL" >&2; exit 1 ;;
 esac
 
-mkdir -p "results/generation/$RUN_ID/generation/$MODEL/greedy" "results/generation/$RUN_ID/generation/$MODEL/samples"
+mkdir -p "results/generation/$MODEL/greedy" "results/generation/$MODEL/samples"
 
 for dataset in vilp hallusionbench mmvet; do
+  exec 9>"results/generation/$MODEL/.${dataset}.lock"
+  flock 9
   case $dataset in
     vilp) SRC="$DATA_ROOT/vilp/ViLP.parquet" ;;
     hallusionbench) SRC="$DATA_ROOT/HallusionBench/data" ;;
@@ -56,7 +57,7 @@ for dataset in vilp hallusionbench mmvet; do
     --model-family "$FAM" \
     --model-path "$MP" \
     --adapter-path "$AD" \
-    --output "results/generation/$RUN_ID/generation/$MODEL/greedy/$dataset.jsonl" \
+    --output "results/generation/$MODEL/greedy/$dataset.jsonl" \
     --phase greedy \
     --num-samples 0 \
     --engine vllm \
@@ -76,7 +77,7 @@ for dataset in vilp hallusionbench mmvet; do
     --model-family "$FAM" \
     --model-path "$MP" \
     --adapter-path "$AD" \
-    --output "results/generation/$RUN_ID/generation/$MODEL/samples/$dataset.jsonl" \
+    --output "results/generation/$MODEL/samples/$dataset.jsonl" \
     --phase samples \
     --num-samples 10 \
     --reject-resample-k 50 \
@@ -97,5 +98,7 @@ for dataset in vilp hallusionbench mmvet; do
     --model-family "$FAM" \
     --model-path "$MP" \
     --adapter-path "$AD" \
-    --samples-input "results/generation/$RUN_ID/generation/$MODEL/samples/$dataset.jsonl"
+    --samples-input "results/generation/$MODEL/samples/$dataset.jsonl"
+  flock -u 9
+  exec 9>&-
 done

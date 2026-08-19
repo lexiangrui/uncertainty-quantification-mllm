@@ -12,14 +12,13 @@
 # Two-Stage Decoupled Pipeline:
 # Stage 1: vLLM continuous batching generation (greedy + K=10 samples)
 # Stage 2: HuggingFace single-pass forward backfill for UMPIRE hidden states
-# Usage: sbatch --export=MODEL=llava,DATASET=vilp,RUN_ID=my-run slurm/generation/generate_single.sbatch
+# Usage: sbatch --export=MODEL=llava,DATASET=vilp slurm/generation/generate_single.sbatch
 set -euo pipefail
 trap 'echo "SCRIPT FAILED at line $LINENO (exit $?)" >&2' ERR
 source "${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}/slurm/common.sh"
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
 DATASET=${DATASET:?DATASET must be vilp|hallusionbench|mmvet}
-RUN_ID=${RUN_ID:?RUN_ID must identify this pipeline run}
 cd "$PROJECT_ROOT"
 mkdir -p logs/generation
 
@@ -45,7 +44,9 @@ case "$DATASET" in
   *) echo "unknown DATASET=$DATASET" >&2; exit 1 ;;
 esac
 
-mkdir -p "results/generation/$RUN_ID/generation/$MODEL/greedy" "results/generation/$RUN_ID/generation/$MODEL/samples"
+mkdir -p "results/generation/$MODEL/greedy" "results/generation/$MODEL/samples"
+exec 9>"results/generation/$MODEL/.${DATASET}.lock"
+flock 9
 
 echo "========================================================================"
 echo " [Stage 1.1] vLLM Greedy Generation: model=$MODEL dataset=$DATASET"
@@ -56,7 +57,7 @@ $PYTHON_BIN scripts/generation/generate_responses.py \
   --model-family "$FAM" \
   --model-path "$MP" \
   --adapter-path "$AD" \
-  --output "results/generation/$RUN_ID/generation/$MODEL/greedy/$DATASET.jsonl" \
+  --output "results/generation/$MODEL/greedy/$DATASET.jsonl" \
   --phase greedy \
   --num-samples 0 \
   --engine vllm \
@@ -76,7 +77,7 @@ $PYTHON_BIN scripts/generation/generate_responses.py \
   --model-family "$FAM" \
   --model-path "$MP" \
   --adapter-path "$AD" \
-  --output "results/generation/$RUN_ID/generation/$MODEL/samples/$DATASET.jsonl" \
+  --output "results/generation/$MODEL/samples/$DATASET.jsonl" \
   --phase samples \
   --num-samples 10 \
   --reject-resample-k 50 \
@@ -97,7 +98,10 @@ $HF_PYTHON_BIN scripts/generation/backfill_hidden_states.py \
   --model-family "$FAM" \
   --model-path "$MP" \
   --adapter-path "$AD" \
-  --samples-input "results/generation/$RUN_ID/generation/$MODEL/samples/$DATASET.jsonl"
+  --samples-input "results/generation/$MODEL/samples/$DATASET.jsonl"
+
+flock -u 9
+exec 9>&-
 
 echo ""
 echo "=== Two-Stage Generation Pipeline completed successfully for $MODEL on $DATASET ==="

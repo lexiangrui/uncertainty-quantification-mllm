@@ -17,8 +17,6 @@ if (($#)); then
 else
   MODELS=(llava qwen internvl)
 fi
-RUN_ID="full-$(date +%Y%m%d-%H%M%S)-$$"
-
 cd "$PROJECT_ROOT"
 mkdir -p logs/{generation,uq,judging,era}
 
@@ -32,11 +30,11 @@ for MODEL in "${MODELS[@]}"; do
   echo ">>> [Model: $MODEL] Scheduling Generation+Backfill -> UQ..."
 
   # Generation performs Stage 1 (vLLM) and Stage 2 (HF backfill) for all datasets.
-  GEN_ID=$(sbatch --parsable --export=ALL,MODEL="$MODEL",RUN_ID="$RUN_ID-$MODEL" slurm/generation/generate.sbatch)
+  GEN_ID=$(sbatch --parsable --export=ALL,MODEL="$MODEL" slurm/generation/generate.sbatch)
   echo "  [Generation + Backfill] $GEN_ID"
 
   # UQ is allowed to start only after the complete generation/backfill job succeeds.
-  UQ_ID=$(sbatch --parsable --dependency=afterok:"$GEN_ID" --export=ALL,MODEL="$MODEL",RUN_ID="$RUN_ID-$MODEL" slurm/uq/compute_uq.sbatch)
+  UQ_ID=$(sbatch --parsable --dependency=afterok:"$GEN_ID" --export=ALL,MODEL="$MODEL" slurm/uq/compute_uq.sbatch)
   echo "  [UQ]                     $UQ_ID (afterok:$GEN_ID)"
 done
 
