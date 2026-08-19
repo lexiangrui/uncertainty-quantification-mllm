@@ -443,20 +443,12 @@ def run_generation(
             "reject_resample_k": reject_resample_k,
         },
         "generation_phase": phase,
-        "scheduler": {
-            "type": "transformers_role_separated_dynamic_batching",
-            "max_batch_size": max_batch_size,
-            "request_window_samples": request_window_samples,
-            "mixed_greedy_and_sampling": False,
-            "adaptive_oom_split": True,
-        },
+        "scheduler": scheduler_info,
         "max_new_tokens": max_new_tokens,
         "seed": seed,
         "limit": limit,
         "sample_filter": sorted(sample_ids) if sample_ids is not None else None,
-        "hidden_state_execution": (
-            "not_collected" if phase == "greedy" else "inline_sample_answer_last_token"
-        ),
+        "hidden_state_execution": hidden_exec,
         "uq_execution": "separate_split_inputs",
     }
     completed = completed_sample_ids(output, run)
@@ -469,20 +461,12 @@ def run_generation(
     active: dict[str, SampleState] = {}
     pending_greedy: list[GenerationRequest] = []
     pending_sample: list[GenerationRequest] = []
-    exhausted = False
-    written = 0
-    skipped = len(completed)
-    generation_seconds = 0.0
-    write_seconds = 0.0
 
     def fill_window() -> None:
-        nonlocal exhausted
-        new_request_sets: list[list[GenerationRequest]] = []
-        while not exhausted and len(active) < request_window_samples:
+        while len(active) < request_window_samples:
             try:
                 sample = next(source)
             except StopIteration:
-                exhausted = True
                 break
             state = _new_state(sample, num_samples, require_greedy=phase != "samples")
             active[sample.sample_id] = state
@@ -492,21 +476,25 @@ def run_generation(
             if phase != "samples":
                 pending_greedy.append(requests[0])
                 requests = requests[1:]
-            new_request_sets.append(requests)
-        # Round-robin sampled draws across newly admitted samples. This keeps
-        # a batch from being dominated by five copies of the same image while
-        # preserving separate greedy and temperature=1 generate calls.
-        for draw_index in range(num_samples):
-            pending_sample.extend(
-                requests[draw_index] for requests in new_request_sets
-            )
+            for draw_index, req in enumerate(requests):
+                pending_sample.append(req)
 
     fill_window()
+    dispatch_batch_size = (
+        max(max_batch_size, backend.runtime_config.get("max_num_seqs", 16) * 4)
+        if engine_name == "vllm"
+        else max_batch_size
+    )
+    written = 0
+    skipped = len(completed)
+    generation_seconds = 0.0
+    write_seconds = 0.0
+
     while active:
         if not pending_greedy and not pending_sample:
             raise RuntimeError("dynamic generation queue stalled with active samples")
         queue = pending_greedy if pending_greedy else pending_sample
-        pending = queue[:max_batch_size]
+        pending = queue[:dispatch_batch_size]
         del queue[: len(pending)]
         started = time.perf_counter()
         generated = backend.generate_requests(

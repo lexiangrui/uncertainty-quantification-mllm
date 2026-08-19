@@ -59,6 +59,7 @@ $PYTHON_BIN scripts/generation/generate_responses.py \
   --engine vllm \
   --gpu-memory-utilization 0.85 \
   --max-num-seqs 16 \
+  --request-window-samples 64 \
   --seed 42 \
   --max-new-tokens 512
 
@@ -79,6 +80,7 @@ $PYTHON_BIN scripts/generation/generate_responses.py \
   --engine vllm \
   --gpu-memory-utilization 0.85 \
   --max-num-seqs 16 \
+  --request-window-samples 64 \
   --seed 42 \
   --max-new-tokens 512
 
