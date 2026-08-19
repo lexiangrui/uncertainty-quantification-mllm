@@ -11,7 +11,7 @@
 
 # Usage: sbatch --export=MODEL=llava,RUN_ID=my-run slurm/improvement/run_era.sbatch [extra run_era.py args...]
 set -euo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/../common.sh"
+source "${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}/slurm/common.sh"
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
 RUN_ID=${RUN_ID:?RUN_ID must identify this pipeline run}

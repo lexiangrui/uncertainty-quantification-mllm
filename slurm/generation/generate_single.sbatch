@@ -15,7 +15,7 @@
 # Usage: sbatch --export=MODEL=llava,DATASET=vilp,RUN_ID=my-run slurm/generation/generate_single.sbatch
 set -euo pipefail
 trap 'echo "SCRIPT FAILED at line $LINENO (exit $?)" >&2' ERR
-source "$(dirname "${BASH_SOURCE[0]}")/../common.sh"
+source "${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}/slurm/common.sh"
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
 DATASET=${DATASET:?DATASET must be vilp|hallusionbench|mmvet}

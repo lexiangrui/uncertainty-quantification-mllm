@@ -12,7 +12,7 @@
 # Single unit UQ computation (PPL / SE / UMPIRE) for one (MODEL, DATASET) pair.
 # Usage: sbatch --export=MODEL=llava,DATASET=vilp,RUN_ID=my-run slurm/uq/compute_uq_single.sbatch
 set -euo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/../common.sh"
+source "${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}/slurm/common.sh"
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
 DATASET=${DATASET:?DATASET must be vilp|hallusionbench|mmvet}

@@ -11,7 +11,7 @@
 
 set -euo pipefail
 trap 'echo "SMOKE FAILED at line $LINENO (exit $?)" >&2' ERR
-source "$(dirname "${BASH_SOURCE[0]}")/../common.sh"
+source "${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}/slurm/common.sh"
 
 cd "$PROJECT_ROOT"
 mkdir -p logs/generation
