@@ -75,6 +75,16 @@ def module_a2() -> tuple[list[dict], list[dict]]:
         for dataset in DATASETS:
             ev = evaluated(load_cell(model, dataset))
             n = len(ev)
+            if not ev:
+                stats_rows.append({
+                    "model": model, "dataset": dataset, "n_greedy": len(greedy),
+                    "n_sections_valid": sum(1 for g in greedy.values() if g["sections_valid"]),
+                    "n_sections_invalid": sum(1 for g in greedy.values() if not g["sections_valid"]),
+                    "n_judge_valid": len(records), "n_evaluated": 0,
+                    **{f"n_{method}_valid": 0 for method in METHODS},
+                    "n_all3_valid": 0,
+                })
+                continue
             correct = np.array([1 if r["correct"] else 0 for r in ev])
             hallu = np.array([1 if r["hallucination"] else 0 for r in ev])
             acc_ci = cluster_ci(lambda idx: float(correct[idx].mean()), ev)

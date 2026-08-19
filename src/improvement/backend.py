@@ -203,7 +203,3 @@ class EraBackend:
                 full_inputs[key] = torch.cat([val, pad], dim=-1)
 
         return full_inputs, prompt_length, generated_buckets
-
-
-# Backward-compatible alias
-EcaBackend = EraBackend

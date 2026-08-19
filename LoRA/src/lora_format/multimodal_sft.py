@@ -32,7 +32,14 @@ def render_training_text(processor, family: str, question: str, response: str) -
         "role": "user",
         "content": [
             {"type": "image"},
-            {"type": "text", "text": f"{LORA_XML_INSTRUCTION}\n\nQuestion: {question}"},
+            {
+                "type": "text",
+                "text": (
+                    f"{LORA_XML_INSTRUCTION}\n\n"
+                    "[Image]\nThe image is attached to this message.\n\n"
+                    f"[Question]\n{question.strip()}"
+                ),
+            },
         ],
     }
     prompt = _chat_template(processor, [user], add_generation_prompt=True)

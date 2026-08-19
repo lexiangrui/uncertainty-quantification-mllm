@@ -110,12 +110,11 @@ def main() -> None:
             del full_inputs
             continue
 
-        # Save record (supports both 'era' and 'eca' keys for full backward compatibility)
         payload = result.to_dict()
         write_sample_json_line(
             args.output,
             run,
-            {"sample": {"sample_id": sid}, "era": payload, "eca": payload},
+            {"sample": {"sample_id": sid}, "era": payload},
         )
         written += 1
         del full_inputs

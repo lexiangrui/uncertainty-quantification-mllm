@@ -1,4 +1,5 @@
 from lora_format.format_evaluation import evaluate_response, normalize_vqa
+from lora_format.xml import build_xml_response
 
 
 VALID = "<vision>Two dogs are visible.</vision><reasoning>Counting them gives two.</reasoning><answer>two</answer>"
@@ -29,3 +30,11 @@ def test_missing_or_reordered_sections_are_detected() -> None:
 
 def test_vqa_normalization() -> None:
     assert normalize_vqa("The TWO.") == normalize_vqa("2")
+
+
+def test_xml_escape_round_trip_preserves_ampersand_answer() -> None:
+    response = build_xml_response("A sign is visible.", "Read the sign.", "ben & jerry's")
+    result = evaluate_response(response, "ben & jerry's")
+    assert result["strict_xml_valid"] is True
+    assert result["parsed"]["answer"] == "ben & jerry's"
+    assert result["answer_correct"] is True

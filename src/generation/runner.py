@@ -165,10 +165,18 @@ def _response_record(
         )
     ):
         raise ValueError("answer log probability is not finite")
-    hidden_index = token_end if len(response.hidden_steps) > token_end else token_end - 1
+    hidden_steps = response.hidden_steps
+    if hidden_steps is not None and (
+        hidden_steps.ndim != 2 or hidden_steps.shape[1] == 0
+    ):
+        raise ValueError("hidden_steps must be a [generated_steps, hidden_size] CPU tensor")
+    hidden_index = (
+        token_end if hidden_steps is not None and hidden_steps.shape[0] > token_end
+        else token_end - 1
+    )
     final_hidden = (
-        response.hidden_steps[hidden_index]
-        if response.hidden_steps and hidden_index >= 0
+        tuple(float(value) for value in hidden_steps[hidden_index].tolist())
+        if hidden_steps is not None and hidden_index >= 0
         else ()
     )
     signals = ResponseSignals(
@@ -203,25 +211,22 @@ def _hidden_sidecar_path(output: Path, sample_id: str) -> tuple[Path, dict]:
     """Return the canonical hidden-state location and its JSONL descriptor."""
     try:
         relative = output.resolve().relative_to(PROJECT_ROOT / "results")
+        if (
+            len(relative.parts) == 4
+            and relative.parts[0] == "generation"
+            and relative.parts[2] == "samples"
+        ):
+            directory = PROJECT_ROOT / "results" / "hidden" / relative.parts[1] / output.stem
+            path = directory / _sidecar_filename(sample_id)
+            return path, {
+                "path": str(path.relative_to(PROJECT_ROOT / "results" / "hidden")),
+                "storage": "results_hidden",
+            }
     except ValueError:
-        directory = output.with_suffix(".hidden")
-        path = directory / _sidecar_filename(sample_id)
-        return path, {"path": str(path.relative_to(output.parent)), "storage": "generation_adjacent"}
-    if (
-        len(relative.parts) != 4
-        or relative.parts[0] != "generation"
-        or relative.parts[2] != "samples"
-    ):
-        raise ValueError(
-            "samples output must use results/generation/<model>/samples/<dataset>.jsonl: "
-            f"{output}"
-        )
-    directory = PROJECT_ROOT / "results" / "hidden" / relative.parts[1] / output.stem
+        pass
+    directory = output.with_suffix(".hidden")
     path = directory / _sidecar_filename(sample_id)
-    return path, {
-        "path": str(path.relative_to(PROJECT_ROOT / "results" / "hidden")),
-        "storage": "results_hidden",
-    }
+    return path, {"path": str(path.relative_to(output.parent)), "storage": "generation_adjacent"}
 
 
 def _write_token_sidecar(output: Path, state: SampleState, *, include_greedy: bool) -> dict:
@@ -430,13 +435,40 @@ def run_generation(
     if sample_ids is not None and not sample_ids:
         raise ValueError("sample_ids must be non-empty when provided")
     prompt_spec = get_prompt_spec(prompt_style)
+    runtime_config = backend.runtime_config
+    engine_name = runtime_config.get("engine", "unknown")
+    dispatch_batch_size = (
+        max(max_batch_size, int(runtime_config.get("max_num_seqs", 16)) * 4)
+        if engine_name == "vllm"
+        else max_batch_size
+    )
+    scheduler_info = {
+        "type": (
+            "vllm_continuous_batching"
+            if engine_name == "vllm"
+            else "transformers_role_separated_dynamic_batching"
+        ),
+        "max_batch_size": dispatch_batch_size,
+        "request_window_samples": request_window_samples,
+        "mixed_greedy_and_sampling": False,
+        "adaptive_oom_split": engine_name != "vllm",
+    }
+    hidden_exec = (
+        "not_collected"
+        if phase == "greedy"
+        else (
+            "pending_hf_teacher_forcing_backfill"
+            if engine_name == "vllm"
+            else "inline_sample_answer_last_token"
+        )
+    )
     run = {
         "dataset": dataset,
         "dataset_source": str(dataset_source.resolve()),
         "model_family": family,
         "model_id": backend.model_id,
         "model_path": str(model_path.resolve()),
-        "model_runtime": backend.runtime_config,
+        "model_runtime": runtime_config,
         "prompt_sha256": XML_LORA_PROMPT_SHA256,
         "greedy": {"do_sample": False, "temperature": 0.0, "retry": False},
         "sampling": {
@@ -446,20 +478,12 @@ def run_generation(
             "reject_resample_k": reject_resample_k,
         },
         "generation_phase": phase,
-        "scheduler": {
-            "type": "transformers_role_separated_dynamic_batching",
-            "max_batch_size": max_batch_size,
-            "request_window_samples": request_window_samples,
-            "mixed_greedy_and_sampling": False,
-            "adaptive_oom_split": True,
-        },
+        "scheduler": scheduler_info,
         "max_new_tokens": max_new_tokens,
         "seed": seed,
         "limit": limit,
         "sample_filter": sorted(sample_ids) if sample_ids is not None else None,
-        "hidden_state_execution": (
-            "not_collected" if phase == "greedy" else "inline_sample_answer_last_token"
-        ),
+        "hidden_state_execution": hidden_exec,
         "uq_execution": "separate_split_inputs",
     }
     completed = completed_sample_ids(output, run)
@@ -472,20 +496,12 @@ def run_generation(
     active: dict[str, SampleState] = {}
     pending_greedy: list[GenerationRequest] = []
     pending_sample: list[GenerationRequest] = []
-    exhausted = False
-    written = 0
-    skipped = len(completed)
-    generation_seconds = 0.0
-    write_seconds = 0.0
 
     def fill_window() -> None:
-        nonlocal exhausted
-        new_request_sets: list[list[GenerationRequest]] = []
-        while not exhausted and len(active) < request_window_samples:
+        while len(active) < request_window_samples:
             try:
                 sample = next(source)
             except StopIteration:
-                exhausted = True
                 break
             state = _new_state(sample, num_samples, require_greedy=phase != "samples")
             active[sample.sample_id] = state
@@ -495,21 +511,20 @@ def run_generation(
             if phase != "samples":
                 pending_greedy.append(requests[0])
                 requests = requests[1:]
-            new_request_sets.append(requests)
-        # Round-robin sampled draws across newly admitted samples. This keeps
-        # a batch from being dominated by five copies of the same image while
-        # preserving separate greedy and temperature=1 generate calls.
-        for draw_index in range(num_samples):
-            pending_sample.extend(
-                requests[draw_index] for requests in new_request_sets
-            )
+            for draw_index, req in enumerate(requests):
+                pending_sample.append(req)
 
     fill_window()
+    written = 0
+    skipped = len(completed)
+    generation_seconds = 0.0
+    write_seconds = 0.0
+
     while active:
         if not pending_greedy and not pending_sample:
             raise RuntimeError("dynamic generation queue stalled with active samples")
         queue = pending_greedy if pending_greedy else pending_sample
-        pending = queue[:max_batch_size]
+        pending = queue[:dispatch_batch_size]
         del queue[: len(pending)]
         started = time.perf_counter()
         generated = backend.generate_requests(

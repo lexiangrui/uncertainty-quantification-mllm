@@ -27,6 +27,7 @@ class JudgeResult:
     rating: int
     hallucination: bool
     hallucination_types: tuple[str, ...]
+    raw_response: str
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -35,6 +36,7 @@ class JudgeResult:
             "rating": self.rating,
             "hallucination": self.hallucination,
             "hallucination_types": list(self.hallucination_types),
+            "raw_response": self.raw_response,
         }
 
 
@@ -144,20 +146,28 @@ def _build_responses_input(
     return JUDGE_SYSTEM_PROMPT, blocks
 
 
+class JudgeResponseError(ValueError):
+    """Invalid judge output, retaining the raw response for audit logging."""
+
+    def __init__(self, message: str, raw_response: str) -> None:
+        super().__init__(message)
+        self.raw_response = raw_response
+
+
 def parse_closed_source_response(text: str) -> JudgeResult:
     try:
         value = json.loads(text.strip())
     except json.JSONDecodeError as error:
-        raise ValueError("judge response is not valid JSON") from error
+        raise JudgeResponseError("judge response is not valid JSON", text) from error
     required = {"analysis", "correct", "rating", "hallucination_types"}
     if not isinstance(value, dict) or set(value) != required:
-        raise ValueError("judge response has invalid fields")
+        raise JudgeResponseError("judge response has invalid fields", text)
     if not isinstance(value["analysis"], str) or not value["analysis"].strip():
-        raise ValueError("analysis must be a non-empty string")
+        raise JudgeResponseError("analysis must be a non-empty string", text)
     if type(value["correct"]) is not bool:
-        raise ValueError("correct must be a boolean")
+        raise JudgeResponseError("correct must be a boolean", text)
     if type(value["rating"]) is not int or not 0 <= value["rating"] <= 6:
-        raise ValueError("rating must be an integer from 0 through 6")
+        raise JudgeResponseError("rating must be an integer from 0 through 6", text)
     types = value["hallucination_types"]
     allowed = {"vision_hallucination", "reasoning_hallucination"}
     if (
@@ -165,16 +175,17 @@ def parse_closed_source_response(text: str) -> JudgeResult:
         or any(not isinstance(item, str) or item not in allowed for item in types)
         or len(types) != len(set(types))
     ):
-        raise ValueError("hallucination_types is invalid")
+        raise JudgeResponseError("hallucination_types is invalid", text)
     hallucination = value["rating"] < 3
     if hallucination != bool(types):
-        raise ValueError("rating and hallucination_types are inconsistent")
+        raise JudgeResponseError("rating and hallucination_types are inconsistent", text)
     return JudgeResult(
         analysis=value["analysis"].strip(),
         correct=value["correct"],
         rating=value["rating"],
         hallucination=hallucination,
         hallucination_types=tuple(types),
+        raw_response=text,
     )
 
 
@@ -238,10 +249,8 @@ class ClosedSourceJudge:
         self.model = model
         self.max_tokens = max_tokens
         self.client = client
-        self.last_raw_response: str | None = None
 
     def judge(self, **message_inputs: Any) -> JudgeResult:
-        self.last_raw_response = None
         system_prompt, user_content = _build_responses_input(**message_inputs)
         response = self.client.responses.create(
             model=self.model,
@@ -258,5 +267,4 @@ class ClosedSourceJudge:
         content = response.output_text
         if not isinstance(content, str) or not content.strip():
             raise RuntimeError("judge returned empty content")
-        self.last_raw_response = content
         return parse_closed_source_response(content)

@@ -46,6 +46,16 @@ def accepted_ids(path: Path) -> set[int]:
     return {row["question_id"] for row in read_jsonl(path)}
 
 
+def permanent_rejected_ids(path: Path) -> set[int]:
+    if not path.exists():
+        return set()
+    return {
+        row["question_id"]
+        for row in read_jsonl(path)
+        if row.get("retryable") is False
+    }
+
+
 def append_jsonl(path: Path, row: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
@@ -79,6 +89,7 @@ def generate_one(client, model: str, row: dict, image_dir: Path, system_prompt: 
         return "rejected", {
             **audit,
             "validation": "rejected",
+            "retryable": not isinstance(error, ValidationError),
             "reason": f"{type(error).__name__}: {error}",
         }
 
@@ -91,7 +102,7 @@ def main() -> None:
     examples = json.loads(
         (PROJECT_ROOT / "prompts" / "LoRA" / "few_shot_examples.json").read_text(encoding="utf-8")
     )
-    done = accepted_ids(args.accepted)
+    done = accepted_ids(args.accepted) | permanent_rejected_ids(args.rejected)
     pending = [row for row in read_jsonl(args.candidates) if row["question_id"] not in done]
     if args.workers < 1:
         raise ValueError("workers must be positive")

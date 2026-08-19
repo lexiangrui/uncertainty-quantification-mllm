@@ -54,10 +54,6 @@ class EraResult:
         }
 
 
-# Backward-compatible alias
-EcaResult = EraResult
-
-
 def _get_decoder_layers(backend: EraBackend):
     base = backend._base_model()
     candidates = [
@@ -117,6 +113,11 @@ class _EraAccumulator:
         layer = self.module_layers.get(id(module))
         if layer is None:
             return
+        if probs.shape[3] != self.col_bucket.numel():
+            raise RuntimeError(
+                "ERA attention/layout mismatch: "
+                f"KV length={probs.shape[3]}, col_bucket length={self.col_bucket.numel()}"
+            )
         p = self.predict_idx.to(probs.device)
         sel = p[(p >= row_start) & (p < row_start + probs.shape[2])]
         if sel.numel() == 0:
@@ -147,10 +148,6 @@ class _EraAccumulator:
                 acc = entry[g]
                 for b in range(len(DESTS)):
                     acc[b] += row[b]
-
-
-# Backward-compatible alias
-_EcaAccumulator = _EraAccumulator
 
 
 def _make_chunked_eager(accumulator: _EraAccumulator):
@@ -216,7 +213,7 @@ def compute_era(
     if any(index.numel() == 0 for index in positions.values()):
         return None
 
-    visual_mask = (input_ids[0] == image_token_id)
+    visual_mask = input_ids[0] == image_token_id
     n_visual = int(visual_mask.sum().item())
     if n_visual == 0:
         return None
@@ -228,7 +225,7 @@ def compute_era(
         for group, name in enumerate(GROUPS)
     ])
 
-    # Destination bucket per position: 0 image, 1 question, 2 V, 3 R, 4 A.
+    # The processor must expose the exact decoder attention layout in input_ids.
     col_bucket = torch.full((seq_len,), 1, dtype=torch.long)
     col_bucket[visual_mask.cpu()] = 0
     col_bucket[prompt_length:] = generated_bucket_tensor
@@ -263,9 +260,6 @@ def compute_era(
         layer_masses=accumulator.layer_masses,
     )
 
-
-# Backward-compatible alias
-compute_eca = compute_era
 
 # Default early decoder layers evaluated in the method
 DIRECT_LAYERS = (0, 1)

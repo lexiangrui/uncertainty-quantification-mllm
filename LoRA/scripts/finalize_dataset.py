@@ -36,6 +36,11 @@ def main() -> None:
     parser.add_argument("--train-size", type=int, default=4000)
     parser.add_argument("--validation-size", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--heldout-ids",
+        type=Path,
+        help="JSONL file whose question_id/image_id rows must be excluded from training data",
+    )
     args = parser.parse_args()
 
     source_rows = [row for path in args.accepted for row in read_jsonl(path)]
@@ -48,6 +53,12 @@ def main() -> None:
         raise RuntimeError("question_id values must be unique across all teacher files")
     if len(set(image_ids)) != expected:
         raise RuntimeError("image_id values must be unique across all teacher files")
+    if args.heldout_ids:
+        heldout = read_jsonl(args.heldout_ids)
+        heldout_questions = {row["question_id"] for row in heldout}
+        heldout_images = {row["image_id"] for row in heldout}
+        if set(question_ids) & heldout_questions or set(image_ids) & heldout_images:
+            raise RuntimeError("teacher data overlaps held-out question/image IDs")
 
     rows = []
     for row in source_rows:

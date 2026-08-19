@@ -8,7 +8,7 @@ from src.utils.prompts import load_prompt
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _XML_PROMPT = load_prompt(
-    _PROJECT_ROOT / "prompts" / "generation" / "xml_lora_zero_shot.md"
+    _PROJECT_ROOT / "prompts" / "LoRA" / "xml_lora_instruction.md"
 )
 XML_LORA_PROMPT_SHA256 = _XML_PROMPT.sha256
 

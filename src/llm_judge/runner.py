@@ -39,6 +39,7 @@ def _load_greedy_records(path: Path) -> tuple[dict[str, Any], dict[str, dict[str
 
 
 _INVALID_FORMAT_VALUE = {
+    "status": "invalid_input",
     "valid": False,
     "error": "greedy response cannot be separated into three parts",
     "raw_response": None,
@@ -51,7 +52,7 @@ _INVALID_FORMAT_VALUE = {
 
 
 def _judge_one(judge, sample, greedy: dict) -> dict:
-    """Judge a single sample; thread-safe except for last_raw_response debugging."""
+    """Judge a single sample and retain its response-local raw audit text."""
     if greedy.get("sections_valid") is not True:
         return dict(_INVALID_FORMAT_VALUE)
     result = None
@@ -75,11 +76,12 @@ def _judge_one(judge, sample, greedy: dict) -> dict:
         except Exception as error:  # noqa: BLE001 — retry any API/transport error
             api_error = error
             time.sleep(_API_RETRY_BACKOFF_SECONDS)
-    raw = judge.last_raw_response
+    raw = result.raw_response if result is not None else getattr(api_error, "raw_response", None)
     if result is not None:
-        return {"valid": True, "error": None, "raw_response": raw, **result.to_dict()}
+        return {"status": "ok", "valid": True, "error": None, **result.to_dict()}
     if isinstance(api_error, ValueError):
         return {
+            "status": "invalid_response",
             "valid": False,
             "error": str(api_error),
             "raw_response": raw,
@@ -90,6 +92,7 @@ def _judge_one(judge, sample, greedy: dict) -> dict:
             "hallucination_types": None,
         }
     return {
+        "status": "api_error",
         "valid": False,
         "error": f"{type(api_error).__name__}: {api_error}",
         "raw_response": raw,
@@ -122,7 +125,7 @@ def run_closed_source_judging(
         "greedy_input": str(greedy_input.resolve()),
         "greedy_run": greedy_run,
     }
-    completed = completed_sample_ids(output, run)
+    completed = completed_sample_ids(output, run, retry_statuses={"api_error"})
     written = 0
     skipped = 0
     seen: set[str] = set()

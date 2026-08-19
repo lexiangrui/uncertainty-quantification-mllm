@@ -34,8 +34,10 @@ def load_jsonl_records(path: Path) -> list[dict[str, Any]]:
         offset = len(content) - len(s)
         try:
             obj, end = decoder.raw_decode(s)
-        except json.JSONDecodeError:
-            break
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                f"invalid JSON while parsing {path} near character {idx + offset}"
+            ) from error
         idx = offset + end
         if isinstance(obj, dict):
             results.append(obj)
