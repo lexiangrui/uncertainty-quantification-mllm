@@ -165,10 +165,18 @@ def _response_record(
         )
     ):
         raise ValueError("answer log probability is not finite")
-    hidden_index = token_end if len(response.hidden_steps) > token_end else token_end - 1
+    hidden_steps = response.hidden_steps
+    if hidden_steps is not None and (
+        hidden_steps.ndim != 2 or hidden_steps.shape[1] == 0
+    ):
+        raise ValueError("hidden_steps must be a [generated_steps, hidden_size] CPU tensor")
+    hidden_index = (
+        token_end if hidden_steps is not None and hidden_steps.shape[0] > token_end
+        else token_end - 1
+    )
     final_hidden = (
-        response.hidden_steps[hidden_index]
-        if response.hidden_steps and hidden_index >= 0
+        tuple(float(value) for value in hidden_steps[hidden_index].tolist())
+        if hidden_steps is not None and hidden_index >= 0
         else ()
     )
     signals = ResponseSignals(
@@ -427,13 +435,40 @@ def run_generation(
     if sample_ids is not None and not sample_ids:
         raise ValueError("sample_ids must be non-empty when provided")
     prompt_spec = get_prompt_spec(prompt_style)
+    runtime_config = backend.runtime_config
+    engine_name = runtime_config.get("engine", "unknown")
+    dispatch_batch_size = (
+        max(max_batch_size, int(runtime_config.get("max_num_seqs", 16)) * 4)
+        if engine_name == "vllm"
+        else max_batch_size
+    )
+    scheduler_info = {
+        "type": (
+            "vllm_continuous_batching"
+            if engine_name == "vllm"
+            else "transformers_role_separated_dynamic_batching"
+        ),
+        "max_batch_size": dispatch_batch_size,
+        "request_window_samples": request_window_samples,
+        "mixed_greedy_and_sampling": False,
+        "adaptive_oom_split": engine_name != "vllm",
+    }
+    hidden_exec = (
+        "not_collected"
+        if phase == "greedy"
+        else (
+            "pending_hf_teacher_forcing_backfill"
+            if engine_name == "vllm"
+            else "inline_sample_answer_last_token"
+        )
+    )
     run = {
         "dataset": dataset,
         "dataset_source": str(dataset_source.resolve()),
         "model_family": family,
         "model_id": backend.model_id,
         "model_path": str(model_path.resolve()),
-        "model_runtime": backend.runtime_config,
+        "model_runtime": runtime_config,
         "prompt_sha256": XML_LORA_PROMPT_SHA256,
         "greedy": {"do_sample": False, "temperature": 0.0, "retry": False},
         "sampling": {
@@ -480,11 +515,6 @@ def run_generation(
                 pending_sample.append(req)
 
     fill_window()
-    dispatch_batch_size = (
-        max(max_batch_size, backend.runtime_config.get("max_num_seqs", 16) * 4)
-        if engine_name == "vllm"
-        else max_batch_size
-    )
     written = 0
     skipped = len(completed)
     generation_seconds = 0.0

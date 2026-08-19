@@ -294,6 +294,9 @@ def write_report(rate_rows: list[dict], pool: dict[str, list[dict]]) -> None:
         "luh_share(α) = P(s_H1 ≤ Q_α(H0))，α ∈ {0.25, 0.50}；excess = share − α。",
     ]
     for row in rate_rows:
+        if row["luh_share"] is None:
+            lines.append(f"- {row['model']} / {row['method']} (α={row['alpha']:.2f}): unavailable (no valid samples)")
+            continue
         lines.append(
             f"- {row['model']} / {row['method']} (α={row['alpha']:.2f}): "
             f"{row['luh_share']:.3f} [{row['ci_low']:.3f}, {row['ci_high']:.3f}]，"

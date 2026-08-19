@@ -47,7 +47,7 @@ def main() -> None:
     parser.add_argument("--layers", nargs="+", type=int, default=list(DIRECT_LAYERS),
                         help="absolute decoder layers to average (default: 0 1)")
     parser.add_argument("--features", nargs="+", default=list(FEATURES))
-    parser.add_argument("--components-dir", type=Path, default=PROJECT_ROOT / "results/eca_components")
+    parser.add_argument("--components-dir", type=Path, default=PROJECT_ROOT / "results/era_components")
     parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "results/analysis/era/final_evaluation.json")
     parser.add_argument("--bootstrap-samples", type=int, default=1000)
     args = parser.parse_args()
@@ -81,7 +81,7 @@ def main() -> None:
                         continue
                     sid = obj.get("sample", {}).get("sample_id")
                     if sid in subset_ids:
-                        record_payload = obj.get("era") or obj.get("eca")
+                        record_payload = obj.get("era")
                         if record_payload:
                             feats[sid] = layers_mean(layer_features(record_payload), args.layers)
             p = PROJECT_ROOT / f"results/uq/{model}/{ds}.jsonl"

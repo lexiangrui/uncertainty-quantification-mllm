@@ -170,8 +170,9 @@ class VLLMMultimodalBackend(GenerationBackend):
             completion = output.outputs[0]
             token_ids = tuple(int(value) for value in completion.token_ids)
             token_log_probs = self._chosen_log_probs(completion)
+            text = self.decode_generated_tokens(token_ids)
             generated[request.request_id] = GeneratedResponse(
-                text=completion.text.strip(),
+                text=text,
                 token_ids=token_ids,
                 token_log_probs=token_log_probs,
                 sampling_token_log_probs=token_log_probs,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import string
 from typing import Any
+from xml.sax.saxutils import unescape
 
 
 TAGS = ("vision", "reasoning", "answer")
@@ -45,7 +46,11 @@ def evaluate_response(response: str, expected_answer: str) -> dict[str, Any]:
     opening_positions = [response.find(f"<{tag}>") for tag in TAGS]
     tag_order_correct = all(position >= 0 for position in opening_positions) and opening_positions == sorted(opening_positions)
     match = STRICT_XML.fullmatch(response)
-    parsed = {tag: match.group(tag).strip() for tag in TAGS} if match else None
+    parsed = (
+        {tag: unescape(match.group(tag).strip()) for tag in TAGS}
+        if match
+        else None
+    )
     nonempty_sections = parsed is not None and all(parsed[tag] for tag in TAGS)
     strict_xml_valid = bool(match and tags_once and nonempty_sections)
     predicted_answer = parsed["answer"] if parsed else None

@@ -244,6 +244,14 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
     def _generate_batch(
         self, requests: list[GenerationRequest], *, max_new_tokens: int
     ) -> dict[str, GeneratedResponse]:
+        # Transformers exposes one RNG stream per generate() call, not one
+        # independent stream per row. Sampling one request at a time makes
+        # request.seed stable under batching, resume, and OOM re-splitting.
+        if len(requests) > 1 and requests[0].role == "sample":
+            generated: dict[str, GeneratedResponse] = {}
+            for request in requests:
+                generated.update(self._generate_batch([request], max_new_tokens=max_new_tokens))
+            return generated
         inputs = self._batch_inputs(requests)
         assert self.model is not None and self.processor is not None
         do_sample = requests[0].role == "sample"
@@ -286,6 +294,7 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
                 handle.remove()
         if outputs.logits is None or outputs.scores is None:
             raise RuntimeError("Transformers generation did not return token scores")
+        hidden_trajectory = torch.stack(hidden_steps, dim=1) if hidden_steps else None
         step_count = len(outputs.logits)
         generated = outputs.sequences[:, prompt_width : prompt_width + step_count]
         raw_log_probs = torch.stack(
@@ -337,9 +346,10 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
                 ),
                 finish_reason="length" if length == max_new_tokens else "stop",
                 rng_seed=batch_seed,
-                hidden_steps=tuple(
-                    tuple(float(value) for value in step[index].tolist())
-                    for step in hidden_steps
+                hidden_steps=(
+                    hidden_trajectory[index]
+                    if hidden_trajectory is not None
+                    else None
                 ),
             )
         return values

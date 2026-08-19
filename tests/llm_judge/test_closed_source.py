@@ -90,6 +90,8 @@ def test_client_uses_responses_json_mode() -> None:
     )
     assert result.correct is True
     assert result.hallucination is False
+    assert result.raw_response == VALID_RESPONSE
+    assert not hasattr(judge, "last_raw_response")
     assert client.responses.kwargs["model"] == "judge-model"
     assert client.responses.kwargs["text"] == {"format": {"type": "json_object"}}
 
@@ -164,6 +166,7 @@ def test_runner_writes_and_resumes(monkeypatch, tmp_path: Path) -> None:
     assert "run" not in record
     assert record["judge"]["valid"] is True
     assert record["judge"]["correct"] is True
+    assert record["judge"]["raw_response"] == VALID_RESPONSE
     assert run_closed_source_judging(**kwargs) == (0, 1)
 
 

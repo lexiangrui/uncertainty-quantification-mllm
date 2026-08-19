@@ -101,6 +101,19 @@ def test_accumulator_rejects_invalid_bucket():
         )
 
 
+def test_accumulator_reports_attention_layout_mismatch():
+    module = object()
+    accumulator = _EraAccumulator(
+        predict_idx=torch.tensor([0]),
+        row_groups=torch.tensor([0]),
+        col_bucket=torch.tensor([0, 1]),
+    )
+    accumulator.module_layers[id(module)] = 0
+
+    with pytest.raises(RuntimeError, match="KV length=3, col_bucket length=2"):
+        accumulator.accumulate(module, torch.zeros((1, 1, 1, 3)), 0)
+
+
 def test_layer_features_computes_canonical_u_era():
     # masses for answer rows: aAI=1.0, aAQ=2.0, aAV=3.0, aAR=4.0, aAA=5.0
     # heads=1, n_answer=1

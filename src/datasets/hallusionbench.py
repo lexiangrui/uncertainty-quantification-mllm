@@ -42,7 +42,21 @@ def iter_hallusionbench(directory: Path) -> Iterator[BenchmarkSample]:
         for row_number, row in frame.iterrows():
             identity = "-".join(str(row[name]).strip() for name in IDENTITY_COLUMNS)
             sample_id = f"hallusionbench-{split}-{identity}"
-            visual_input = str(row["visual_input"]).strip() == "1"
+            value = row["visual_input"]
+            if isinstance(value, bool):
+                visual_input = value
+            elif isinstance(value, (int, float)) and value in (0, 1):
+                visual_input = bool(value)
+            else:
+                normalized = str(value).strip().lower()
+                if normalized in {"0", "false", "no"}:
+                    visual_input = False
+                elif normalized in {"1", "true", "yes"}:
+                    visual_input = True
+                else:
+                    raise ValueError(
+                        f"invalid HallusionBench visual_input for {sample_id}: {value!r}"
+                    )
             if visual_input:
                 if "image" not in frame.columns:
                     raise ValueError(f"{path} has visual samples but no image column")

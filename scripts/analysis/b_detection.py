@@ -94,6 +94,12 @@ def module_b1(cells: dict[tuple[str, str], list[dict]]) -> tuple[list[dict], lis
                 scores = np.array([records[i]["scores"][method] for i in idx_valid], dtype=float)
                 labels = labels_all[idx_valid]
                 groups = [r["group_id"] for r in sub]
+                if not sub:
+                    row.update({
+                        metric: None for metric in METRICS
+                    })
+                    rows.append(row)
+                    continue
                 from src.evaluation.metrics import cluster_bootstrap_indices
 
                 reps = cluster_bootstrap_indices(groups, n_bootstrap=N_BOOT, seed=SEED)

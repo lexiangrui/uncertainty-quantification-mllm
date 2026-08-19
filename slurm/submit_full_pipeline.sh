@@ -25,13 +25,11 @@ for MODEL in ${MODELS[*]}; do
   echo ">>> [Model: $MODEL] Scheduling Two-Stage Generation + Chained UQ / Judge / ERA..."
 
   # Stage 1 & 2: Two-Stage Generation & Backfill (vilp -> hallusionbench -> mmvet)
-  GEN_OUT=$(sbatch --export=MODEL="$MODEL" slurm/generation/generate.sbatch)
-  GEN_ID=$(echo "$GEN_OUT" | awk '{print $4}')
+  GEN_ID=$(sbatch --parsable --export=MODEL="$MODEL" slurm/generation/generate.sbatch)
   echo "  [Stage 1 & 2: Generation + Backfill] Submitted Job ID: $GEN_ID"
 
   # Stage 3a: UQ Baseline (PPL / SE / UMPIRE, depends on Stage 1&2)
-  UQ_OUT=$(sbatch --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL" slurm/uq/compute_uq.sbatch)
-  UQ_ID=$(echo "$UQ_OUT" | awk '{print $4}')
+  UQ_ID=$(sbatch --parsable --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL" slurm/uq/compute_uq.sbatch)
   echo "  [Stage 3: Chained UQ Baseline]        Submitted Job ID: $UQ_ID (afterok:$GEN_ID)"
 
   # Optional Downstream Stages (Stage 3b LLM Judge & Stage 4 ERA Attention Extraction):

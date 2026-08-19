@@ -84,26 +84,25 @@ def _collect_rows(
         if not isinstance(group_id, str) or not group_id:
             raise ValueError(f"judge record lacks group_id: {sample_id}")
         uq_record = uq_records.get(sample_id)
+        scores: dict[str, float] = {}
         if uq_record is None:
             missing_uq += 1
-            continue
-        uq = uq_record.get("uq")
-        if not isinstance(uq, dict):
-            raise ValueError(f"uq record lacks a uq object: {sample_id}")
-        scores: dict[str, float] = {}
-        invalid_methods: list[str] = []
-        for name in methods:
-            value = uq.get(name)
-            score = value.get("score") if isinstance(value, dict) and value.get("valid") is True else None
-            if type(score) not in (int, float) or not math.isfinite(score):
-                invalid_methods.append(name)
-            else:
-                scores[name] = float(score)
-        if invalid_methods:
-            invalid_score_rows += 1
-            for name in invalid_methods:
-                invalid_score_by_method[name] += 1
-            continue
+        else:
+            uq = uq_record.get("uq")
+            if not isinstance(uq, dict):
+                raise ValueError(f"uq record lacks a uq object: {sample_id}")
+            invalid_methods: list[str] = []
+            for name in methods:
+                value = uq.get(name)
+                score = value.get("score") if isinstance(value, dict) and value.get("valid") is True else None
+                if type(score) not in (int, float) or not math.isfinite(score):
+                    invalid_methods.append(name)
+                else:
+                    scores[name] = float(score)
+            if invalid_methods:
+                invalid_score_rows += 1
+                for name in invalid_methods:
+                    invalid_score_by_method[name] += 1
         rows.append(
             {
                 "sample_id": sample_id,
@@ -185,10 +184,6 @@ def run_metrics(
     correct = np.array([row["correct"] for row in rows], dtype=np.int64)
     hallucination = np.array([row["hallucination"] for row in rows], dtype=np.int64)
     error = 1 - correct
-    scores = {
-        name: np.array([row["scores"][name] for row in rows], dtype=np.float64)
-        for name in methods
-    }
     replicates = cluster_bootstrap_indices(
         groups, n_bootstrap=bootstrap_samples, seed=bootstrap_seed
     )
@@ -208,18 +203,38 @@ def run_metrics(
     for target_name, target in (("error", error), ("hallucination", hallucination)):
         method_section: dict[str, Any] = {}
         for name in methods:
-            method_scores = scores[name]
+            method_rows = [row for row in rows if name in row["scores"]]
+            if not method_rows:
+                method_section[name] = {
+                    key: {"value": None, "ci_low": None, "ci_high": None, "reason": "no valid scores"}
+                    for key in ("auroc", "auprc", "prr")
+                }
+                continue
+            method_scores = np.array(
+                [row["scores"][name] for row in method_rows], dtype=np.float64
+            )
+            method_target = np.array(
+                [row[target_name] if target_name == "hallucination" else 1 - row["correct"] for row in method_rows],
+                dtype=np.int64,
+            )
+            method_replicates = cluster_bootstrap_indices(
+                [row["group_id"] for row in method_rows],
+                n_bootstrap=bootstrap_samples,
+                seed=bootstrap_seed,
+            )
             method_section[name] = {
                 "auroc": _metric_entry(
-                    auroc, method_scores, target, replicates, confidence=confidence
+                    auroc, method_scores, method_target, method_replicates, confidence=confidence
                 ),
                 "auprc": _metric_entry(
-                    auprc, method_scores, target, replicates, confidence=confidence
+                    auprc, method_scores, method_target, method_replicates, confidence=confidence
                 ),
                 "prr": _metric_entry(
-                    prr, method_scores, target, replicates, confidence=confidence
+                    prr, method_scores, method_target, method_replicates, confidence=confidence
                 ),
             }
+            method_section[name]["n"] = len(method_rows)
+            method_section[name]["positives"] = int(method_target.sum())
         positives = int(target.sum())
         targets_section[target_name] = {
             "positives": positives,

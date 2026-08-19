@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Literal
 
+import torch
 from PIL import Image
 
 from src.generation.prompt import GenerationPrompt
@@ -16,7 +17,9 @@ class GeneratedResponse:
     token_log_probs: tuple[float, ...]
     sampling_token_log_probs: tuple[float, ...]
     final_hidden: tuple[float, ...] = ()
-    hidden_steps: tuple[tuple[float, ...], ...] = ()
+    # CPU tensor shaped [generated_steps, hidden_size].  Keep it tensorized
+    # until the single selected step is consumed by the generation runner.
+    hidden_steps: torch.Tensor | None = None
     finish_reason: str | None = None
     rng_seed: int | None = None
 

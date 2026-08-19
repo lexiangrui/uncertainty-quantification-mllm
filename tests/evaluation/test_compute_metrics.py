@@ -120,8 +120,8 @@ def test_run_metrics_reports_counts_labels_and_both_targets(tmp_path: Path) -> N
     assert report["counts"] == {
         "judge_records": 11,
         "uq_records": 10,
-        "evaluated": 8,
-        "clusters": 4,
+            "evaluated": 10,
+            "clusters": 6,
         "excluded": {
             "invalid_judge": 1,
             "missing_uq_record": 1,
@@ -132,30 +132,34 @@ def test_run_metrics_reports_counts_labels_and_both_targets(tmp_path: Path) -> N
     }
 
     labels = report["labels"]
-    assert labels["accuracy"]["value"] == pytest.approx(0.625)
-    assert labels["accuracy"]["ci_low"] <= 0.625 <= labels["accuracy"]["ci_high"]
+    assert labels["accuracy"]["value"] == pytest.approx(0.6)
+    assert labels["accuracy"]["ci_low"] <= 0.6 <= labels["accuracy"]["ci_high"]
     assert labels["hallucination_rate"]["value"] == pytest.approx(0.0)
     assert labels["hallucination_rate"]["ci_low"] == pytest.approx(0.0)
     assert labels["joint_counts"] == {
-        "correct_without_hallucination": 5,
+        "correct_without_hallucination": 6,
         "correct_with_hallucination": 0,
-        "wrong_without_hallucination": 3,
+        "wrong_without_hallucination": 4,
         "wrong_with_hallucination": 0,
     }
 
     error_target = report["targets"]["error"]
-    assert error_target["positives"] == 3
-    assert error_target["positive_rate"] == pytest.approx(0.375)
+    assert error_target["positives"] == 4
+    assert error_target["positive_rate"] == pytest.approx(0.4)
     perplexity = error_target["methods"]["perplexity"]
-    assert set(perplexity) == {"auroc", "auprc", "prr"}
+    assert set(perplexity) == {"auroc", "auprc", "prr", "n", "positives"}
+    assert perplexity["n"] == 8
+    assert perplexity["positives"] == 3
     assert perplexity["auroc"]["value"] == pytest.approx(1.0)
     assert perplexity["auprc"]["value"] == pytest.approx(1.0)
     assert perplexity["prr"]["value"] == pytest.approx(1.0)
     assert perplexity["auroc"]["ci_low"] == pytest.approx(1.0)
     assert perplexity["auroc"]["ci_high"] == pytest.approx(1.0)
     entropy = error_target["methods"]["semantic_entropy"]
+    assert entropy["n"] == 9
+    assert entropy["positives"] == 4
     assert entropy["auroc"]["value"] == pytest.approx(0.5)
-    assert entropy["auprc"]["value"] == pytest.approx(0.375)
+    assert entropy["auprc"]["value"] == pytest.approx(4 / 9)
     assert entropy["prr"]["value"] == pytest.approx(0.0)
 
     hallucination_target = report["targets"]["hallucination"]

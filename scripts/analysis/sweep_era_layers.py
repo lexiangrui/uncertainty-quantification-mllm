@@ -29,17 +29,13 @@ def load(model: str, ids: set[str], components_dir: Path):
     comps, judge = {}, {}
     for ds in DATASETS:
         p = components_dir / f"{model}/{ds}.jsonl"
-        if not p.exists():
-            fallback = PROJECT_ROOT / f"results/eca_components/{model}/{ds}.jsonl"
-            if fallback.exists():
-                p = fallback
         if p.exists():
             for obj in load_jsonl_records(p):
                 if obj.get("record_type") != "sample":
                     continue
                 sid = obj.get("sample", {}).get("sample_id")
                 if sid in ids:
-                    payload = obj.get("era") or obj.get("eca")
+                    payload = obj.get("era")
                     if payload:
                         comps[sid] = layer_features(payload)
         p_judge = PROJECT_ROOT / f"results/judging/{model}/{ds}.jsonl"
