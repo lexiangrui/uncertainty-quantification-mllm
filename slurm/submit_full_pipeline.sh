@@ -2,8 +2,9 @@
 # Submit full automated 4-stage pipeline for MLLM Uncertainty Quantification
 # Stage 1: Generation (Greedy + K=10 Samples with .tokens and hidden sidecars)
 # Stage 2: Baseline UQ (PPL / SE / UMPIRE via DeBERTa) [depends on Stage 1]
-# Stage 3: LLM Judge (GPT-4o 10-worker concurrency) [depends on Stage 1]
-# Stage 4: ERA Attention Feature Extraction (Layer 0-1) [depends on Stage 1]
+# The production DAG per model is: Generation+Backfill -> UQ.
+# Judge and ERA are submitted separately because they consume API quota and an
+# additional GPU, respectively.
 #
 # Usage:
 #   bash slurm/submit_full_pipeline.sh          # Submit for all 3 models (llava, qwen, internvl)
@@ -11,7 +12,11 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
-MODELS=("${@:-llava qwen internvl}")
+if (($#)); then
+  MODELS=("$@")
+else
+  MODELS=(llava qwen internvl)
+fi
 RUN_ID="full-$(date +%Y%m%d-%H%M%S)-$$"
 
 cd "$PROJECT_ROOT"
@@ -22,21 +27,17 @@ echo "   Submitting Full MLLM Uncertainty Quantification Pipeline      "
 echo "   Models: ${MODELS[*]}"
 echo "================================================================="
 
-for MODEL in ${MODELS[*]}; do
+for MODEL in "${MODELS[@]}"; do
   echo ""
-  echo ">>> [Model: $MODEL] Scheduling Two-Stage Generation + Chained UQ / Judge / ERA..."
+  echo ">>> [Model: $MODEL] Scheduling Generation+Backfill -> UQ..."
 
-  # Stage 1 & 2: Two-Stage Generation & Backfill (vilp -> hallusionbench -> mmvet)
+  # Generation performs Stage 1 (vLLM) and Stage 2 (HF backfill) for all datasets.
   GEN_ID=$(sbatch --parsable --export=ALL,MODEL="$MODEL",RUN_ID="$RUN_ID-$MODEL" slurm/generation/generate.sbatch)
-  echo "  [Stage 1 & 2: Generation + Backfill] Submitted Job ID: $GEN_ID"
+  echo "  [Generation + Backfill] $GEN_ID"
 
-  # Stage 3a: UQ Baseline (PPL / SE / UMPIRE, depends on Stage 1&2)
+  # UQ is allowed to start only after the complete generation/backfill job succeeds.
   UQ_ID=$(sbatch --parsable --dependency=afterok:"$GEN_ID" --export=ALL,MODEL="$MODEL",RUN_ID="$RUN_ID-$MODEL" slurm/uq/compute_uq.sbatch)
-  echo "  [Stage 3: Chained UQ Baseline]        Submitted Job ID: $UQ_ID (afterok:$GEN_ID)"
-
-  # Optional Downstream Stages (Stage 3b LLM Judge & Stage 4 ERA Attention Extraction):
-  # JUDGE_OUT=$(sbatch --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL" slurm/judging/judge.sbatch)
-  # ERA_OUT=$(sbatch --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL" slurm/improvement/run_era.sbatch)
+  echo "  [UQ]                     $UQ_ID (afterok:$GEN_ID)"
 done
 
 echo ""
