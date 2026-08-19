@@ -32,17 +32,11 @@ for MODEL in ${MODELS[*]}; do
   # Stage 3a: UQ Baseline (PPL / SE / UMPIRE, depends on Stage 1&2)
   UQ_OUT=$(sbatch --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL" slurm/uq/compute_uq.sbatch)
   UQ_ID=$(echo "$UQ_OUT" | awk '{print $4}')
-  echo "  [Stage 3a: Chained UQ Baseline]       Submitted Job ID: $UQ_ID (afterok:$GEN_ID)"
+  echo "  [Stage 3: Chained UQ Baseline]        Submitted Job ID: $UQ_ID (afterok:$GEN_ID)"
 
-  # Stage 3b: LLM Judge (GPT-4o, depends on Stage 1&2)
-  JUDGE_OUT=$(sbatch --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL" slurm/judging/judge.sbatch)
-  JUDGE_ID=$(echo "$JUDGE_OUT" | awk '{print $4}')
-  echo "  [Stage 3b: Chained LLM Judge]         Submitted Job ID: $JUDGE_ID (afterok:$GEN_ID)"
-
-  # Stage 4: ERA Attention Extraction (Layer 0-1, depends on Stage 1&2)
-  ERA_OUT=$(sbatch --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL" slurm/improvement/run_era.sbatch)
-  ERA_ID=$(echo "$ERA_OUT" | awk '{print $4}')
-  echo "  [Stage 4: Chained ERA Attention]      Submitted Job ID: $ERA_ID (afterok:$GEN_ID)"
+  # Optional Downstream Stages (Stage 3b LLM Judge & Stage 4 ERA Attention Extraction):
+  # JUDGE_OUT=$(sbatch --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL" slurm/judging/judge.sbatch)
+  # ERA_OUT=$(sbatch --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL" slurm/improvement/run_era.sbatch)
 done
 
 echo ""
