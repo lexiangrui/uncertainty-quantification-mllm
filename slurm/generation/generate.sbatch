@@ -2,9 +2,9 @@
 #SBATCH --job-name=gen
 #SBATCH --partition=batch,debug01
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:2
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=64G
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=48G
 #SBATCH --time=2-00:00:00
 #SBATCH --output=logs/generation/%x-%j.out
 #SBATCH --error=logs/generation/%x-%j.out
