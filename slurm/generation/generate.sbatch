@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=gen
-#SBATCH --partition=batch
+#SBATCH --partition=batch,debug01
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
@@ -36,6 +36,13 @@ case "$MODEL" in
   internvl) FAM=internvl3_5; MP="$MODEL_ROOT/InternVL3_5-8B-HF";    AD=results/lora/internvl/adapter ;;
   *) echo "unknown MODEL=$MODEL" >&2; exit 1 ;;
 esac
+if [[ "$MODEL" == internvl ]]; then
+  ENGINE=huggingface
+  GEN_PYTHON_BIN="$HF_PYTHON_BIN"
+else
+  ENGINE=vllm
+  GEN_PYTHON_BIN="$PYTHON_BIN"
+fi
 
 mkdir -p "results/generation/$MODEL/greedy" "results/generation/$MODEL/samples"
 
@@ -49,9 +56,9 @@ for dataset in vilp hallusionbench mmvet; do
   esac
 
   echo "========================================================================"
-  echo " [Stage 1.1] vLLM Greedy Generation: model=$MODEL dataset=$dataset"
+  echo " [Stage 1.1] $ENGINE Greedy Generation: model=$MODEL dataset=$dataset"
   echo "========================================================================"
-  $PYTHON_BIN scripts/generation/generate_responses.py \
+  $GEN_PYTHON_BIN scripts/generation/generate_responses.py \
     --dataset "$dataset" \
     --dataset-source "$SRC" \
     --model-family "$FAM" \
@@ -60,7 +67,7 @@ for dataset in vilp hallusionbench mmvet; do
     --output "results/generation/$MODEL/greedy/$dataset.jsonl" \
     --phase greedy \
     --num-samples 0 \
-    --engine vllm \
+    --engine "$ENGINE" \
     --gpu-memory-utilization 0.85 \
     --max-num-seqs 16 \
     --request-window-samples 64 \
@@ -69,9 +76,9 @@ for dataset in vilp hallusionbench mmvet; do
 
   echo ""
   echo "========================================================================"
-  echo " [Stage 1.2] vLLM Sampled Generation (K=10): model=$MODEL dataset=$dataset"
+  echo " [Stage 1.2] $ENGINE Sampled Generation (K=10): model=$MODEL dataset=$dataset"
   echo "========================================================================"
-  $PYTHON_BIN scripts/generation/generate_responses.py \
+  $GEN_PYTHON_BIN scripts/generation/generate_responses.py \
     --dataset "$dataset" \
     --dataset-source "$SRC" \
     --model-family "$FAM" \
@@ -81,7 +88,7 @@ for dataset in vilp hallusionbench mmvet; do
     --phase samples \
     --num-samples 10 \
     --reject-resample-k 50 \
-    --engine vllm \
+    --engine "$ENGINE" \
     --gpu-memory-utilization 0.85 \
     --max-num-seqs 16 \
     --request-window-samples 64 \
