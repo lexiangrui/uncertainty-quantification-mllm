@@ -44,9 +44,6 @@ class VLLMMultimodalBackend(GenerationBackend):
         self.max_num_seqs = max_num_seqs
         self.gpu_memory_utilization = gpu_memory_utilization
         self.max_model_len = max_model_len
-        self.processor = AutoProcessor.from_pretrained(
-            model_path, local_files_only=True, trust_remote_code=True
-        )
         dtype = "float16" if family == "llava_1_5" else "bfloat16"
         self.engine = LLM(
             model=str(model_path),
@@ -59,7 +56,11 @@ class VLLMMultimodalBackend(GenerationBackend):
             enable_lora=adapter_path is not None,
             max_lora_rank=8,
             limit_mm_per_prompt={"image": 1},
+            disable_log_stats=True,
             generation_config="vllm",
+        )
+        self.processor = AutoProcessor.from_pretrained(
+            model_path, local_files_only=True, trust_remote_code=True
         )
         self.lora_request = (
             LoRARequest("format-adapter", 1, str(adapter_path))

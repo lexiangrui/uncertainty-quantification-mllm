@@ -203,25 +203,22 @@ def _hidden_sidecar_path(output: Path, sample_id: str) -> tuple[Path, dict]:
     """Return the canonical hidden-state location and its JSONL descriptor."""
     try:
         relative = output.resolve().relative_to(PROJECT_ROOT / "results")
+        if (
+            len(relative.parts) == 4
+            and relative.parts[0] == "generation"
+            and relative.parts[2] == "samples"
+        ):
+            directory = PROJECT_ROOT / "results" / "hidden" / relative.parts[1] / output.stem
+            path = directory / _sidecar_filename(sample_id)
+            return path, {
+                "path": str(path.relative_to(PROJECT_ROOT / "results" / "hidden")),
+                "storage": "results_hidden",
+            }
     except ValueError:
-        directory = output.with_suffix(".hidden")
-        path = directory / _sidecar_filename(sample_id)
-        return path, {"path": str(path.relative_to(output.parent)), "storage": "generation_adjacent"}
-    if (
-        len(relative.parts) != 4
-        or relative.parts[0] != "generation"
-        or relative.parts[2] != "samples"
-    ):
-        raise ValueError(
-            "samples output must use results/generation/<model>/samples/<dataset>.jsonl: "
-            f"{output}"
-        )
-    directory = PROJECT_ROOT / "results" / "hidden" / relative.parts[1] / output.stem
+        pass
+    directory = output.with_suffix(".hidden")
     path = directory / _sidecar_filename(sample_id)
-    return path, {
-        "path": str(path.relative_to(PROJECT_ROOT / "results" / "hidden")),
-        "storage": "results_hidden",
-    }
+    return path, {"path": str(path.relative_to(output.parent)), "storage": "generation_adjacent"}
 
 
 def _write_token_sidecar(output: Path, state: SampleState, *, include_greedy: bool) -> dict:

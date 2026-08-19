@@ -9,7 +9,9 @@
 #SBATCH --output=logs/generation/%x-%j-%N.out
 #SBATCH --error=logs/generation/%x-%j-%N.out
 
-# Single unit generation: greedy (0 samples) + samples (K=10) for one (MODEL, DATASET) pair.
+# Two-Stage Decoupled Pipeline:
+# Stage 1: vLLM continuous batching generation (greedy + K=10 samples)
+# Stage 2: HuggingFace single-pass forward backfill for UMPIRE hidden states
 # Usage: sbatch --export=MODEL=llava,DATASET=vilp slurm/generation/generate_single.sbatch
 set -euo pipefail
 trap 'echo "SCRIPT FAILED at line $LINENO (exit $?)" >&2' ERR
@@ -19,10 +21,13 @@ DATASET=${DATASET:?DATASET must be vilp|hallusionbench|mmvet}
 cd /home/lexiangrui/Uncertainty-Quantification-of-MLLM
 mkdir -p logs/generation
 
+export VLLM_USE_V1=0
+export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export PATH="/home/lexiangrui/.local/bin:/home/lexiangrui/.venvs/vllm-0.25.1/bin:$PATH"
+PYTHON_BIN=~/.venvs/vllm-0.25.1/bin/python
 
-BATCH_SIZE=5
 case "$MODEL" in
   llava)    FAM=llava_1_5;  MP=/opt/lexiangrui/models/llava-1.5-7b-hf;     AD=results/lora/llava/adapter ;;
   qwen)     FAM=qwen2_5_vl; MP=/opt/lexiangrui/models/Qwen2.5-VL-7B-Instruct; AD=results/lora/qwen/adapter ;;
@@ -39,8 +44,10 @@ esac
 
 mkdir -p "results/generation/$MODEL/greedy" "results/generation/$MODEL/samples" "results/hidden/$MODEL"
 
-echo "=== [1/2] Running greedy generation: model=$MODEL dataset=$DATASET ==="
-~/.venvs/vlm-transformers/bin/python scripts/generation/generate_responses.py \
+echo "========================================================================"
+echo " [Stage 1.1] vLLM Greedy Generation: model=$MODEL dataset=$DATASET"
+echo "========================================================================"
+$PYTHON_BIN scripts/generation/generate_responses.py \
   --dataset "$DATASET" \
   --dataset-source "$SRC" \
   --model-family "$FAM" \
@@ -49,12 +56,17 @@ echo "=== [1/2] Running greedy generation: model=$MODEL dataset=$DATASET ==="
   --output "results/generation/$MODEL/greedy/$DATASET.jsonl" \
   --phase greedy \
   --num-samples 0 \
+  --engine vllm \
+  --gpu-memory-utilization 0.85 \
+  --max-num-seqs 16 \
   --seed 42 \
-  --max-new-tokens 512 \
-  --max-batch-size "$BATCH_SIZE"
+  --max-new-tokens 512
 
-echo "=== [2/2] Running sampled generation (K=10): model=$MODEL dataset=$DATASET ==="
-~/.venvs/vlm-transformers/bin/python scripts/generation/generate_responses.py \
+echo ""
+echo "========================================================================"
+echo " [Stage 1.2] vLLM Sampled Generation (K=10): model=$MODEL dataset=$DATASET"
+echo "========================================================================"
+$PYTHON_BIN scripts/generation/generate_responses.py \
   --dataset "$DATASET" \
   --dataset-source "$SRC" \
   --model-family "$FAM" \
@@ -64,8 +76,23 @@ echo "=== [2/2] Running sampled generation (K=10): model=$MODEL dataset=$DATASET
   --phase samples \
   --num-samples 10 \
   --reject-resample-k 50 \
+  --engine vllm \
+  --gpu-memory-utilization 0.85 \
+  --max-num-seqs 16 \
   --seed 42 \
-  --max-new-tokens 512 \
-  --max-batch-size "$BATCH_SIZE"
+  --max-new-tokens 512
 
-echo "=== Generation completed successfully for $MODEL on $DATASET ==="
+echo ""
+echo "========================================================================"
+echo " [Stage 2] HF Forward Backfill (UMPIRE .pt Sidecars): model=$MODEL dataset=$DATASET"
+echo "========================================================================"
+$PYTHON_BIN scripts/generation/backfill_hidden_states.py \
+  --dataset "$DATASET" \
+  --dataset-source "$SRC" \
+  --model-family "$FAM" \
+  --model-path "$MP" \
+  --adapter-path "$AD" \
+  --samples-input "results/generation/$MODEL/samples/$DATASET.jsonl"
+
+echo ""
+echo "=== Two-Stage Generation Pipeline completed successfully for $MODEL on $DATASET ==="

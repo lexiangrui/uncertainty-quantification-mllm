@@ -83,7 +83,9 @@ def _load_sample_signals(sample_input: Path, record: dict) -> list[ResponseSigna
         raise ValueError(f"hidden-state shape mismatch: {path}")
     values: list[ResponseSignals | None] = []
     for position, sample in enumerate(samples):
-        index = sample.get("hidden_state_index", position)
+        index = sample.get("hidden_state_index")
+        if index is None:
+            index = position
         if not isinstance(index, int) or not 0 <= index < tensor.shape[0]:
             raise ValueError(f"invalid hidden_state_index in {path}")
         values.append(_signal(sample, tuple(tensor[index].float().tolist())))
