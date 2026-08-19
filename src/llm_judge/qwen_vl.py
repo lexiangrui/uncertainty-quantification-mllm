@@ -15,6 +15,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from ._json import parse_json_object
+
 try:
     import torch
 except ImportError:  # Keep rule/remote judges importable on CPU-only nodes.
@@ -123,7 +125,7 @@ def parse_multimodal_judge_response(text: str) -> dict[str, Any]:
     import json
 
     try:
-        value = json.loads(text.strip())
+        value = parse_json_object(text)
     except json.JSONDecodeError as error:
         raise ValueError(f"invalid JSON: {text[:300]!r}") from error
     if not isinstance(value, dict) or set(value) != {"analysis", "correct", "rating"}:

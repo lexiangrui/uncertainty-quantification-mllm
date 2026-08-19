@@ -10,22 +10,24 @@
 #SBATCH --error=logs/uq/%x-%j-%N.out
 
 # Single unit UQ computation (PPL / SE / UMPIRE) for one (MODEL, DATASET) pair.
-# Usage: sbatch --export=MODEL=llava,DATASET=vilp slurm/uq/compute_uq_single.sbatch
+# Usage: sbatch --export=MODEL=llava,DATASET=vilp,RUN_ID=my-run slurm/uq/compute_uq_single.sbatch
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/../common.sh"
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
 DATASET=${DATASET:?DATASET must be vilp|hallusionbench|mmvet}
-cd /home/lexiangrui/Uncertainty-Quantification-of-MLLM
-mkdir -p logs/uq "results/uq/$MODEL"
+RUN_ID=${RUN_ID:?RUN_ID must identify this pipeline run}
+cd "$PROJECT_ROOT"
+mkdir -p logs/uq "results/uq/$RUN_ID/$MODEL"
 
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
 
 echo "=== Running UQ: model=$MODEL dataset=$DATASET ==="
-~/.venvs/vlm-transformers/bin/python scripts/uq/compute_uq.py \
-  --greedy-input "results/generation/$MODEL/greedy/$DATASET.jsonl" \
-  --sample-input "results/generation/$MODEL/samples/$DATASET.jsonl" \
-  --output "results/uq/$MODEL/$DATASET.jsonl" \
-  --entailment-model-path /opt/lexiangrui/models/DeBERTa-v3-large-mnli-fever-anli-ling-wanli \
+"$HF_PYTHON" scripts/uq/compute_uq.py \
+  --greedy-input "results/generation/$RUN_ID/generation/$MODEL/greedy/$DATASET.jsonl" \
+  --sample-input "results/generation/$RUN_ID/generation/$MODEL/samples/$DATASET.jsonl" \
+  --output "results/uq/$RUN_ID/$MODEL/$DATASET.jsonl" \
+  --entailment-model-path "$MODEL_ROOT/DeBERTa-v3-large-mnli-fever-anli-ling-wanli" \
   --entailment-batch-size 32 \
   --entailment-device cuda
 

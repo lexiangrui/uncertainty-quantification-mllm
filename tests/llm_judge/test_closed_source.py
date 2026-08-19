@@ -105,6 +105,11 @@ def test_response_validation() -> None:
         )
 
 
+def test_response_validation_accepts_json_fence() -> None:
+    result = parse_closed_source_response(f"```json\n{VALID_RESPONSE}\n```")
+    assert result.correct is True
+
+
 def test_environment_is_required(monkeypatch) -> None:
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)

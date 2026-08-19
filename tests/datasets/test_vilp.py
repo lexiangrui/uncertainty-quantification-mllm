@@ -5,6 +5,7 @@ import pandas as pd
 from PIL import Image
 
 from src.datasets.vilp import iter_vilp
+import pytest
 
 
 def _png_bytes() -> bytes:
@@ -26,3 +27,13 @@ def test_vilp_expands_three_cases(tmp_path: Path) -> None:
         "vilp-0-case3",
     ]
     assert len({sample.group_id for sample in samples}) == 1
+
+
+def test_vilp_rejects_missing_text_instead_of_stringifying_nan(tmp_path: Path) -> None:
+    path = tmp_path / "ViLP.parquet"
+    image = _png_bytes()
+    pd.DataFrame(
+        [{"question": float("nan"), **{f"image{i}": image for i in range(1, 4)}, **{f"answer{i}": str(i) for i in range(1, 4)}}]
+    ).to_parquet(path)
+    with pytest.raises(ValueError, match="missing question"):
+        list(iter_vilp(path))

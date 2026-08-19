@@ -5,7 +5,7 @@ from typing import Iterator
 
 import pandas as pd
 
-from ._image import decode_image, require_columns
+from ._image import decode_image, require_columns, required_text
 from .base import BenchmarkSample
 
 
@@ -26,8 +26,8 @@ def iter_vilp(path: Path) -> Iterator[BenchmarkSample]:
                 group_id=group_id,
                 dataset="vilp",
                 split="test",
-                question=str(row["question"]).strip(),
-                references=(str(row[f"answer{case}"]).strip(),),
+                question=required_text(row["question"], "question", sample_id),
+                references=(required_text(row[f"answer{case}"], f"answer{case}", sample_id),),
                 image=decode_image(row[f"image{case}"], sample_id),
                 metadata={"row_number": int(row_number), "case": case},
             )

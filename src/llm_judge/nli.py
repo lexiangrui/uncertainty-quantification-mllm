@@ -44,7 +44,7 @@ class NLIJudge:
             str(name).lower(): int(index)
             for index, name in self.model.config.id2label.items()
         }
-        matches = [index for name, index in label_map.items() if "entail" in name]
+        matches = [index for name, index in label_map.items() if name == "entailment"]
         if len(matches) != 1:
             raise ValueError(f"cannot identify entailment label from {label_map}")
         self.entailment_label = matches[0]

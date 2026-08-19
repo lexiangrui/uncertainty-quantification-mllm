@@ -9,10 +9,12 @@
 #   bash slurm/submit_full_pipeline.sh          # Submit for all 3 models (llava, qwen, internvl)
 #   bash slurm/submit_full_pipeline.sh llava    # Submit for a single model
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 MODELS=("${@:-llava qwen internvl}")
+RUN_ID="full-$(date +%Y%m%d-%H%M%S)-$$"
 
-cd /home/lexiangrui/Uncertainty-Quantification-of-MLLM
+cd "$PROJECT_ROOT"
 mkdir -p logs/{generation,uq,judging,era}
 
 echo "================================================================="
@@ -25,11 +27,11 @@ for MODEL in ${MODELS[*]}; do
   echo ">>> [Model: $MODEL] Scheduling Two-Stage Generation + Chained UQ / Judge / ERA..."
 
   # Stage 1 & 2: Two-Stage Generation & Backfill (vilp -> hallusionbench -> mmvet)
-  GEN_ID=$(sbatch --parsable --export=MODEL="$MODEL" slurm/generation/generate.sbatch)
+  GEN_ID=$(sbatch --parsable --export=ALL,MODEL="$MODEL",RUN_ID="$RUN_ID-$MODEL" slurm/generation/generate.sbatch)
   echo "  [Stage 1 & 2: Generation + Backfill] Submitted Job ID: $GEN_ID"
 
   # Stage 3a: UQ Baseline (PPL / SE / UMPIRE, depends on Stage 1&2)
-  UQ_ID=$(sbatch --parsable --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL" slurm/uq/compute_uq.sbatch)
+  UQ_ID=$(sbatch --parsable --dependency=afterok:"$GEN_ID" --export=ALL,MODEL="$MODEL",RUN_ID="$RUN_ID-$MODEL" slurm/uq/compute_uq.sbatch)
   echo "  [Stage 3: Chained UQ Baseline]        Submitted Job ID: $UQ_ID (afterok:$GEN_ID)"
 
   # Optional Downstream Stages (Stage 3b LLM Judge & Stage 4 ERA Attention Extraction):

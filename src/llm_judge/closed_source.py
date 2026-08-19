@@ -11,6 +11,8 @@ from typing import Any
 from PIL import Image
 from src.utils.prompts import load_prompt
 
+from ._json import parse_json_object
+
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _JUDGE_PROMPT = load_prompt(
@@ -156,7 +158,7 @@ class JudgeResponseError(ValueError):
 
 def parse_closed_source_response(text: str) -> JudgeResult:
     try:
-        value = json.loads(text.strip())
+        value = parse_json_object(text)
     except json.JSONDecodeError as error:
         raise JudgeResponseError("judge response is not valid JSON", text) from error
     required = {"analysis", "correct", "rating", "hallucination_types"}
@@ -207,7 +209,7 @@ def _load_codex_credentials() -> tuple[str, str]:
 
             with config_path.open("rb") as handle:
                 config = tomllib.load(handle)
-        except (OSError, Exception):
+        except (OSError, ValueError, TypeError):
             config = {}
         providers = config.get("model_providers", {})
         for provider in providers.values():
@@ -225,12 +227,15 @@ class ClosedSourceJudge:
         model: str,
         *,
         max_tokens: int = 512,
+        timeout_seconds: float = 90.0,
         client: Any | None = None,
     ) -> None:
         if not model.strip():
             raise ValueError("model must be non-empty")
         if max_tokens <= 0:
             raise ValueError("max_tokens must be positive")
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
         if client is None:
             base_url = os.environ.get("OPENAI_BASE_URL", "").strip()
             api_key = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -245,7 +250,7 @@ class ClosedSourceJudge:
                 )
             from openai import OpenAI
 
-            client = OpenAI(base_url=base_url, api_key=api_key, timeout=30.0)
+            client = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout_seconds)
         self.model = model
         self.max_tokens = max_tokens
         self.client = client

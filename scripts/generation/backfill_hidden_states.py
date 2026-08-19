@@ -23,10 +23,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.datasets import iter_dataset
-from src.generation.parser import answer_character_span, parse_structured_response
+from src.generation.parser import answer_character_span
 from src.generation.prompt import build_prompt
 from src.generation.runner import _sidecar_filename
 from src.models import load_backend
+
+
+BACKFILL_VERSION = "3.0"
+BACKFILL_SOURCE = "hf_teacher_forcing_backfill_v3"
+TOKEN_ALIGNMENT = "vllm_generated_token_sidecar"
 
 
 def parse_args() -> argparse.Namespace:
@@ -94,37 +99,100 @@ def _build_prompt_text(processor, family: str, question: str, has_image: bool) -
         return processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
 
 
-def _find_answer_last_token_index(
-    tokenizer,
-    prompt_tokens_len: int,
-    full_input_ids: list[int],
-    raw_response: str,
-    response_format: str = "xml",
+def _answer_last_generated_token_offset(
+    tokenizer, generated_token_ids: list[int], raw_response: str
 ) -> int:
-    """Precisely find the token index in full_input_ids corresponding to the last character of the answer body."""
-    try:
-        parsed = parse_structured_response(raw_response, response_format)
-        if not parsed:
-            return len(full_input_ids) - 1
-        _, char_end = answer_character_span(raw_response, response_format)
-    except Exception:
-        return len(full_input_ids) - 1
-
-    gen_token_ids = full_input_ids[prompt_tokens_len:]
-    if not gen_token_ids:
-        return len(full_input_ids) - 1
-
+    """Return the zero-based generated-token offset containing the answer's final character."""
+    _, char_end = answer_character_span(raw_response, "xml")
+    if not generated_token_ids:
+        raise ValueError("sampled response has no generated token IDs")
+    decoded = tokenizer.decode(
+        generated_token_ids,
+        skip_special_tokens=True,
+        clean_up_tokenization_spaces=False,
+    ).strip()
+    if decoded != raw_response.strip():
+        raise ValueError("generated token sidecar does not decode to raw_response")
     decoded_lengths = [0]
-    for end_idx in range(1, len(gen_token_ids) + 1):
-        decoded_text = tokenizer.decode(gen_token_ids[:end_idx], skip_special_tokens=False)
+    for end_idx in range(1, len(generated_token_ids) + 1):
+        decoded_text = tokenizer.decode(
+            generated_token_ids[:end_idx],
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False,
+        ).strip()
         decoded_lengths.append(len(decoded_text))
 
     token_end_offset = next(
         (idx for idx, length in enumerate(decoded_lengths[1:], start=1) if length >= char_end),
-        len(gen_token_ids),
+        None,
     )
-    # 0-indexed token position within the full sequence
-    return max(0, min(len(full_input_ids) - 1, prompt_tokens_len + token_end_offset - 1))
+    if token_end_offset is None:
+        raise ValueError("answer character span does not align to generated token IDs")
+    return token_end_offset - 1
+
+
+def _load_generated_token_ids(samples_path: Path, item: dict) -> list[list[int]]:
+    descriptor = item.get("generation_tokens")
+    if not isinstance(descriptor, dict) or not isinstance(descriptor.get("path"), str):
+        raise ValueError("sample record lacks generation_tokens descriptor")
+    root = samples_path.parent.resolve()
+    token_path = (root / descriptor["path"]).resolve()
+    if not token_path.is_relative_to(root):
+        raise ValueError("generation token path escapes samples directory")
+    payload = torch.load(token_path, map_location="cpu", weights_only=True)
+    if not isinstance(payload, dict):
+        raise ValueError(f"invalid generation token sidecar: {token_path}")
+    values: list[list[int]] = []
+    for index in range(len(item.get("samples", []))):
+        tensor = payload.get(f"sample_{index}")
+        if not isinstance(tensor, torch.Tensor) or tensor.ndim != 1:
+            raise ValueError(f"invalid sample_{index} token IDs in {token_path}")
+        values.append([int(value) for value in tensor.tolist()])
+    return values
+
+
+def _current_sidecar(item: dict, path: Path, expected_rows: int) -> bool:
+    descriptor = item.get("hidden_states")
+    if not isinstance(descriptor, dict):
+        return False
+    if descriptor.get("source") != BACKFILL_SOURCE or not path.is_file():
+        return False
+    try:
+        tensor = torch.load(path, map_location="cpu", weights_only=True)
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return (
+        isinstance(tensor, torch.Tensor)
+        and tensor.ndim == 2
+        and tensor.shape[0] == expected_rows
+        and list(tensor.shape) == descriptor.get("shape")
+    )
+
+
+def _atomic_torch_save(tensor: torch.Tensor, path: Path) -> None:
+    descriptor, temporary = tempfile.mkstemp(
+        prefix=path.name + ".", suffix=".tmp", dir=path.parent
+    )
+    os.close(descriptor)
+    try:
+        torch.save(tensor, temporary)
+        os.replace(temporary, path)
+    except BaseException:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+        raise
+
+
+def _answer_hidden_index(
+    sequence_length: int,
+    right_padding: int,
+    generated_token_count: int,
+    answer_offset: int,
+) -> int:
+    index = sequence_length - right_padding - generated_token_count + answer_offset
+    if not 0 <= index < sequence_length:
+        raise ValueError("answer token index exceeds model hidden-state sequence")
+    return index
 
 
 def backfill_hidden_states(
@@ -163,23 +231,37 @@ def backfill_hidden_states(
     header = json.loads(lines[0])
     sample_records = [json.loads(line) for line in lines[1:]]
 
-    # Update header metadata
+    if header.get("record_type") != "run" or not isinstance(header.get("run"), dict):
+        raise ValueError(f"samples input lacks a valid run header: {samples_path}")
+    run = header["run"]
+    if run.get("dataset") is None or run.get("model_family") != family:
+        raise ValueError("samples input does not match requested model family")
+    if run.get("model_runtime", {}).get("engine") != "vllm":
+        raise ValueError("hidden-state backfill requires vLLM generation input")
+
+    # This deterministic top-level manifest is merged into the UQ run identity.
     header["backfill_manifest"] = {
-        "version": "2.0",
+        "version": BACKFILL_VERSION,
         "engine": "huggingface_teacher_forcing",
         "position": "answer_last_token",
-        "token_span_alignment": "character_to_token_exact",
+        "token_span_alignment": TOKEN_ALIGNMENT,
         "model_family": family,
         "adapter_path": str(backend.adapter_path) if backend.adapter_path else None,
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "prompt_sha256": run.get("prompt_sha256"),
     }
 
-    # Determine subset to process
+    # Only valid XML records participate in UQ; invalid records remain preserved
+    # without a misleading answer-last-token descriptor.
     unprocessed_indices = []
     for idx, item in enumerate(sample_records):
         sample_id = item["sample"]["sample_id"]
+        raw_samples = item.get("samples", [])
+        if not raw_samples or not all(
+            sample.get("sections_valid") is True for sample in raw_samples
+        ):
+            continue
         pt_path = hidden_dir / _sidecar_filename(sample_id)
-        if not pt_path.exists() or item.get("hidden_states") is None:
+        if not _current_sidecar(item, pt_path, len(raw_samples)):
             unprocessed_indices.append(idx)
 
     if limit is not None and limit > 0:
@@ -203,7 +285,7 @@ def backfill_hidden_states(
         sample_id = item["sample"]["sample_id"]
         instance = dataset_map.get(sample_id)
         if instance is None:
-            continue
+            raise ValueError(f"dataset source lacks generated sample_id: {sample_id}")
 
         raw_samples = item.get("samples", [])
         if not raw_samples:
@@ -214,59 +296,92 @@ def backfill_hidden_states(
         image = instance.image
 
         prompt_text = _build_prompt_text(processor, family, instance.question, has_image)
-        prompt_token_ids = tokenizer.encode(prompt_text, add_special_tokens=False)
-        prompt_len = len(prompt_token_ids)
-
         candidate_responses = [s.get("raw_response", "") for s in raw_samples]
+        generated_token_ids = _load_generated_token_ids(samples_path, item)
         hidden_vectors: list[torch.Tensor] = []
 
         # Process candidate responses in micro-batches
         for b_start in range(0, len(candidate_responses), batch_size):
             b_texts = candidate_responses[b_start : b_start + batch_size]
-            full_texts = [f"{prompt_text}{resp}" for resp in b_texts]
+            b_token_ids = generated_token_ids[b_start : b_start + batch_size]
+            prompt_texts = [prompt_text] * len(b_texts)
 
-            # Prepare multi-modal inputs
+            # Build the multimodal prompt once per row, then append the exact
+            # vLLM token IDs. This avoids tokenizer/processor length drift.
             if family == "llava_1_5":
-                kwargs = {"text": full_texts, "padding": True, "return_tensors": "pt"}
+                kwargs = {"text": prompt_texts, "padding": True, "return_tensors": "pt"}
                 if has_image:
-                    kwargs["images"] = [image] * len(full_texts)
+                    kwargs["images"] = [image] * len(prompt_texts)
                 inputs = processor(**kwargs).to(device)
             elif family == "qwen2_5_vl":
-                kwargs = {"text": full_texts, "padding": True, "return_tensors": "pt"}
+                kwargs = {"text": prompt_texts, "padding": True, "return_tensors": "pt"}
                 if has_image:
-                    kwargs["images"] = [image] * len(full_texts)
+                    kwargs["images"] = [image] * len(prompt_texts)
                 inputs = processor(**kwargs).to(device)
             elif family == "internvl3_5":
-                inputs = processor.tokenizer(full_texts, padding=True, return_tensors="pt").to(device)
+                inputs = processor.tokenizer(prompt_texts, padding=True, return_tensors="pt").to(device)
                 if has_image:
                     pixel_values = processor.image_processor(image, return_tensors="pt").pixel_values.to(device)
-                    inputs["pixel_values"] = pixel_values.repeat(len(full_texts), 1, 1, 1)
+                    inputs["pixel_values"] = pixel_values.repeat(len(prompt_texts), 1, 1, 1)
             else:
                 raise ValueError(f"unsupported model family: {family}")
+
+            prompt_rows: list[list[int]] = []
+            for row_index in range(len(b_texts)):
+                mask = inputs["attention_mask"][row_index].bool()
+                prompt_rows.append(
+                    [int(value) for value in inputs["input_ids"][row_index][mask].tolist()]
+                )
+            full_rows = [
+                prompt_ids + response_ids
+                for prompt_ids, response_ids in zip(prompt_rows, b_token_ids, strict=True)
+            ]
+            pad_id = tokenizer.pad_token_id
+            if pad_id is None:
+                raise ValueError("tokenizer requires pad_token_id for batched backfill")
+            max_length = max(len(row) for row in full_rows)
+            padded_rows: list[list[int]] = []
+            attention_rows: list[list[int]] = []
+            right_offsets: list[int] = []
+            for row in full_rows:
+                padding = max_length - len(row)
+                left_padding = padding if tokenizer.padding_side == "left" else 0
+                right_padding = padding - left_padding
+                padded_rows.append([pad_id] * left_padding + row + [pad_id] * right_padding)
+                attention_rows.append([0] * left_padding + [1] * len(row) + [0] * right_padding)
+                right_offsets.append(right_padding)
+            inputs["input_ids"] = torch.tensor(
+                padded_rows, dtype=torch.long, device=device
+            )
+            inputs["attention_mask"] = torch.tensor(
+                attention_rows, dtype=torch.long, device=device
+            )
 
             with torch.no_grad():
                 outputs = model(**inputs, output_hidden_states=True)
                 # Last layer hidden states shape: [batch_size, seq_len, hidden_dim]
                 last_hidden_states = outputs.hidden_states[-1]
 
-                for b_idx, resp_text in enumerate(b_texts):
-                    row_ids = inputs["input_ids"][b_idx].tolist()
-                    # Strip padding tokens if left-padded or right-padded
-                    non_pad_ids = [tid for tid in row_ids if tid != tokenizer.pad_token_id]
-                    target_token_idx = _find_answer_last_token_index(
-                        tokenizer, prompt_len, non_pad_ids, resp_text
+                for b_idx, (resp_text, response_ids) in enumerate(
+                    zip(b_texts, b_token_ids, strict=True)
+                ):
+                    answer_offset = _answer_last_generated_token_offset(
+                        tokenizer, response_ids, resp_text
                     )
-                    # If left-padded, offset target_token_idx by pad count
-                    pad_offset = 0
-                    if tokenizer.padding_side == "left":
-                        pad_offset = len(row_ids) - len(non_pad_ids)
-                    exact_idx = min(last_hidden_states.shape[1] - 1, pad_offset + target_token_idx)
+                    # Index from the sequence end so image-token expansion in
+                    # the prompt cannot shift the generated-token position.
+                    exact_idx = _answer_hidden_index(
+                        last_hidden_states.shape[1],
+                        right_offsets[b_idx],
+                        len(response_ids),
+                        answer_offset,
+                    )
                     vec = last_hidden_states[b_idx, exact_idx, :].detach().cpu().to(torch.float16)
                     hidden_vectors.append(vec)
 
         if hidden_vectors:
             stacked_tensor = torch.stack(hidden_vectors, dim=0)  # Shape: [K, hidden_dim]
-            torch.save(stacked_tensor, pt_path)
+            _atomic_torch_save(stacked_tensor, pt_path)
 
             try:
                 rel_pt_path = str(pt_path.relative_to(PROJECT_ROOT / "results" / "hidden"))
@@ -282,9 +397,30 @@ def backfill_hidden_states(
                 "dtype": "float16",
                 "role": "samples",
                 "position": "answer_last_token",
-                "source": "hf_teacher_forcing_backfill",
+                "source": BACKFILL_SOURCE,
+                "version": BACKFILL_VERSION,
+                "token_alignment": TOKEN_ALIGNMENT,
             }
             backfilled_count += 1
+
+    incomplete = []
+    for idx, item in enumerate(sample_records):
+        if limit is not None and limit > 0 and idx not in target_indices:
+            continue
+        raw_samples = item.get("samples", [])
+        if not raw_samples or not all(
+            sample.get("sections_valid") is True for sample in raw_samples
+        ):
+            continue
+        sample_id = item["sample"]["sample_id"]
+        pt_path = hidden_dir / _sidecar_filename(sample_id)
+        if not _current_sidecar(item, pt_path, len(raw_samples)):
+            incomplete.append(sample_id)
+    if incomplete:
+        preview = ", ".join(incomplete[:5])
+        raise RuntimeError(
+            f"backfill incomplete for {len(incomplete)} valid records: {preview}"
+        )
 
     # Atomic write back preserving ALL records
     output_path.parent.mkdir(parents=True, exist_ok=True)

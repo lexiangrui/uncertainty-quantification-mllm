@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from lora_format.llava_sft import append_eos
+from lora_format.multimodal_sft import append_eos
 from lora_format.prompts import (
     LORA_XML_INSTRUCTION,
     LORA_XML_PROMPT_SHA256,

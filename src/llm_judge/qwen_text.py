@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from ._json import parse_json_object
+
 try:
     import torch
 except ImportError:  # Keep rule/remote judges importable on CPU-only nodes.
@@ -36,7 +38,7 @@ def build_text_judge_prompt(question: str, references: list[str], prediction: st
 
 def parse_text_judge_verdict(text: str) -> bool:
     try:
-        parsed = json.loads(text.strip())
+        parsed = parse_json_object(text)
     except json.JSONDecodeError as error:
         raise ValueError(f"judge returned invalid JSON: {text[:200]!r}") from error
     if not isinstance(parsed, dict) or set(parsed) != {"verdict"}:

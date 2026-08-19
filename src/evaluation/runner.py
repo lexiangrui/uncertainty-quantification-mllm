@@ -17,6 +17,12 @@ from .metrics import (
 
 
 SINGLE_CLASS_REASON = "target labels contain a single class"
+_GREEDY_RUN_AUDIT_FIELDS = {"backfill_manifest"}
+
+
+def _greedy_run_identity(run: dict[str, Any]) -> dict[str, Any]:
+    """Compare generation identity without mutable post-generation audit metadata."""
+    return {key: value for key, value in run.items() if key not in _GREEDY_RUN_AUDIT_FIELDS}
 
 
 def _load_records(path: Path) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
@@ -173,7 +179,10 @@ def run_metrics(
     greedy_run = uq_run.get("greedy_run")
     if not isinstance(greedy_run, dict):
         raise ValueError("uq run header lacks greedy_run")
-    if greedy_run != judge_run.get("greedy_run"):
+    judge_greedy_run = judge_run.get("greedy_run")
+    if not isinstance(judge_greedy_run, dict):
+        raise ValueError("judge run header lacks greedy_run")
+    if _greedy_run_identity(greedy_run) != _greedy_run_identity(judge_greedy_run):
         raise ValueError("greedy_run mismatch between UQ and judge inputs")
     methods = _method_names(uq_run)
     rows, exclusions = _collect_rows(judge_records, uq_records, methods)

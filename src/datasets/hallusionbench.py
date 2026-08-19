@@ -5,7 +5,7 @@ from typing import Iterator
 
 import pandas as pd
 
-from ._image import decode_image, require_columns
+from ._image import decode_image, require_columns, required_text
 from .base import BenchmarkSample
 
 
@@ -63,9 +63,7 @@ def iter_hallusionbench(directory: Path) -> Iterator[BenchmarkSample]:
                 image = decode_image(row["image"], sample_id)
             else:
                 image = None
-            details = str(row["gt_answer_details"]).strip()
-            if not details:
-                raise ValueError(f"empty gt_answer_details for {sample_id}")
+            details = required_text(row["gt_answer_details"], "gt_answer_details", sample_id)
             metadata = {
                 "row_number": int(row_number),
                 "category": str(row["category"]),
@@ -82,7 +80,7 @@ def iter_hallusionbench(directory: Path) -> Iterator[BenchmarkSample]:
                 ),
                 dataset="hallusionbench",
                 split=split,
-                question=str(row["question"]).strip(),
+                question=required_text(row["question"], "question", sample_id),
                 references=(_yes_no(row["gt_answer"], sample_id), details),
                 image=image,
                 metadata=metadata,

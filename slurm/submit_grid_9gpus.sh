@@ -4,8 +4,10 @@
 # Datasets: vilp, hallusionbench, mmvet
 # Total: 9 Generation Jobs (Concurrent) -> 9 UQ Jobs (Chained via afterok)
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
-cd /home/lexiangrui/Uncertainty-Quantification-of-MLLM
+cd "$PROJECT_ROOT"
+RUN_ID="grid-$(date +%Y%m%d-%H%M%S)-$$"
 mkdir -p logs/{generation,uq}
 
 echo "================================================================="
@@ -18,12 +20,11 @@ DATASETS=(vilp hallusionbench mmvet)
 for MODEL in "${MODELS[@]}"; do
   for DATASET in "${DATASETS[@]}"; do
     # 1. Submit Generation Job (1 GPU)
-    GEN_OUT=$(sbatch --export=MODEL="$MODEL",DATASET="$DATASET" slurm/generation/generate_single.sbatch)
-    GEN_ID=$(echo "$GEN_OUT" | awk '{print $4}')
+    JOB_RUN_ID="$RUN_ID-$MODEL-$DATASET"
+    GEN_ID=$(sbatch --parsable --export=ALL,MODEL="$MODEL",DATASET="$DATASET",RUN_ID="$JOB_RUN_ID" slurm/generation/generate_single.sbatch)
 
     # 2. Submit Chained UQ Computation Job (1 GPU, triggers immediately after Generation finishes)
-    UQ_OUT=$(sbatch --dependency=afterok:"$GEN_ID" --export=MODEL="$MODEL",DATASET="$DATASET" slurm/uq/compute_uq_single.sbatch)
-    UQ_ID=$(echo "$UQ_OUT" | awk '{print $4}')
+    UQ_ID=$(sbatch --parsable --dependency=afterok:"$GEN_ID" --export=ALL,MODEL="$MODEL",DATASET="$DATASET",RUN_ID="$JOB_RUN_ID" slurm/uq/compute_uq_single.sbatch)
 
     printf "  • [%-8s x %-14s] Gen Job ID: %-8s -> UQ Job ID: %-8s (afterok:%s)\n" "$MODEL" "$DATASET" "$GEN_ID" "$UQ_ID" "$GEN_ID"
   done

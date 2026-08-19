@@ -12,6 +12,12 @@ def test_strict_xml_and_vqa_answer() -> None:
     assert result["parsed"]["vision"] == "Two dogs are visible."
 
 
+def test_xml_tags_are_case_insensitive_like_generation_parser() -> None:
+    result = evaluate_response(VALID.replace("vision", "Vision").replace("reasoning", "Reasoning").replace("answer", "Answer"), "2")
+    assert result["strict_xml_valid"] is True
+    assert result["answer_correct"] is True
+
+
 def test_extra_text_and_repeated_tag_fail_strict_validation() -> None:
     extra = evaluate_response("Here: " + VALID, "2")
     assert extra["strict_xml_valid"] is False

@@ -79,11 +79,19 @@ def test_strict_llm_verdict():
     assert prompt["reference_answers"] == ["left"]
 
 
+def test_llm_verdict_accepts_json_fence_and_prose() -> None:
+    assert parse_text_judge_verdict("```json\n{\"verdict\":\"CORRECT\"}\n```")
+
+
 def test_mmhal_response_round_trip_and_hallucination_rule():
     parsed = parse_multimodal_judge_response('{"analysis":"ok","correct":true,"rating":4}')
     assert parsed == {"analysis": "ok", "correct": True, "rating": 4, "hallucination": False}
     hallucinated = parse_multimodal_judge_response('{"analysis":"bad","correct":false,"rating":1}')
     assert hallucinated["hallucination"] is True
+    fenced = parse_multimodal_judge_response(
+        "Result:\n```json\n{\"analysis\":\"ok\",\"correct\":true,\"rating\":4}\n```"
+    )
+    assert fenced["correct"] is True
 
 
 def test_mmhal_response_rejects_malformed():

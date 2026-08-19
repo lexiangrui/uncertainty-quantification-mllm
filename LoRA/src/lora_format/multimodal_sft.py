@@ -12,11 +12,26 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset, Subset
 
-from .llava_sft import append_eos, read_jsonl
 from .prompts import LORA_XML_INSTRUCTION, LORA_XML_PROMPT_SHA256
 
 
 FAMILIES = ("llava_1_5", "qwen2_5_vl", "internvl3_5")
+
+
+def append_eos(text: str, eos_token: str | None) -> str:
+    if not eos_token:
+        raise ValueError("the tokenizer must define an EOS token for SFT")
+    return text if text.endswith(eos_token) else text + eos_token
+
+
+def read_jsonl(path: Path, limit: int | None = None) -> list[dict]:
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = rows if limit is None else rows[:limit]
+    if not rows:
+        raise ValueError(f"empty split: {path}")
+    return rows
 
 
 def _chat_template(processor, messages: list[dict], *, add_generation_prompt: bool) -> str:

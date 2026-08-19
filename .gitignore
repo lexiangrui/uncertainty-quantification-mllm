@@ -20,6 +20,8 @@ logs/
 results/
 results*/
 slurm/
+!slurm/
+!slurm/common.sh
 GASP/cache/
 *.pt
 *.pth

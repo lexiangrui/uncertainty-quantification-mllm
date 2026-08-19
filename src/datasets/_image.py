@@ -6,15 +6,38 @@ from typing import Any
 from PIL import Image
 
 
+def required_text(value: Any, field: str, sample_id: str) -> str:
+    """Return non-empty scalar text and reject pandas-style missing values."""
+    if value is None:
+        raise ValueError(f"missing {field} for {sample_id}")
+    try:
+        import pandas as pd
+
+        missing = pd.isna(value)
+        if missing is pd.NA or (not hasattr(missing, "__len__") and bool(missing)):
+            raise ValueError(f"missing {field} for {sample_id}")
+    except ValueError:
+        raise
+    except (TypeError, AttributeError):
+        pass
+    text = str(value).strip()
+    if not text:
+        raise ValueError(f"empty {field} for {sample_id}")
+    return text
+
+
 def decode_image(value: Any, sample_id: str) -> Image.Image:
     if isinstance(value, Image.Image):
         return value.convert("RGB")
     if isinstance(value, bytes):
-        return Image.open(BytesIO(value)).convert("RGB")
+        with Image.open(BytesIO(value)) as image:
+            return image.convert("RGB")
     if isinstance(value, dict) and isinstance(value.get("bytes"), bytes):
-        return Image.open(BytesIO(value["bytes"])).convert("RGB")
+        with Image.open(BytesIO(value["bytes"])) as image:
+            return image.convert("RGB")
     if isinstance(value, dict) and value.get("path"):
-        return Image.open(value["path"]).convert("RGB")
+        with Image.open(value["path"]) as image:
+            return image.convert("RGB")
     raise TypeError(f"unsupported image value for {sample_id}: {type(value).__name__}")
 
 

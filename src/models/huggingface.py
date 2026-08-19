@@ -324,9 +324,11 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         for index, request in enumerate(requests):
             ids = [int(value) for value in generated[index].tolist()]
             length = len(ids)
+            stopped_by_eos = False
             for position, token_id in enumerate(ids):
                 if token_id in eos_ids:
                     length = position + 1
+                    stopped_by_eos = True
                     break
                 if pad_id is not None and token_id == pad_id:
                     length = position
@@ -344,7 +346,7 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
                 sampling_token_log_probs=tuple(
                     sampling_log_probs[index, :length].cpu().tolist()
                 ),
-                finish_reason="length" if length == max_new_tokens else "stop",
+                finish_reason="stop" if stopped_by_eos or length < max_new_tokens else "length",
                 rng_seed=batch_seed,
                 hidden_steps=(
                     hidden_trajectory[index]
