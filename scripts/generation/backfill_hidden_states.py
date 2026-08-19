@@ -84,19 +84,9 @@ def _build_prompt_text(processor, family: str, question: str, has_image: bool) -
     if prompt.system:
         messages.insert(0, {"role": "system", "content": [{"type": "text", "text": prompt.system}]})
 
-    if family == "internvl3_5":
-        # InternVL custom conversation formatting
-        img_prefix = "<image>\n" if has_image else ""
-        sys_prefix = f"{prompt.system}\n\n" if prompt.system else ""
-        return f"{img_prefix}{sys_prefix}User: {prompt.user}\nAssistant: "
-    elif family == "llava_1_5":
-        # LLaVA 1.5 conversation template
-        img_prefix = "USER: <image>\n" if has_image else "USER: "
-        sys_prefix = f"{prompt.system}\n\n" if prompt.system else ""
-        return f"{sys_prefix}{img_prefix}{prompt.user}\nASSISTANT: "
-    else:
-        # Standard processor chat template (e.g. Qwen2.5-VL)
-        return processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+    return processor.apply_chat_template(
+        messages, add_generation_prompt=True, tokenize=False
+    )
 
 
 def _answer_last_generated_token_offset(
@@ -327,11 +317,17 @@ def backfill_hidden_states(
                 raise ValueError(f"unsupported model family: {family}")
 
             prompt_rows: list[list[int]] = []
+            prompt_type_rows: dict[str, list[list[int]]] = {}
             for row_index in range(len(b_texts)):
                 mask = inputs["attention_mask"][row_index].bool()
                 prompt_rows.append(
                     [int(value) for value in inputs["input_ids"][row_index][mask].tolist()]
                 )
+                for key in ("mm_token_type_ids", "input_token_type_ids", "token_type_ids"):
+                    if key in inputs:
+                        prompt_type_rows.setdefault(key, []).append(
+                            [int(value) for value in inputs[key][row_index][mask].tolist()]
+                        )
             full_rows = [
                 prompt_ids + response_ids
                 for prompt_ids, response_ids in zip(prompt_rows, b_token_ids, strict=True)
@@ -342,6 +338,7 @@ def backfill_hidden_states(
             max_length = max(len(row) for row in full_rows)
             padded_rows: list[list[int]] = []
             attention_rows: list[list[int]] = []
+            left_offsets: list[int] = []
             right_offsets: list[int] = []
             for row in full_rows:
                 padding = max_length - len(row)
@@ -349,6 +346,7 @@ def backfill_hidden_states(
                 right_padding = padding - left_padding
                 padded_rows.append([pad_id] * left_padding + row + [pad_id] * right_padding)
                 attention_rows.append([0] * left_padding + [1] * len(row) + [0] * right_padding)
+                left_offsets.append(left_padding)
                 right_offsets.append(right_padding)
             inputs["input_ids"] = torch.tensor(
                 padded_rows, dtype=torch.long, device=device
@@ -356,6 +354,17 @@ def backfill_hidden_states(
             inputs["attention_mask"] = torch.tensor(
                 attention_rows, dtype=torch.long, device=device
             )
+            inputs.pop("position_ids", None)
+            for key in ("mm_token_type_ids", "input_token_type_ids", "token_type_ids"):
+                if key not in inputs:
+                    continue
+                values = torch.zeros_like(inputs["input_ids"])
+                for row_index, prompt_types in enumerate(prompt_type_rows[key]):
+                    start = left_offsets[row_index]
+                    values[row_index, start : start + len(prompt_types)] = torch.tensor(
+                        prompt_types, dtype=values.dtype, device=device
+                    )
+                inputs[key] = values
 
             with torch.no_grad():
                 outputs = model(**inputs, output_hidden_states=True)
