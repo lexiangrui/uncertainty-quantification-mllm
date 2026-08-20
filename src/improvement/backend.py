@@ -149,7 +149,7 @@ class EraBackend:
             )
             inputs["pixel_values"] = pixel_values
             inputs["image_flags"] = torch.ones((1, 1), dtype=torch.long, device=self.device)
-            self.model.img_context_token_id = self._image_token_id
+            self._base_model().img_context_token_id = self._image_token_id
             return {k: v.to(self.device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
         content = []
         if image is not None:

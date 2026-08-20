@@ -280,7 +280,8 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
                 T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
         )
-        num_image_tokens = int(self.model.num_image_token)
+        base_model = self.model.get_base_model() if hasattr(self.model, "get_base_model") else self.model
+        num_image_tokens = int(base_model.num_image_token)
         rendered: list[str] = []
         tiles: list[torch.Tensor] = []
         image_flags: list[torch.Tensor] = []
@@ -303,7 +304,7 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         inputs = tokenizer(rendered, return_tensors="pt", padding=True, add_special_tokens=False)
         inputs["pixel_values"] = torch.cat(tiles, dim=0).to(self.device, dtype=torch.bfloat16)
         inputs["image_flags"] = torch.cat(image_flags, dim=0).to(self.device)
-        self.model.img_context_token_id = tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
+        base_model.img_context_token_id = tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
         return {name: value.to(self.device) for name, value in inputs.items()}
 
     @torch.inference_mode()

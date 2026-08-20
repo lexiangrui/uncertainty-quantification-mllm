@@ -418,6 +418,7 @@ def train(
     model.to("cuda")
     device = next(parameter for _, parameter in trainable).device
     model_dtype = next(parameter for parameter in model.parameters() if parameter.is_floating_point()).dtype
+    base_model = model.get_base_model() if hasattr(model, "get_base_model") else model
 
     def move_batch(batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         return {
@@ -440,7 +441,7 @@ def train(
             rows,
             root.parent / "images",
             processor,
-            num_image_tokens=int(model.num_image_token),
+            num_image_tokens=int(base_model.num_image_token),
             image_size=int(config.get("image_size", 448)),
             max_num_patches=int(config.get("max_num_patches", 1)),
             max_length=int(config["max_length"]),
@@ -450,7 +451,7 @@ def train(
             validation_rows,
             root.parent / "images",
             processor,
-            num_image_tokens=int(model.num_image_token),
+            num_image_tokens=int(base_model.num_image_token),
             image_size=int(config.get("image_size", 448)),
             max_num_patches=int(config.get("max_num_patches", 1)),
             max_length=int(config["max_length"]),
