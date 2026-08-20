@@ -58,7 +58,8 @@ def _judge_record(sample, greedy: dict) -> dict:
             "hallucination": None,
             "hallucination_types": None,
         }
-    correct = _matches(greedy.get("answer", ""), list(sample.references))
+    references = list(sample.references[:1]) if sample.dataset == "hallusionbench" else list(sample.references)
+    correct = _matches(greedy.get("answer", ""), references)
     hallucination = not correct
     return {
         "status": "ok",
