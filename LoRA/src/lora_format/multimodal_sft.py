@@ -410,7 +410,13 @@ def train(
             lora_alpha=int(config["lora_alpha"]),
             lora_dropout=float(config["lora_dropout"]),
             bias="none",
-            task_type="CAUSAL_LM",
+            # The original OpenGVLab model is a multimodal wrapper whose
+            # forward signature does not accept ``inputs_embeds``.  PEFT's
+            # ``PeftModelForCausalLM`` wrapper (selected by this task type)
+            # always forwards that keyword, even when it is ``None``.  Keep
+            # the generic wrapper for this family while preserving the
+            # causal-LM wrapper for the native Transformers families.
+            task_type=None if config["family"] == "internvl3_5_original" else "CAUSAL_LM",
             target_modules=config["target_modules"],
         ),
     )
