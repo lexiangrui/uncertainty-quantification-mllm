@@ -30,7 +30,7 @@ for model in llava qwen internvl; do
     esac
     "$HF_PYTHON" scripts/improvement/run_era.py \
       --greedy-input "results/generation/$model/greedy/$dataset.jsonl" \
-      --output "results/era/$model/$dataset.jsonl" --family "$FAM" \
+      --output "results/era_components/$model/$dataset.jsonl" --family "$FAM" \
       --model-path "$MP" --adapter-path "$AD" --dataset-source "$SRC" \
       --attn-implementation eager --limit 10
   done

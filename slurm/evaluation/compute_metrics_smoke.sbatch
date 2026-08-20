@@ -19,7 +19,7 @@ for model in llava qwen internvl; do
   for dataset in vilp hallusionbench mmvet; do
     "$HF_PYTHON" scripts/evaluation/compute_metrics.py \
       --uq-input "results/uq/$model/$dataset.jsonl" \
-      --judge-input "results/judge/$model/$dataset.jsonl" \
+      --judge-input "results/judging/$model/$dataset.jsonl" \
       --output "results/metrics/$model/$dataset.json" \
       --bootstrap-samples 100
   done
