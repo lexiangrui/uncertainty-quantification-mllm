@@ -14,6 +14,8 @@ from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision.transforms import InterpolationMode
 import torchvision.transforms as T
 
+from src.models.transformers_compat import patch_tied_weights_keys_compat
+
 from .prompts import LORA_XML_INSTRUCTION, LORA_XML_PROMPT_SHA256
 
 
@@ -343,6 +345,7 @@ def load_model(config: dict):
     family = config["family"]
     model_path = Path(config["base_model"])
     if family == "internvl3_5_original":
+        patch_tied_weights_keys_compat()
         tokenizer = AutoTokenizer.from_pretrained(
             model_path,
             local_files_only=True,

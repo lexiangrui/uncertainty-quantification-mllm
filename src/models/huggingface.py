@@ -10,6 +10,7 @@ from PIL import Image
 from src.generation.prompt import GenerationPrompt
 
 from .base import GeneratedResponse, GenerationBackend, GenerationRequest
+from .transformers_compat import patch_tied_weights_keys_compat
 
 
 class HuggingFaceMultimodalBackend(GenerationBackend):
@@ -87,6 +88,7 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         if self.family == "internvl3_5_original":
             from transformers import AutoModel, AutoTokenizer
 
+            patch_tied_weights_keys_compat()
             self.processor = AutoTokenizer.from_pretrained(
                 self.model_path,
                 local_files_only=True,
