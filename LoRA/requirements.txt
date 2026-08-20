@@ -3,3 +3,4 @@ peft
 Pillow
 torch
 transformers
+timm
