@@ -428,6 +428,14 @@ def train(
     device = next(parameter for _, parameter in trainable).device
     model_dtype = next(parameter for parameter in model.parameters() if parameter.is_floating_point()).dtype
     base_model = model.get_base_model() if hasattr(model, "get_base_model") else model
+    if config["family"] == "internvl3_5_original":
+        # OpenGVLab's chat/generation helpers set this lazily; the training
+        # forward path calls the remote model directly and therefore needs the
+        # special visual-token ID initialized explicitly.
+        image_context_id = tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
+        if image_context_id is None or image_context_id == tokenizer.unk_token_id:
+            raise ValueError("original InternVL tokenizer has no <IMG_CONTEXT> token")
+        base_model.img_context_token_id = int(image_context_id)
 
     def move_batch(batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         return {
