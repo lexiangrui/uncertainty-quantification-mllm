@@ -76,22 +76,6 @@ class FakeDynamicBackend(GenerationBackend):
         return values
 
 
-class FakeVllmBackend(FakeDynamicBackend):
-    @property
-    def runtime_config(self):
-        return {"engine": "vllm", "max_num_seqs": 4}
-
-    def generate_requests(self, requests, *, max_new_tokens):
-        assert max_new_tokens == 256
-        assert len(requests) <= 16
-        assert len({request.role for request in requests}) == 1
-        self.calls.append(list(requests))
-        return {
-            request.request_id: self.response(VALID, with_hidden=False)
-            for request in requests
-        }
-
-
 def sample(sample_id: str = "dataset-1") -> BenchmarkSample:
     return BenchmarkSample(
         sample_id=sample_id,
@@ -213,21 +197,6 @@ def test_request_window_batches_samples_without_greedy(monkeypatch, tmp_path):
     assert run_generation(**options) == (2, 0)
     assert all(len(call) <= 5 for call in backend.calls)
     assert all(len({request.role for request in call}) == 1 for call in backend.calls)
-
-
-def test_vllm_uses_continuous_dispatch_and_pending_backfill_metadata(monkeypatch, tmp_path):
-    backend = FakeVllmBackend()
-    values = [sample(str(index)) for index in range(12)]
-    monkeypatch.setattr("src.generation.runner.iter_dataset", lambda *args: iter(values))
-    options = kwargs(tmp_path, backend)
-    options.update(num_samples=1, request_window_samples=12)
-
-    assert run_generation(**options) == (12, 0)
-    run, _ = read(options["output"])
-    assert run["scheduler"]["type"] == "vllm_continuous_batching"
-    assert run["scheduler"]["max_batch_size"] == 16
-    assert run["hidden_state_execution"] == "pending_hf_teacher_forcing_backfill"
-    assert len(backend.calls[0]) == 12
 
 
 def test_sample_id_filter_runs_only_requested_records(monkeypatch, tmp_path):

@@ -2,7 +2,7 @@
 # Submit full automated 4-stage pipeline for MLLM Uncertainty Quantification
 # Stage 1: Generation (Greedy + K=10 Samples with .tokens and hidden sidecars)
 # Stage 2: Baseline UQ (PPL / SE / UMPIRE via DeBERTa) [depends on Stage 1]
-# The production DAG per model is: Generation+Backfill -> UQ.
+# The production DAG per model is: Hugging Face generation -> UQ.
 # Judge and ERA are submitted separately because they consume API quota and an
 # additional GPU, respectively.
 #
@@ -27,13 +27,13 @@ echo "================================================================="
 
 for MODEL in "${MODELS[@]}"; do
   echo ""
-  echo ">>> [Model: $MODEL] Scheduling Generation+Backfill -> UQ..."
+  echo ">>> [Model: $MODEL] Scheduling Hugging Face generation -> UQ..."
 
-  # Generation performs Stage 1 (vLLM) and Stage 2 (HF backfill) for all datasets.
+  # Generation writes response, token, log-probability, and hidden-state artifacts.
   GEN_ID=$(sbatch --parsable --export=ALL,MODEL="$MODEL" slurm/generation/generate.sbatch)
-  echo "  [Generation + Backfill] $GEN_ID"
+  echo "  [Generation]             $GEN_ID"
 
-  # UQ is allowed to start only after the complete generation/backfill job succeeds.
+  # UQ starts only after all generation artifacts are complete.
   UQ_ID=$(sbatch --parsable --dependency=afterok:"$GEN_ID" --export=ALL,MODEL="$MODEL" slurm/uq/compute_uq.sbatch)
   echo "  [UQ]                     $UQ_ID (afterok:$GEN_ID)"
 done

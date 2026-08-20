@@ -40,13 +40,7 @@ def _load_generation(path: Path) -> tuple[dict, list[dict]]:
     records = rows[1:]
     if any(record.get("record_type") != "sample" for record in records):
         raise ValueError(f"generation input contains an invalid record: {path}")
-    run = dict(rows[0]["run"])
-    manifest = rows[0].get("backfill_manifest")
-    if manifest is not None:
-        if not isinstance(manifest, dict):
-            raise ValueError(f"generation input has invalid backfill manifest: {path}")
-        run["backfill_manifest"] = manifest
-    return run, records
+    return dict(rows[0]["run"]), records
 
 
 def _signal(record: dict, hidden: tuple[float, ...] = ()) -> ResponseSignals | None:

@@ -211,22 +211,6 @@ def test_run_metrics_rejects_greedy_run_mismatch(tmp_path: Path) -> None:
         )
 
 
-def test_run_metrics_ignores_backfill_audit_metadata(tmp_path: Path) -> None:
-    uq_input, _ = _write_inputs(tmp_path)
-    judge_input = _write_jsonl(
-        tmp_path / "judge-backfill.jsonl",
-        {"judge_model": "judge", "greedy_run": {**GREEDY_RUN, "backfill_manifest": {"version": "3.0"}}},
-        [_judge_record(sample_id, group_id, valid=True, correct=correct) for sample_id, group_id, correct, _ in EVALUATED],
-    )
-    report = run_metrics(
-        uq_input=uq_input,
-        judge_input=judge_input,
-        output=tmp_path / "metrics.json",
-        bootstrap_samples=5,
-    )
-    assert report["dataset"] == "vilp"
-
-
 def test_run_metrics_rejects_missing_run_header(tmp_path: Path) -> None:
     uq_input, judge_input = _write_inputs(tmp_path)
     headerless = tmp_path / "headerless.jsonl"

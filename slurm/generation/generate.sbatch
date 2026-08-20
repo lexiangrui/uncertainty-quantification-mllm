@@ -2,16 +2,15 @@
 #SBATCH --job-name=gen
 #SBATCH --partition=batch,debug01
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
+#SBATCH --gres=gpu:2
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=64G
 #SBATCH --time=2-00:00:00
 #SBATCH --output=logs/generation/%x-%j.out
 #SBATCH --error=logs/generation/%x-%j.out
 
-# Two-Stage Decoupled Pipeline (Sequentially over datasets):
-# Stage 1: vLLM continuous batching generation (greedy + K=10 samples)
-# Stage 2: HuggingFace single-pass forward backfill for UMPIRE hidden states
+# Full Hugging Face generation: datasets run sequentially and each writes
+# greedy token sidecars plus sampled token/hidden-state sidecars inline.
 #
 # Usage: sbatch --export=MODEL=llava slurm/generation/generate.sbatch
 set -euo pipefail
@@ -22,13 +21,10 @@ MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
 cd "$PROJECT_ROOT"
 mkdir -p logs/generation
 
-export VLLM_USE_V1=0
-export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-export PATH="$(dirname "$VLLM_PYTHON"):$PATH"
-PYTHON_BIN="$VLLM_PYTHON"
-HF_PYTHON_BIN="$HF_PYTHON"
+PYTHON_BIN="$HF_PYTHON"
+BATCH_SIZE=5
 
 case "$MODEL" in
   llava)    FAM=llava_1_5;  MP="$MODEL_ROOT/llava-1.5-7b-hf";     AD=results/lora/llava/adapter ;;
@@ -48,7 +44,7 @@ for dataset in vilp hallusionbench mmvet; do
   esac
 
   echo "========================================================================"
-  echo " [Stage 1.1] vLLM Greedy Generation: model=$MODEL dataset=$dataset"
+  echo " Hugging Face greedy generation: model=$MODEL dataset=$dataset"
   echo "========================================================================"
   $PYTHON_BIN scripts/generation/generate_responses.py \
     --dataset "$dataset" \
@@ -59,16 +55,13 @@ for dataset in vilp hallusionbench mmvet; do
     --output "results/generation/$MODEL/greedy/$dataset.jsonl" \
     --phase greedy \
     --num-samples 0 \
-    --engine vllm \
-    --gpu-memory-utilization 0.85 \
-    --max-num-seqs 16 \
-    --request-window-samples 64 \
     --seed 42 \
-    --max-new-tokens 512
+    --max-new-tokens 512 \
+    --max-batch-size "$BATCH_SIZE"
 
   echo ""
   echo "========================================================================"
-  echo " [Stage 1.2] vLLM Sampled Generation (K=10): model=$MODEL dataset=$dataset"
+  echo " Hugging Face sampled generation (K=10): model=$MODEL dataset=$dataset"
   echo "========================================================================"
   $PYTHON_BIN scripts/generation/generate_responses.py \
     --dataset "$dataset" \
@@ -80,24 +73,9 @@ for dataset in vilp hallusionbench mmvet; do
     --phase samples \
     --num-samples 10 \
     --reject-resample-k 50 \
-    --engine vllm \
-    --gpu-memory-utilization 0.85 \
-    --max-num-seqs 16 \
-    --request-window-samples 64 \
     --seed 42 \
-    --max-new-tokens 512
-
-  echo ""
-  echo "========================================================================"
-  echo " [Stage 2] HF Forward Backfill (UMPIRE .pt): model=$MODEL dataset=$dataset"
-  echo "========================================================================"
-  $HF_PYTHON_BIN scripts/generation/backfill_hidden_states.py \
-    --dataset "$dataset" \
-    --dataset-source "$SRC" \
-    --model-family "$FAM" \
-    --model-path "$MP" \
-    --adapter-path "$AD" \
-    --samples-input "results/generation/$MODEL/samples/$dataset.jsonl"
+    --max-new-tokens 512 \
+    --max-batch-size "$BATCH_SIZE"
   flock -u 9
   exec 9>&-
 done

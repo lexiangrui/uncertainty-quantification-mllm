@@ -436,31 +436,18 @@ def run_generation(
         raise ValueError("sample_ids must be non-empty when provided")
     prompt_spec = get_prompt_spec(prompt_style)
     runtime_config = backend.runtime_config
-    engine_name = runtime_config.get("engine", "unknown")
-    dispatch_batch_size = (
-        max(max_batch_size, int(runtime_config.get("max_num_seqs", 16)) * 4)
-        if engine_name == "vllm"
-        else max_batch_size
-    )
+    dispatch_batch_size = max_batch_size
     scheduler_info = {
-        "type": (
-            "vllm_continuous_batching"
-            if engine_name == "vllm"
-            else "transformers_role_separated_dynamic_batching"
-        ),
+        "type": "transformers_role_separated_dynamic_batching",
         "max_batch_size": dispatch_batch_size,
         "request_window_samples": request_window_samples,
         "mixed_greedy_and_sampling": False,
-        "adaptive_oom_split": engine_name != "vllm",
+        "adaptive_oom_split": True,
     }
     hidden_exec = (
         "not_collected"
         if phase == "greedy"
-        else (
-            "pending_hf_teacher_forcing_backfill"
-            if engine_name == "vllm"
-            else "inline_sample_answer_last_token"
-        )
+        else "inline_sample_answer_last_token"
     )
     run = {
         "dataset": dataset,

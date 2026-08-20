@@ -17,12 +17,10 @@ from .metrics import (
 
 
 SINGLE_CLASS_REASON = "target labels contain a single class"
-_GREEDY_RUN_AUDIT_FIELDS = {"backfill_manifest"}
 
 
 def _greedy_run_identity(run: dict[str, Any]) -> dict[str, Any]:
-    """Compare generation identity without mutable post-generation audit metadata."""
-    return {key: value for key, value in run.items() if key not in _GREEDY_RUN_AUDIT_FIELDS}
+    return run
 
 
 def _load_records(path: Path) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:

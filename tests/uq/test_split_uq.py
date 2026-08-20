@@ -76,20 +76,3 @@ def test_split_uq_rejects_mismatched_inputs(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="different datasets"):
         run_split_uq(greedy_input=greedy, sample_input=samples, output=tmp_path / "uq.jsonl", methods=(FakeMethod(),))
-
-
-def test_split_uq_includes_backfill_manifest_in_run_identity(tmp_path: Path) -> None:
-    greedy, samples = inputs(tmp_path)
-    rows = [json.loads(line) for line in samples.read_text().splitlines()]
-    rows[0]["backfill_manifest"] = {"version": "3.0", "token_span_alignment": "tokens"}
-    samples.write_text("".join(json.dumps(row) + "\n" for row in rows))
-    output = tmp_path / "uq.jsonl"
-
-    assert run_split_uq(
-        greedy_input=greedy,
-        sample_input=samples,
-        output=output,
-        methods=(FakeMethod(),),
-    ) == (1, 0)
-    output_header = json.loads(output.read_text().splitlines()[0])
-    assert output_header["run"]["sample_run"]["backfill_manifest"]["version"] == "3.0"

@@ -54,15 +54,6 @@ def parse_args() -> argparse.Namespace:
         choices=("xml_lora",),
         default="xml_lora",
     )
-    parser.add_argument(
-        "--engine",
-        choices=("vllm", "huggingface"),
-        default="vllm",
-        help="Generation engine: 'vllm' for high-throughput batching, 'huggingface' for legacy.",
-    )
-    parser.add_argument("--max-num-seqs", type=int, default=16)
-    parser.add_argument("--gpu-memory-utilization", type=float, default=0.85)
-    parser.add_argument("--max-model-len", type=int, default=4096)
     parser.add_argument("--limit", type=int)
     return parser.parse_args()
 
@@ -104,11 +95,7 @@ def main() -> None:
         args.model_family,
         args.model_path,
         adapter_path=args.adapter_path,
-        engine=args.engine,
         attn_implementation=args.attn_implementation,
-        max_num_seqs=args.max_num_seqs,
-        gpu_memory_utilization=args.gpu_memory_utilization,
-        max_model_len=args.max_model_len,
     )
     written, skipped = run_generation(
         backend=backend,
