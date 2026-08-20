@@ -51,7 +51,10 @@ def iter_hallusionbench(directory: Path) -> Iterator[BenchmarkSample]:
                 normalized = str(value).strip().lower()
                 if normalized in {"0", "false", "no"}:
                     visual_input = False
-                elif normalized in {"1", "true", "yes"}:
+                # The official parquet uses ``2`` for image-present Visual
+                # Supplement/Dependent rows and ``1`` for the other image
+                # rows; both are visual inputs.  The non-image split uses 0.
+                elif normalized in {"1", "2", "true", "yes"}:
                     visual_input = True
                 else:
                     raise ValueError(
