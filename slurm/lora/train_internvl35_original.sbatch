@@ -7,7 +7,8 @@
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=96G
+# InternVL3.5-8B bf16 plus LoRA fits within the per-GPU 64G host budget.
+#SBATCH --mem=64G
 #SBATCH --time=2-00:00:00
 #SBATCH --signal=B:USR1@120
 #SBATCH --output=logs/lora/%x-%j.out
