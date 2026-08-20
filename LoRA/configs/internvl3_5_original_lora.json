@@ -1,0 +1,23 @@
+{
+  "family": "internvl3_5_original",
+  "base_model": "/opt/lexiangrui/models/InternVL3_5-8B",
+  "end_token": "<|im_end|>",
+  "dataset_root": "/opt/lexiangrui/datasets/vqav2_xml_sft/final",
+  "output_dir": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/lora/internvl/adapter-original",
+  "epochs": 1,
+  "learning_rate": 0.0002,
+  "weight_decay": 0.0,
+  "warmup_ratio": 0.03,
+  "gradient_accumulation_steps": 16,
+  "checkpoint_interval_updates": 25,
+  "lora_r": 8,
+  "lora_alpha": 16,
+  "lora_dropout": 0.05,
+  "target_modules": "language_model.*\\.(q_proj|v_proj)$",
+  "max_length": 4096,
+  "max_validation_samples": 1000,
+  "image_size": 448,
+  "max_num_patches": 1,
+  "use_flash_attn": false,
+  "seed": 42
+}

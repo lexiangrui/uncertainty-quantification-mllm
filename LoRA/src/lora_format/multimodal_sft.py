@@ -11,11 +11,87 @@ from pathlib import Path
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset, Subset
+from torchvision.transforms import InterpolationMode
+import torchvision.transforms as T
 
 from .prompts import LORA_XML_INSTRUCTION, LORA_XML_PROMPT_SHA256
 
 
-FAMILIES = ("llava_1_5", "qwen2_5_vl", "internvl3_5")
+FAMILIES = ("llava_1_5", "qwen2_5_vl", "internvl3_5", "internvl3_5_original")
+
+_IMAGENET_MEAN = (0.485, 0.456, 0.406)
+_IMAGENET_STD = (0.229, 0.224, 0.225)
+_INTERNVL_SYSTEM = "你是书生·万象，英文名是InternVL，是由上海人工智能实验室、清华大学及多家合作单位联合开发的多模态大模型。"
+
+
+def _internvl_transform(image_size: int) -> T.Compose:
+    return T.Compose(
+        [
+            T.Lambda(lambda image: image.convert("RGB") if image.mode != "RGB" else image),
+            T.Resize((image_size, image_size), interpolation=InterpolationMode.BICUBIC),
+            T.ToTensor(),
+            T.Normalize(mean=_IMAGENET_MEAN, std=_IMAGENET_STD),
+        ]
+    )
+
+
+def _internvl_tiles(image: Image.Image, *, image_size: int, max_num: int) -> list[Image.Image]:
+    """Match the original InternVL dynamic tiling, keeping the training path deterministic."""
+    width, height = image.size
+    aspect_ratio = width / height
+    target_ratios = sorted(
+        {
+            (i, j)
+            for n in range(1, max_num + 1)
+            for i in range(1, n + 1)
+            for j in range(1, n + 1)
+            if 1 <= i * j <= max_num
+        },
+        key=lambda ratio: ratio[0] * ratio[1],
+    )
+    best_ratio = (1, 1)
+    best_diff = float("inf")
+    area = width * height
+    for ratio in target_ratios:
+        target_aspect = ratio[0] / ratio[1]
+        diff = abs(aspect_ratio - target_aspect)
+        if diff < best_diff or (
+            diff == best_diff and area > 0.5 * image_size * image_size * ratio[0] * ratio[1]
+        ):
+            best_ratio, best_diff = ratio, diff
+    target_width, target_height = image_size * best_ratio[0], image_size * best_ratio[1]
+    resized = image.resize((target_width, target_height))
+    tiles = [
+        resized.crop(
+            (
+                (index % best_ratio[0]) * image_size,
+                (index // best_ratio[0]) * image_size,
+                ((index % best_ratio[0]) + 1) * image_size,
+                ((index // best_ratio[0]) + 1) * image_size,
+            )
+        )
+        for index in range(best_ratio[0] * best_ratio[1])
+    ]
+    if len(tiles) > 1:
+        tiles.append(image.resize((image_size, image_size)))
+    return tiles
+
+
+def render_original_internvl_text(
+    question: str, response: str | None, *, num_image_tokens: int, num_patches: int
+) -> tuple[str, str | None]:
+    image_tokens = "<img>" + "<IMG_CONTEXT>" * (num_image_tokens * num_patches) + "</img>"
+    user = f"<image>\n{LORA_XML_INSTRUCTION}\n\n[Image]\nThe image is attached to this message.\n\n[Question]\n{question.strip()}"
+    user = user.replace("<image>", image_tokens, 1)
+    prompt = (
+        f"<|im_start|>system\n{_INTERNVL_SYSTEM}<|im_end|>\n"
+        f"<|im_start|>user\n{user}<|im_end|>\n"
+        "<|im_start|>assistant\n"
+    )
+    if response is None:
+        return prompt, None
+    full = prompt + response + "<|im_end|>\n"
+    return prompt, full
 
 
 def append_eos(text: str, eos_token: str | None) -> str:
@@ -119,6 +195,80 @@ class MultimodalXmlDataset(Dataset):
         return result
 
 
+class OriginalInternVLXmlDataset(Dataset):
+    """Dataset adapter for OpenGVLab's original ``InternVLChatModel`` format."""
+
+    def __init__(
+        self,
+        rows: list[dict],
+        image_dir: Path,
+        tokenizer,
+        *,
+        num_image_tokens: int,
+        image_size: int,
+        max_num_patches: int,
+        max_length: int,
+        end_token_id: int,
+    ):
+        self.rows = rows
+        self.image_dir = image_dir
+        self.tokenizer = tokenizer
+        self.num_image_tokens = num_image_tokens
+        self.transform = _internvl_transform(image_size)
+        self.image_size = image_size
+        self.max_num_patches = max_num_patches
+        self.max_length = max_length
+        self.end_token_id = end_token_id
+
+    def __len__(self) -> int:
+        return len(self.rows)
+
+    def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
+        row = self.rows[index]
+        with Image.open(self.image_dir / row["image_file"]) as source:
+            image = source.convert("RGB")
+        tiles = _internvl_tiles(
+            image, image_size=self.image_size, max_num=self.max_num_patches
+        )
+        pixel_values = torch.stack([self.transform(tile) for tile in tiles]).to(torch.bfloat16)
+        prompt_text, full_text = render_original_internvl_text(
+            row["question"],
+            row["response"],
+            num_image_tokens=self.num_image_tokens,
+            num_patches=len(tiles),
+        )
+        prompt = self.tokenizer(
+            prompt_text,
+            return_tensors="pt",
+            truncation=True,
+            max_length=self.max_length,
+            add_special_tokens=False,
+        )
+        full = self.tokenizer(
+            full_text,
+            return_tensors="pt",
+            truncation=True,
+            max_length=self.max_length,
+            add_special_tokens=False,
+        )
+        input_ids = full["input_ids"][0]
+        prompt_ids = prompt["input_ids"][0]
+        if len(prompt_ids) >= len(input_ids) or not torch.equal(
+            input_ids[: len(prompt_ids)], prompt_ids
+        ):
+            raise ValueError(f"invalid assistant supervision boundary for {row['id']}")
+        labels = build_assistant_labels(
+            input_ids, len(prompt_ids), self.end_token_id, row["id"]
+        )
+        return {
+            "pixel_values": pixel_values,
+            "input_ids": input_ids.unsqueeze(0),
+            "attention_mask": torch.ones((1, len(input_ids)), dtype=torch.long),
+            "image_flags": torch.ones((len(tiles), 1), dtype=torch.long),
+            "labels": labels.unsqueeze(0),
+        }
+
+
 def collate_single(rows: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
     if len(rows) != 1:
         raise ValueError("micro batch size is fixed at one")
@@ -184,6 +334,7 @@ def load_checkpoint(path: Path, model, optimizer, scheduler) -> dict:
 def load_model(config: dict):
     from transformers import (
         AutoProcessor,
+        AutoTokenizer,
         InternVLForConditionalGeneration,
         LlavaForConditionalGeneration,
         Qwen2_5_VLForConditionalGeneration,
@@ -191,6 +342,23 @@ def load_model(config: dict):
 
     family = config["family"]
     model_path = Path(config["base_model"])
+    if family == "internvl3_5_original":
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_path,
+            local_files_only=True,
+            trust_remote_code=True,
+            use_fast=False,
+        )
+        from transformers import AutoModel
+
+        kwargs = {
+            "torch_dtype": torch.bfloat16,
+            "low_cpu_mem_usage": True,
+            "local_files_only": True,
+            "trust_remote_code": True,
+            "use_flash_attn": bool(config.get("use_flash_attn", False)),
+        }
+        return tokenizer, AutoModel.from_pretrained(model_path, **kwargs)
     processor = AutoProcessor.from_pretrained(model_path, local_files_only=True, trust_remote_code=True)
     kwargs = {"local_files_only": True, "low_cpu_mem_usage": True}
     if family == "llava_1_5":
@@ -225,8 +393,9 @@ def train(
     from peft import LoraConfig, get_peft_model
 
     processor, model = load_model(config)
-    end_token_id = processor.tokenizer.convert_tokens_to_ids(config["end_token"])
-    if end_token_id is None or end_token_id == processor.tokenizer.unk_token_id:
+    tokenizer = getattr(processor, "tokenizer", processor)
+    end_token_id = tokenizer.convert_tokens_to_ids(config["end_token"])
+    if end_token_id is None or end_token_id == tokenizer.unk_token_id:
         raise ValueError(f"invalid end token for {config['family']}: {config['end_token']}")
     model.config.use_cache = False
     model.gradient_checkpointing_enable()
@@ -248,6 +417,15 @@ def train(
     model.print_trainable_parameters()
     model.to("cuda")
     device = next(parameter for _, parameter in trainable).device
+    model_dtype = next(parameter for parameter in model.parameters() if parameter.is_floating_point()).dtype
+
+    def move_batch(batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        return {
+            key: value.to(device=device, dtype=model_dtype if key == "pixel_values" else None)
+            if key == "pixel_values"
+            else value.to(device)
+            for key, value in batch.items()
+        }
 
     root = Path(config["dataset_root"])
     rows = read_jsonl(root / "train.jsonl", max_train_samples)
@@ -257,11 +435,36 @@ def train(
         else int(config["max_validation_samples"])
     )
     validation_rows = read_jsonl(root / "validation.jsonl", validation_limit)
-    train_dataset = MultimodalXmlDataset(
-        rows, root.parent / "images", processor, config["family"], int(config["max_length"]), end_token_id
-    )
+    if config["family"] == "internvl3_5_original":
+        train_dataset = OriginalInternVLXmlDataset(
+            rows,
+            root.parent / "images",
+            processor,
+            num_image_tokens=int(model.num_image_token),
+            image_size=int(config.get("image_size", 448)),
+            max_num_patches=int(config.get("max_num_patches", 1)),
+            max_length=int(config["max_length"]),
+            end_token_id=end_token_id,
+        )
+        validation_dataset = OriginalInternVLXmlDataset(
+            validation_rows,
+            root.parent / "images",
+            processor,
+            num_image_tokens=int(model.num_image_token),
+            image_size=int(config.get("image_size", 448)),
+            max_num_patches=int(config.get("max_num_patches", 1)),
+            max_length=int(config["max_length"]),
+            end_token_id=end_token_id,
+        )
+    else:
+        train_dataset = MultimodalXmlDataset(
+            rows, root.parent / "images", processor, config["family"], int(config["max_length"]), end_token_id
+        )
+        validation_dataset = MultimodalXmlDataset(
+            validation_rows, root.parent / "images", processor, config["family"], int(config["max_length"]), end_token_id
+        )
     validation_loader = DataLoader(
-        MultimodalXmlDataset(validation_rows, root.parent / "images", processor, config["family"], int(config["max_length"]), end_token_id),
+        validation_dataset,
         batch_size=1, shuffle=False, collate_fn=collate_single,
     )
     optimizer = torch.optim.AdamW((p for _, p in trainable), lr=float(config["learning_rate"]), weight_decay=float(config["weight_decay"]))
@@ -333,7 +536,7 @@ def train(
         loss_sum = 0.0
         micro_count = 0
         for micro_step, batch in enumerate(train_loader, skip_micro_steps + 1):
-            batch = {key: value.to(device) for key, value in batch.items()}
+            batch = move_batch(batch)
             loss = model(**batch).loss
             loss_sum += float(loss.detach())
             micro_count += 1
@@ -355,7 +558,7 @@ def train(
         model.eval(); losses = []
         with torch.inference_mode():
             for batch in validation_loader:
-                batch = {key: value.to(device) for key, value in batch.items()}
+                batch = move_batch(batch)
                 losses.append(float(model(**batch).loss))
         metric = {"epoch": epoch + 1, "update": update, "validation_samples": len(validation_rows), "validation_loss": sum(losses) / len(losses), "elapsed_seconds": time.monotonic() - started}
         write(validation_path, metric); print(json.dumps(metric), flush=True)

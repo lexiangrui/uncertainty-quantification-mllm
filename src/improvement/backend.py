@@ -49,6 +49,35 @@ class EraBackend:
         elif self.family == "internvl3_5":
             from transformers import InternVLForConditionalGeneration
             cls = InternVLForConditionalGeneration
+        elif self.family == "internvl3_5_original":
+            from transformers import AutoModel, AutoTokenizer
+
+            self.processor = AutoTokenizer.from_pretrained(
+                self.model_path,
+                local_files_only=True,
+                trust_remote_code=True,
+                use_fast=False,
+            )
+            self.model = AutoModel.from_pretrained(
+                self.model_path,
+                device_map="auto",
+                low_cpu_mem_usage=True,
+                local_files_only=True,
+                trust_remote_code=True,
+                torch_dtype=torch.bfloat16,
+                use_flash_attn=False,
+            ).eval()
+            if self.adapter_path is not None:
+                from peft import PeftModel
+
+                self.model = PeftModel.from_pretrained(
+                    self.model, self.adapter_path, local_files_only=True
+                ).eval()
+            self.device = next(self.model.parameters()).device
+            self._image_token_id = int(
+                self.processor.convert_tokens_to_ids("<IMG_CONTEXT>")
+            )
+            return
         else:
             raise ValueError(f"unsupported family: {self.family}")
 
@@ -90,6 +119,38 @@ class EraBackend:
 
     def _prepare_prompt(self, image, question):
         prompt = build_prompt(question, image is not None)
+        if self.family == "internvl3_5_original":
+            if image is None:
+                raise ValueError("original InternVL ERA requires an image")
+            from torchvision.transforms import InterpolationMode
+            import torchvision.transforms as T
+
+            image = image.convert("RGB")
+            transform = T.Compose(
+                [
+                    T.Resize((448, 448), interpolation=InterpolationMode.BICUBIC),
+                    T.ToTensor(),
+                    T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+                ]
+            )
+            pixel_values = transform(image).unsqueeze(0).to(self.device, dtype=torch.bfloat16)
+            num_image_tokens = int(self.model.num_image_token)
+            image_tokens = "<img>" + "<IMG_CONTEXT>" * num_image_tokens + "</img>"
+            user = f"<image>\n{prompt.user}".replace("<image>", image_tokens, 1)
+            system = "你是书生·万象，英文名是InternVL，是由上海人工智能实验室、清华大学及多家合作单位联合开发的多模态大模型。"
+            rendered = (
+                f"<|im_start|>system\n{system}<|im_end|>\n"
+                f"<|im_start|>user\n{user}<|im_end|>\n"
+                "<|im_start|>assistant\n"
+            )
+            self.processor.padding_side = "left"
+            inputs = self.processor(
+                rendered, return_tensors="pt", add_special_tokens=False
+            )
+            inputs["pixel_values"] = pixel_values
+            inputs["image_flags"] = torch.ones((1, 1), dtype=torch.long, device=self.device)
+            self.model.img_context_token_id = self._image_token_id
+            return {k: v.to(self.device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
         content = []
         if image is not None:
             content.append({"type": "image"})

@@ -170,10 +170,7 @@ def _response_record(
         hidden_steps.ndim != 2 or hidden_steps.shape[1] == 0
     ):
         raise ValueError("hidden_steps must be a [generated_steps, hidden_size] CPU tensor")
-    hidden_index = (
-        token_end if hidden_steps is not None and hidden_steps.shape[0] > token_end
-        else token_end - 1
-    )
+    hidden_index = token_end - 1
     final_hidden = (
         tuple(float(value) for value in hidden_steps[hidden_index].tolist())
         if hidden_steps is not None and hidden_index >= 0
@@ -447,7 +444,11 @@ def run_generation(
     hidden_exec = (
         "not_collected"
         if phase == "greedy"
-        else "inline_sample_answer_last_token"
+        else (
+            "pending_hf_replay_answer_last_token"
+            if runtime_config.get("engine") == "vllm"
+            else "inline_sample_answer_last_token"
+        )
     )
     run = {
         "dataset": dataset,

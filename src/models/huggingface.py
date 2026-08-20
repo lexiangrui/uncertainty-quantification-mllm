@@ -23,7 +23,7 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
     ) -> None:
         if not model_path.is_dir():
             raise NotADirectoryError(model_path)
-        if family not in {"internvl3_5", "qwen2_5_vl", "llava_1_5"}:
+        if family not in {"internvl3_5", "internvl3_5_original", "qwen2_5_vl", "llava_1_5"}:
             raise ValueError(f"unknown model family: {family}")
 
         self.family = family
@@ -73,7 +73,25 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
             return
         from transformers import AutoProcessor
 
-        if self.family == "internvl3_5":
+        if self.family == "internvl3_5_original":
+            from transformers import AutoModel, AutoTokenizer
+
+            self.processor = AutoTokenizer.from_pretrained(
+                self.model_path,
+                local_files_only=True,
+                trust_remote_code=True,
+                use_fast=False,
+            )
+            model_kwargs = {
+                "device_map": "auto",
+                "low_cpu_mem_usage": True,
+                "local_files_only": True,
+                "trust_remote_code": True,
+                "torch_dtype": torch.bfloat16,
+                "use_flash_attn": self.attn_implementation == "flash_attention_2",
+            }
+            self.model = AutoModel.from_pretrained(self.model_path, **model_kwargs).eval()
+        elif self.family == "internvl3_5":
             from transformers import InternVLForConditionalGeneration as model_class
         elif self.family == "qwen2_5_vl":
             from transformers import Qwen2_5_VLForConditionalGeneration as model_class
@@ -92,32 +110,33 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
                     "device; resubmit on a healthy GPU node instead of falling back to a "
                     "Hub kernel or CPU attention."
                 )
-        self.processor = AutoProcessor.from_pretrained(
-            self.model_path, local_files_only=True
-        )
-        device_map = (
-            {
-                "model.visual": 0,
-                "model.language_model": 1,
-                "lm_head": 1,
+        else:
+            self.processor = AutoProcessor.from_pretrained(
+                self.model_path, local_files_only=True
+            )
+            device_map = (
+                {
+                    "model.visual": 0,
+                    "model.language_model": 1,
+                    "lm_head": 1,
+                }
+                if self.device_map_name == "vision_language_split"
+                else "auto"
+            )
+            model_kwargs = {
+                "device_map": device_map,
+                "low_cpu_mem_usage": True,
+                "local_files_only": True,
             }
-            if self.device_map_name == "vision_language_split"
-            else "auto"
-        )
-        model_kwargs = {
-            "device_map": device_map,
-            "low_cpu_mem_usage": True,
-            "local_files_only": True,
-        }
-        model_kwargs["dtype"] = (
-            torch.float16 if self.family == "llava_1_5" else torch.bfloat16
-        )
-        if self.attn_implementation is not None:
-            model_kwargs["attn_implementation"] = self.attn_implementation
-        self.model = model_class.from_pretrained(
-            self.model_path, **model_kwargs
-        ).eval()
-        if self.attn_implementation == "flash_attention_2":
+            model_kwargs["dtype"] = (
+                torch.float16 if self.family == "llava_1_5" else torch.bfloat16
+            )
+            if self.attn_implementation is not None:
+                model_kwargs["attn_implementation"] = self.attn_implementation
+            self.model = model_class.from_pretrained(
+                self.model_path, **model_kwargs
+            ).eval()
+        if self.attn_implementation == "flash_attention_2" and self.family != "internvl3_5_original":
             device_map = getattr(self.model, "hf_device_map", {})
             offloaded_modules = sorted(
                 name
@@ -207,6 +226,8 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
     def _batch_inputs(self, requests: list[GenerationRequest]):
         self._load()
         assert self.processor is not None and self.device is not None
+        if self.family == "internvl3_5_original":
+            return self._original_batch_inputs(requests)
         rendered: list[str] = []
         images = []
         has_images = {request.image is not None for request in requests}
@@ -238,6 +259,51 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         if images:
             kwargs["images"] = images
         inputs = self.processor(**kwargs)
+        return {name: value.to(self.device) for name, value in inputs.items()}
+
+    def _original_batch_inputs(self, requests: list[GenerationRequest]):
+        """Build the original InternVLChatModel inputs (image tiles + IMG_CONTEXT)."""
+        from PIL import Image
+        from torchvision.transforms import InterpolationMode
+        import torchvision.transforms as T
+
+        assert self.model is not None and self.processor is not None and self.device is not None
+        if any(request.image is None for request in requests):
+            raise ValueError("original InternVL generation requires an image for every request")
+        tokenizer = self.processor
+        tokenizer.padding_side = "left"
+        image_size = int(getattr(self.model, "config", None).force_image_size or 448)
+        transform = T.Compose(
+            [
+                T.Resize((image_size, image_size), interpolation=InterpolationMode.BICUBIC),
+                T.ToTensor(),
+                T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+            ]
+        )
+        num_image_tokens = int(self.model.num_image_token)
+        rendered: list[str] = []
+        tiles: list[torch.Tensor] = []
+        image_flags: list[torch.Tensor] = []
+        system = "你是书生·万象，英文名是InternVL，是由上海人工智能实验室、清华大学及多家合作单位联合开发的多模态大模型。"
+        for request in requests:
+            image = request.image
+            assert image is not None
+            image = image.convert("RGB") if isinstance(image, Image.Image) else image
+            tile = transform(image).unsqueeze(0)
+            tiles.append(tile)
+            image_flags.append(torch.ones((1, 1), dtype=torch.long))
+            question = f"<image>\n{request.prompt.user}"
+            image_tokens = "<img>" + "<IMG_CONTEXT>" * num_image_tokens + "</img>"
+            question = question.replace("<image>", image_tokens, 1)
+            rendered.append(
+                f"<|im_start|>system\n{request.prompt.system or system}<|im_end|>\n"
+                f"<|im_start|>user\n{question}<|im_end|>\n"
+                "<|im_start|>assistant\n"
+            )
+        inputs = tokenizer(rendered, return_tensors="pt", padding=True, add_special_tokens=False)
+        inputs["pixel_values"] = torch.cat(tiles, dim=0).to(self.device, dtype=torch.bfloat16)
+        inputs["image_flags"] = torch.cat(image_flags, dim=0).to(self.device)
+        self.model.img_context_token_id = tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
         return {name: value.to(self.device) for name, value in inputs.items()}
 
     @torch.inference_mode()
@@ -355,3 +421,67 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
                 ),
             )
         return values
+
+    @torch.inference_mode()
+    def teacher_force_response(
+        self,
+        request: GenerationRequest,
+        token_ids: tuple[int, ...],
+    ) -> GeneratedResponse:
+        """Replay an externally generated token sequence in one HF forward pass."""
+        if not token_ids:
+            raise ValueError(f"empty replay token sequence: {request.request_id}")
+        inputs = self._batch_inputs([request])
+        assert self.model is not None and self.processor is not None
+        prompt_width = int(inputs["input_ids"].shape[1])
+        generated = torch.tensor([list(token_ids)], dtype=torch.long, device=self.device)
+        full_inputs = dict(inputs)
+        full_inputs["input_ids"] = torch.cat([inputs["input_ids"], generated], dim=1)
+        if "attention_mask" in inputs:
+            full_inputs["attention_mask"] = torch.cat(
+                [inputs["attention_mask"], torch.ones_like(generated)], dim=1
+            )
+        full_inputs.pop("position_ids", None)
+        for key, value in list(full_inputs.items()):
+            if key in {"input_ids", "attention_mask", "pixel_values", "image_grid_thw"}:
+                continue
+            if not isinstance(value, torch.Tensor) or value.ndim < 2:
+                continue
+            if value.shape[-1] != prompt_width:
+                continue
+            padding = torch.zeros(
+                (*value.shape[:-1], len(token_ids)), dtype=value.dtype, device=value.device
+            )
+            full_inputs[key] = torch.cat([value, padding], dim=-1)
+        outputs = self.model(
+            **full_inputs,
+            use_cache=False,
+            output_hidden_states=True,
+            return_dict=True,
+        )
+        logits = getattr(outputs, "logits", None)
+        if logits is None:
+            raise RuntimeError("HF replay model did not return logits")
+        positions = slice(prompt_width - 1, prompt_width - 1 + len(token_ids))
+        selected = logits[:, positions, :].float()
+        target = generated.to(selected.device)
+        token_log_probs = torch.log_softmax(selected, dim=-1).gather(
+            -1, target.unsqueeze(-1)
+        ).squeeze(-1)[0]
+        hidden_steps = None
+        hidden_states = getattr(outputs, "hidden_states", None)
+        if hidden_states:
+            last = hidden_states[-1]
+            hidden_steps = last[:, prompt_width : prompt_width + len(token_ids), :][0]
+            hidden_steps = hidden_steps.detach().float().cpu()
+        return GeneratedResponse(
+            text=self.processor.decode(
+                list(token_ids), skip_special_tokens=True, clean_up_tokenization_spaces=False
+            ).strip(),
+            token_ids=token_ids,
+            token_log_probs=tuple(float(value) for value in token_log_probs.cpu().tolist()),
+            sampling_token_log_probs=tuple(float(value) for value in token_log_probs.cpu().tolist()),
+            hidden_steps=hidden_steps,
+            finish_reason="stop",
+            rng_seed=request.seed,
+        )
