@@ -154,15 +154,18 @@ class VLLMMultimodalBackend(GenerationBackend):
         if len(roles) != 1:
             raise ValueError("vLLM batches must contain one decoding role")
         do_sample = requests[0].role == "sample"
-        params = SamplingParams(
-            temperature=1.0 if do_sample else 0.0,
-            max_tokens=max_new_tokens,
-            n=1,
-            logprobs=1,
-            stop=["</answer>"],
-            include_stop_str_in_output=True,
-            seed=requests[0].seed if len(requests) == 1 else None,
-        )
+        params = [
+            SamplingParams(
+                temperature=1.0 if do_sample else 0.0,
+                max_tokens=max_new_tokens,
+                n=1,
+                logprobs=1,
+                stop=["</answer>"],
+                include_stop_str_in_output=True,
+                seed=request.seed,
+            )
+            for request in requests
+        ]
         inputs = [self._render(request) for request in requests]
         outputs = self.llm.generate(
             inputs,

@@ -13,7 +13,7 @@
   "lora_r": 8,
   "lora_alpha": 16,
   "lora_dropout": 0.05,
-  "target_modules": "language_model.*\\.(q_proj|v_proj)$",
+  "target_modules": ".*language_model.*\\.(q_proj|v_proj)$",
   "max_length": 4096,
   "max_validation_samples": 1000,
   "image_size": 448,
