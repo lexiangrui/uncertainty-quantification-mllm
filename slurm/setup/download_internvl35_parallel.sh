@@ -37,7 +37,7 @@ PY
 
 file_size() {
   local file=$1
-  curl -fsSIL --retry 5 --retry-all-errors "$ENDPOINT/$MODEL_ID/resolve/main/$file" \
+  curl --http1.1 -fsSIL --retry 5 --retry-all-errors "$ENDPOINT/$MODEL_ID/resolve/main/$file" \
     | awk 'tolower($1)=="x-linked-size:" {print $2}' | tr -d '\r' | tail -1
 }
 
@@ -50,7 +50,7 @@ download_part() {
   fi
   local temporary="$part.tmp.$$"
   rm -f "$temporary"
-  curl -fL --retry 20 --retry-all-errors --connect-timeout 30 \
+  curl --http1.1 -fL --retry 20 --retry-all-errors --connect-timeout 30 \
     --range "$start-$end" "$ENDPOINT/$MODEL_ID/resolve/main/$file" \
     -o "$temporary"
   [[ "$(stat -c '%s' "$temporary")" -eq "$expected" ]] || {
@@ -99,7 +99,7 @@ download_shard() {
 download_small_file() {
   local file=$1 output="$MODEL_DIR/$1" temporary="$MODEL_DIR/$1.tmp.$$"
   if [[ -s "$output" ]]; then return 0; fi
-  curl -fL --retry 20 --retry-all-errors --connect-timeout 30 \
+  curl --http1.1 -fL --retry 20 --retry-all-errors --connect-timeout 30 \
     "$ENDPOINT/$MODEL_ID/resolve/main/$file" -o "$temporary"
   mv "$temporary" "$output"
 }
