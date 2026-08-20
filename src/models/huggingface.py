@@ -73,6 +73,17 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
             return
         from transformers import AutoProcessor
 
+        if self.attn_implementation == "flash_attention_2":
+            from transformers.utils import is_flash_attn_2_available
+
+            if not torch.cuda.is_available() or not is_flash_attn_2_available():
+                raise RuntimeError(
+                    "FlashAttention2 requires an initialized CUDA device and the local "
+                    "flash-attn extension. The current Slurm allocation has no usable CUDA "
+                    "device; resubmit on a healthy GPU node instead of falling back to a "
+                    "Hub kernel or CPU attention."
+                )
+
         if self.family == "internvl3_5_original":
             from transformers import AutoModel, AutoTokenizer
 
@@ -100,17 +111,7 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         else:
             raise ValueError(f"unknown model family: {self.family}")
 
-        if self.attn_implementation == "flash_attention_2":
-            from transformers.utils import is_flash_attn_2_available
-
-            if not torch.cuda.is_available() or not is_flash_attn_2_available():
-                raise RuntimeError(
-                    "FlashAttention2 requires an initialized CUDA device and the local "
-                    "flash-attn extension. The current Slurm allocation has no usable CUDA "
-                    "device; resubmit on a healthy GPU node instead of falling back to a "
-                    "Hub kernel or CPU attention."
-                )
-        else:
+        if self.family != "internvl3_5_original":
             self.processor = AutoProcessor.from_pretrained(
                 self.model_path, local_files_only=True
             )
