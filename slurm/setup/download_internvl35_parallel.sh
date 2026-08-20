@@ -15,6 +15,8 @@ MAX_CONCURRENT=${MAX_CONCURRENT:-32}
 mkdir -p "$MODEL_DIR" "$PART_DIR"
 export HF_ENDPOINT="$ENDPOINT"
 export HF_HUB_DISABLE_XET=1
+export HF_HUB_DOWNLOAD_TIMEOUT=300
+export HF_HUB_ETAG_TIMEOUT=60
 
 download_metadata() {
   HF_PYTHON=${HF_PYTHON:-/home/${USER}/.venvs/vlm-transformers/bin/python}
@@ -94,7 +96,19 @@ download_shard() {
   echo "completed: $output ($size bytes)" >&2
 }
 
-download_metadata
+download_small_file() {
+  local file=$1 output="$MODEL_DIR/$1" temporary="$MODEL_DIR/$1.tmp.$$"
+  if [[ -s "$output" ]]; then return 0; fi
+  curl -fL --retry 20 --retry-all-errors --connect-timeout 30 \
+    "$ENDPOINT/$MODEL_ID/resolve/main/$file" -o "$temporary"
+  mv "$temporary" "$output"
+}
+
+if ! download_metadata; then
+  echo "metadata snapshot had a transient failure; continuing with direct mirror downloads" >&2
+fi
+download_small_file modeling_intern_vit.py
+download_small_file model.safetensors.index.json
 for shard in model-00001-of-00004.safetensors model-00002-of-00004.safetensors model-00003-of-00004.safetensors model-00004-of-00004.safetensors; do
   download_shard "$shard"
 done
