@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import os
 from pathlib import Path
 
@@ -296,20 +297,25 @@ class HuggingFaceReplayBackend:
         except torch.OutOfMemoryError:
             if len(requests) == 1:
                 raise
-            print(
-                f"HF replay OOM at batch_size={len(requests)}; splitting and retrying",
-                flush=True,
-            )
-            torch.cuda.empty_cache()
-            middle = len(requests) // 2
-            return {
-                **self.teacher_force_responses(
-                    requests[:middle], token_sequences[:middle]
-                ),
-                **self.teacher_force_responses(
-                    requests[middle:], token_sequences[middle:]
-                ),
-            }
+
+        # Retry only after leaving the exception handler. Otherwise Python keeps
+        # the failed forward traceback (and its CUDA tensors) alive while the
+        # smaller recursive batches run, so each retry has less free memory.
+        print(
+            f"HF replay OOM at batch_size={len(requests)}; splitting and retrying",
+            flush=True,
+        )
+        gc.collect()
+        torch.cuda.empty_cache()
+        middle = len(requests) // 2
+        return {
+            **self.teacher_force_responses(
+                requests[:middle], token_sequences[:middle]
+            ),
+            **self.teacher_force_responses(
+                requests[middle:], token_sequences[middle:]
+            ),
+        }
 
     @torch.inference_mode()
     def _teacher_force_batch(

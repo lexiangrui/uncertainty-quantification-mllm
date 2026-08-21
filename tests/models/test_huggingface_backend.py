@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -47,9 +48,11 @@ def test_qwen_split_device_map_is_recorded(monkeypatch, tmp_path: Path) -> None:
 def test_replay_oom_recursively_splits() -> None:
     backend = object.__new__(HuggingFaceReplayBackend)
     calls: list[int] = []
+    exception_contexts: list[BaseException | None] = []
 
     def replay(requests, token_sequences):
         calls.append(len(requests))
+        exception_contexts.append(sys.exception())
         if len(requests) > 2:
             raise torch.OutOfMemoryError()
         return {request.request_id: _response(request) for request in requests}
@@ -59,6 +62,7 @@ def test_replay_oom_recursively_splits() -> None:
     values = backend.teacher_force_responses(requests, [(1,)] * 5)
     assert set(values) == {"0", "1", "2", "3", "4"}
     assert calls == [5, 2, 3, 1, 2]
+    assert exception_contexts == [None] * len(calls)
 
 
 def test_replay_rejects_mismatched_inputs() -> None:
