@@ -21,6 +21,7 @@ cd "$PROJECT_ROOT"
 mkdir -p logs/generation
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export PYTHONUNBUFFERED=1
 
 case "$MODEL" in
   llava) FAM=llava_1_5; MP="$MODEL_ROOT/llava-1.5-7b-hf"; AD="results/lora/llava/adapter" ;;
