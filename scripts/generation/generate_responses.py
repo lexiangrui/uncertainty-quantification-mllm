@@ -10,7 +10,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 from src.generation.runner import run_generation
-from src.models import load_backend
+from src.models import load_generation_backend
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,20 +45,9 @@ def parse_args() -> argparse.Namespace:
         help="Optional newline-delimited sample_id allowlist for a targeted rerun.",
     )
     parser.add_argument(
-        "--attn-implementation",
-        choices=("flash_attention_2", "sdpa", "eager"),
-        default="flash_attention_2",
-    )
-    parser.add_argument(
         "--prompt-style",
         choices=("xml_lora",),
         default="xml_lora",
-    )
-    parser.add_argument(
-        "--engine",
-        choices=("huggingface", "vllm"),
-        default="huggingface",
-        help="Generation engine. vLLM is used only for the hybrid raw-generation stage.",
     )
     parser.add_argument("--max-num-seqs", type=int, default=8)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.85)
@@ -100,12 +89,10 @@ def main() -> None:
         }
         if not sample_ids:
             raise ValueError("sample-ids-file must contain at least one sample_id")
-    backend = load_backend(
+    backend = load_generation_backend(
         args.model_family,
         args.model_path,
         adapter_path=args.adapter_path,
-        engine=args.engine,
-        attn_implementation=args.attn_implementation,
         max_num_seqs=args.max_num_seqs,
         gpu_memory_utilization=args.gpu_memory_utilization,
         max_model_len=args.max_model_len,

@@ -435,20 +435,14 @@ def run_generation(
     runtime_config = backend.runtime_config
     dispatch_batch_size = max_batch_size
     scheduler_info = {
-        "type": "transformers_role_separated_dynamic_batching",
+        "type": "vllm_role_separated_dynamic_batching",
         "max_batch_size": dispatch_batch_size,
         "request_window_samples": request_window_samples,
         "mixed_greedy_and_sampling": False,
-        "adaptive_oom_split": True,
+        "adaptive_oom_split": False,
     }
     hidden_exec = (
-        "not_collected"
-        if phase == "greedy"
-        else (
-            "pending_hf_replay_answer_last_token"
-            if runtime_config.get("engine") == "vllm"
-            else "inline_sample_answer_last_token"
-        )
+        "not_collected" if phase == "greedy" else "pending_hf_replay_answer_last_token"
     )
     run = {
         "dataset": dataset,

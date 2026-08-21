@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision.transforms import InterpolationMode
 import torchvision.transforms as T
 
+from src.models.internvl import INTERNVL_SYSTEM_PROMPT
 from src.models.transformers_compat import patch_tied_weights_keys_compat
 
 from .prompts import LORA_XML_INSTRUCTION, LORA_XML_PROMPT_SHA256
@@ -23,7 +24,6 @@ FAMILIES = ("llava_1_5", "qwen2_5_vl", "internvl3_5", "internvl3_5_original")
 
 _IMAGENET_MEAN = (0.485, 0.456, 0.406)
 _IMAGENET_STD = (0.229, 0.224, 0.225)
-_INTERNVL_SYSTEM = "你是书生·万象，英文名是InternVL，是由上海人工智能实验室、清华大学及多家合作单位联合开发的多模态大模型。"
 
 
 def _internvl_transform(image_size: int) -> T.Compose:
@@ -86,7 +86,7 @@ def render_original_internvl_text(
     user = f"<image>\n{LORA_XML_INSTRUCTION}\n\n[Image]\nThe image is attached to this message.\n\n[Question]\n{question.strip()}"
     user = user.replace("<image>", image_tokens, 1)
     prompt = (
-        f"<|im_start|>system\n{_INTERNVL_SYSTEM}<|im_end|>\n"
+        f"<|im_start|>system\n{INTERNVL_SYSTEM_PROMPT}<|im_end|>\n"
         f"<|im_start|>user\n{user}<|im_end|>\n"
         "<|im_start|>assistant\n"
     )

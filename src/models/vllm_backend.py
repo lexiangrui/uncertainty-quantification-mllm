@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from src.models.base import GeneratedResponse, GenerationBackend, GenerationRequest
+from src.models.internvl import INTERNVL_SYSTEM_PROMPT
 
 
 class VLLMMultimodalBackend(GenerationBackend):
@@ -107,12 +108,15 @@ class VLLMMultimodalBackend(GenerationBackend):
             content.append({"type": "image"})
         content.append({"type": "text", "text": request.prompt.user})
         messages = [{"role": "user", "content": content}]
-        if request.prompt.system:
+        system = request.prompt.system
+        if self.family == "internvl3_5_original" and not system:
+            system = INTERNVL_SYSTEM_PROMPT
+        if system:
             messages.insert(
                 0,
                 {
                     "role": "system",
-                    "content": [{"type": "text", "text": request.prompt.system}],
+                    "content": [{"type": "text", "text": system}],
                 },
             )
         if not hasattr(renderer, "apply_chat_template"):

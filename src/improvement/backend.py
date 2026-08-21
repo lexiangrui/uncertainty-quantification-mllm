@@ -6,6 +6,8 @@ from pathlib import Path
 import torch
 
 from src.generation.prompt import build_prompt
+from src.models.internvl import INTERNVL_SYSTEM_PROMPT
+from src.models.transformers_compat import patch_tied_weights_keys_compat
 
 
 class EraBackend:
@@ -51,6 +53,8 @@ class EraBackend:
             cls = InternVLForConditionalGeneration
         elif self.family == "internvl3_5_original":
             from transformers import AutoModel, AutoTokenizer
+
+            patch_tied_weights_keys_compat()
 
             self.processor = AutoTokenizer.from_pretrained(
                 self.model_path,
@@ -137,9 +141,8 @@ class EraBackend:
             num_image_tokens = int(self.model.num_image_token)
             image_tokens = "<img>" + "<IMG_CONTEXT>" * num_image_tokens + "</img>"
             user = f"<image>\n{prompt.user}".replace("<image>", image_tokens, 1)
-            system = "你是书生·万象，英文名是InternVL，是由上海人工智能实验室、清华大学及多家合作单位联合开发的多模态大模型。"
             rendered = (
-                f"<|im_start|>system\n{system}<|im_end|>\n"
+                f"<|im_start|>system\n{INTERNVL_SYSTEM_PROMPT}<|im_end|>\n"
                 f"<|im_start|>user\n{user}<|im_end|>\n"
                 "<|im_start|>assistant\n"
             )

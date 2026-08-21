@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import os
 from pathlib import Path
 
@@ -9,11 +8,12 @@ from PIL import Image
 
 from src.generation.prompt import GenerationPrompt
 
-from .base import GeneratedResponse, GenerationBackend, GenerationRequest
+from .base import GeneratedResponse, GenerationRequest
+from .internvl import INTERNVL_SYSTEM_PROMPT
 from .transformers_compat import patch_tied_weights_keys_compat
 
 
-class HuggingFaceMultimodalBackend(GenerationBackend):
+class HuggingFaceReplayBackend:
     def __init__(
         self,
         family: str,
@@ -49,12 +49,11 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
     @property
     def runtime_config(self) -> dict:
         config = {
-            "engine": "transformers",
+            "engine": "hf_replay",
             "attn_implementation": self.attn_implementation,
             "adapter_path": str(self.adapter_path) if self.adapter_path else None,
             "local_files_only": True,
             "adaptive_oom_split": True,
-            "modality_batch_split": True,
         }
         if self.device_map_name is not None:
             config["device_map"] = self.device_map_name
@@ -163,69 +162,6 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
             ).eval()
         self.device = next(self.model.parameters()).device
 
-    def _semantic_embedding_module(self):
-        assert self.model is not None
-        full_model = (
-            self.model.get_base_model()
-            if hasattr(self.model, "get_base_model")
-            else self.model
-        )
-        language_model = getattr(full_model, "language_model", None)
-        if language_model is None:
-            core = getattr(full_model, "model", None)
-            language_model = getattr(core, "language_model", None)
-        if language_model is None:
-            raise RuntimeError("multimodal model does not expose its language model")
-
-        # Causal-LM heads return logits, while their decoder bodies return the
-        # last hidden state needed by UMPIRE. Hook the body when it is exposed
-        # separately (for example LlamaForCausalLM.model).
-        decoder = getattr(language_model, "model", None)
-        return decoder if decoder is not None else language_model
-
-    @torch.inference_mode()
-    def generate_requests(
-        self, requests: list[GenerationRequest], *, max_new_tokens: int
-    ) -> dict[str, GeneratedResponse]:
-        if not requests:
-            return {}
-        roles = {request.role for request in requests}
-        if len(roles) != 1:
-            raise ValueError("Transformers batches must contain one decoding role")
-        modality_groups = {
-            has_image: [
-                request
-                for request in requests
-                if (request.image is not None) == has_image
-            ]
-            for has_image in {request.image is not None for request in requests}
-        }
-        if len(modality_groups) > 1:
-            generated: dict[str, GeneratedResponse] = {}
-            for group in modality_groups.values():
-                generated.update(
-                    self.generate_requests(group, max_new_tokens=max_new_tokens)
-                )
-            return generated
-        try:
-            return self._generate_batch(requests, max_new_tokens=max_new_tokens)
-        except torch.OutOfMemoryError:
-            if len(requests) == 1:
-                raise
-            torch.cuda.empty_cache()
-            middle = len(requests) // 2
-            return {
-                **self.generate_requests(requests[:middle], max_new_tokens=max_new_tokens),
-                **self.generate_requests(requests[middle:], max_new_tokens=max_new_tokens),
-            }
-
-    @staticmethod
-    def _batch_seed(requests: list[GenerationRequest]) -> int:
-        value = ":".join(str(request.seed) for request in requests)
-        return int.from_bytes(
-            hashlib.sha256(value.encode()).digest()[:8], "big"
-        ) % (2**63 - 1)
-
     def _batch_inputs(self, requests: list[GenerationRequest]):
         self._load()
         assert self.processor is not None and self.device is not None
@@ -288,7 +224,6 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         rendered: list[str] = []
         tiles: list[torch.Tensor] = []
         image_flags: list[torch.Tensor] = []
-        system = "你是书生·万象，英文名是InternVL，是由上海人工智能实验室、清华大学及多家合作单位联合开发的多模态大模型。"
         for request in requests:
             image = request.image
             assert image is not None
@@ -300,7 +235,7 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
             image_tokens = "<img>" + "<IMG_CONTEXT>" * num_image_tokens + "</img>"
             question = question.replace("<image>", image_tokens, 1)
             rendered.append(
-                f"<|im_start|>system\n{request.prompt.system or system}<|im_end|>\n"
+                f"<|im_start|>system\n{request.prompt.system or INTERNVL_SYSTEM_PROMPT}<|im_end|>\n"
                 f"<|im_start|>user\n{question}<|im_end|>\n"
                 "<|im_start|>assistant\n"
             )
@@ -311,139 +246,70 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         return {name: value.to(self.device) for name, value in inputs.items()}
 
     @torch.inference_mode()
-    def _generate_batch(
-        self, requests: list[GenerationRequest], *, max_new_tokens: int
+    def teacher_force_responses(
+        self,
+        requests: list[GenerationRequest],
+        token_sequences: list[tuple[int, ...]],
     ) -> dict[str, GeneratedResponse]:
-        # Transformers exposes one RNG stream per generate() call, not one
-        # independent stream per row. Sampling one request at a time makes
-        # request.seed stable under batching, resume, and OOM re-splitting.
-        if len(requests) > 1 and requests[0].role == "sample":
-            generated: dict[str, GeneratedResponse] = {}
-            for request in requests:
-                generated.update(self._generate_batch([request], max_new_tokens=max_new_tokens))
-            return generated
-        inputs = self._batch_inputs(requests)
-        assert self.model is not None and self.processor is not None
-        do_sample = requests[0].role == "sample"
-        batch_seed = self._batch_seed(requests)
-        torch.manual_seed(batch_seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(batch_seed)
-        prompt_width = int(inputs["input_ids"].shape[1])
-        tokenizer = getattr(self.processor, "tokenizer", self.processor)
-        generation_kwargs = {
-            "do_sample": do_sample,
-            "max_new_tokens": max_new_tokens,
-            "num_return_sequences": 1,
-            "use_cache": True,
-            "return_dict_in_generate": True,
-            "output_logits": True,
-            "output_scores": True,
-            "stop_strings": ["</answer>"],
-            "tokenizer": tokenizer,
-        }
-        if do_sample:
-            generation_kwargs["temperature"] = 1.0
-        hidden_steps: list[torch.Tensor] = []
-
-        def capture_hidden(_module, _args, output) -> None:
-            hidden = getattr(output, "last_hidden_state", None)
-            if hidden is None and isinstance(output, tuple) and output:
-                hidden = output[0]
-            if hidden is None or hidden.ndim != 3:
-                raise RuntimeError("language model did not expose its last hidden state")
-            hidden_steps.append(hidden[:, -1, :].detach().float().cpu())
-
-        handle = None
-        if do_sample:
-            handle = self._semantic_embedding_module().register_forward_hook(capture_hidden)
+        """Replay exact vLLM tokens, splitting only when the GPU reports OOM."""
+        if len(requests) != len(token_sequences):
+            raise ValueError("replay requests and token sequences must have equal length")
+        if not requests:
+            return {}
+        for request, token_ids in zip(requests, token_sequences, strict=True):
+            if not token_ids:
+                raise ValueError(f"empty replay token sequence: {request.request_id}")
         try:
-            outputs = self.model.generate(**inputs, **generation_kwargs)
-        finally:
-            if handle is not None:
-                handle.remove()
-        if outputs.logits is None or outputs.scores is None:
-            raise RuntimeError("Transformers generation did not return token scores")
-        hidden_trajectory = torch.stack(hidden_steps, dim=1) if hidden_steps else None
-        step_count = len(outputs.logits)
-        generated = outputs.sequences[:, prompt_width : prompt_width + step_count]
-        raw_log_probs = torch.stack(
-            [
-                torch.log_softmax(step_logits.float(), dim=-1)
-                .gather(1, generated[:, step].to(step_logits.device).unsqueeze(-1))
-                .squeeze(-1)
-                for step, step_logits in enumerate(outputs.logits)
-            ],
-            dim=1,
-        )
-        sampling_log_probs = torch.stack(
-            [
-                torch.log_softmax(step_scores.float(), dim=-1)
-                .gather(1, generated[:, step].to(step_scores.device).unsqueeze(-1))
-                .squeeze(-1)
-                for step, step_scores in enumerate(outputs.scores)
-            ],
-            dim=1,
-        )
-        pad_id = tokenizer.pad_token_id
-        eos_ids = tokenizer.eos_token_id
-        if isinstance(eos_ids, int):
-            eos_ids = [eos_ids]
-        eos_ids = set(eos_ids or [])
-        values: dict[str, GeneratedResponse] = {}
-        for index, request in enumerate(requests):
-            ids = [int(value) for value in generated[index].tolist()]
-            length = len(ids)
-            stopped_by_eos = False
-            for position, token_id in enumerate(ids):
-                if token_id in eos_ids:
-                    length = position + 1
-                    stopped_by_eos = True
-                    break
-                if pad_id is not None and token_id == pad_id:
-                    length = position
-                    break
-            ids = ids[:length]
-            text = self.processor.decode(
-                ids,
-                skip_special_tokens=True,
-                clean_up_tokenization_spaces=False,
-            ).strip()
-            values[request.request_id] = GeneratedResponse(
-                text=text,
-                token_ids=tuple(ids),
-                token_log_probs=tuple(raw_log_probs[index, :length].cpu().tolist()),
-                sampling_token_log_probs=tuple(
-                    sampling_log_probs[index, :length].cpu().tolist()
+            return self._teacher_force_batch(requests, token_sequences)
+        except torch.OutOfMemoryError:
+            if len(requests) == 1:
+                raise
+            torch.cuda.empty_cache()
+            middle = len(requests) // 2
+            return {
+                **self.teacher_force_responses(
+                    requests[:middle], token_sequences[:middle]
                 ),
-                finish_reason="stop" if stopped_by_eos or length < max_new_tokens else "length",
-                rng_seed=batch_seed,
-                hidden_steps=(
-                    hidden_trajectory[index]
-                    if hidden_trajectory is not None
-                    else None
+                **self.teacher_force_responses(
+                    requests[middle:], token_sequences[middle:]
                 ),
-            )
-        return values
+            }
 
     @torch.inference_mode()
-    def teacher_force_response(
+    def _teacher_force_batch(
         self,
-        request: GenerationRequest,
-        token_ids: tuple[int, ...],
-    ) -> GeneratedResponse:
-        """Replay an externally generated token sequence in one HF forward pass."""
-        if not token_ids:
-            raise ValueError(f"empty replay token sequence: {request.request_id}")
-        inputs = self._batch_inputs([request])
+        requests: list[GenerationRequest],
+        token_sequences: list[tuple[int, ...]],
+    ) -> dict[str, GeneratedResponse]:
+        inputs = self._batch_inputs(requests)
         assert self.model is not None and self.processor is not None
         prompt_width = int(inputs["input_ids"].shape[1])
-        generated = torch.tensor([list(token_ids)], dtype=torch.long, device=self.device)
+        tokenizer = getattr(self.processor, "tokenizer", self.processor)
+        pad_id = tokenizer.pad_token_id
+        if pad_id is None:
+            eos_id = tokenizer.eos_token_id
+            pad_id = eos_id[0] if isinstance(eos_id, list) else eos_id
+        if pad_id is None:
+            pad_id = 0
+        max_generated = max(len(ids) for ids in token_sequences)
+        generated = torch.full(
+            (len(requests), max_generated),
+            int(pad_id),
+            dtype=torch.long,
+            device=self.device,
+        )
+        generated_mask = torch.zeros_like(generated)
+        for index, token_ids in enumerate(token_sequences):
+            length = len(token_ids)
+            generated[index, :length] = torch.tensor(
+                token_ids, dtype=torch.long, device=self.device
+            )
+            generated_mask[index, :length] = 1
         full_inputs = dict(inputs)
         full_inputs["input_ids"] = torch.cat([inputs["input_ids"], generated], dim=1)
         if "attention_mask" in inputs:
             full_inputs["attention_mask"] = torch.cat(
-                [inputs["attention_mask"], torch.ones_like(generated)], dim=1
+                [inputs["attention_mask"], generated_mask], dim=1
             )
         full_inputs.pop("position_ids", None)
         for key, value in list(full_inputs.items()):
@@ -454,7 +320,7 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
             if value.shape[-1] != prompt_width:
                 continue
             padding = torch.zeros(
-                (*value.shape[:-1], len(token_ids)), dtype=value.dtype, device=value.device
+                (*value.shape[:-1], max_generated), dtype=value.dtype, device=value.device
             )
             full_inputs[key] = torch.cat([value, padding], dim=-1)
         outputs = self.model(
@@ -466,26 +332,37 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         logits = getattr(outputs, "logits", None)
         if logits is None:
             raise RuntimeError("HF replay model did not return logits")
-        positions = slice(prompt_width - 1, prompt_width - 1 + len(token_ids))
-        selected = logits[:, positions, :].float()
-        target = generated.to(selected.device)
-        token_log_probs = torch.log_softmax(selected, dim=-1).gather(
-            -1, target.unsqueeze(-1)
-        ).squeeze(-1)[0]
-        hidden_steps = None
         hidden_states = getattr(outputs, "hidden_states", None)
-        if hidden_states:
-            last = hidden_states[-1]
-            hidden_steps = last[:, prompt_width : prompt_width + len(token_ids), :][0]
-            hidden_steps = hidden_steps.detach().float().cpu()
-        return GeneratedResponse(
-            text=self.processor.decode(
-                list(token_ids), skip_special_tokens=True, clean_up_tokenization_spaces=False
-            ).strip(),
-            token_ids=token_ids,
-            token_log_probs=tuple(float(value) for value in token_log_probs.cpu().tolist()),
-            sampling_token_log_probs=tuple(float(value) for value in token_log_probs.cpu().tolist()),
-            hidden_steps=hidden_steps,
-            finish_reason="stop",
-            rng_seed=request.seed,
-        )
+        last_hidden = hidden_states[-1] if hidden_states else None
+        values: dict[str, GeneratedResponse] = {}
+        for index, (request, token_ids) in enumerate(
+            zip(requests, token_sequences, strict=True)
+        ):
+            length = len(token_ids)
+            positions = slice(prompt_width - 1, prompt_width - 1 + length)
+            selected = logits[index, positions, :].float()
+            targets = generated[index, :length].to(selected.device)
+            token_log_probs = (
+                selected.gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+                - torch.logsumexp(selected, dim=-1)
+            )
+            hidden_steps = None
+            if last_hidden is not None:
+                hidden_steps = last_hidden[
+                    index, prompt_width : prompt_width + length, :
+                ].detach().float().cpu()
+            log_probs = tuple(float(value) for value in token_log_probs.cpu().tolist())
+            values[request.request_id] = GeneratedResponse(
+                text=self.processor.decode(
+                    list(token_ids),
+                    skip_special_tokens=True,
+                    clean_up_tokenization_spaces=False,
+                ).strip(),
+                token_ids=token_ids,
+                token_log_probs=log_probs,
+                sampling_token_log_probs=log_probs,
+                hidden_steps=hidden_steps,
+                finish_reason="stop",
+                rng_seed=request.seed,
+            )
+        return values

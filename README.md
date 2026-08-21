@@ -101,37 +101,27 @@
 
 ### 1. 生成结构化回答
 
-入口为 `scripts/generation/generate_responses.py`。它要求在 Slurm 计算节点离线运行，显式传入基础模型、对应 adapter 和数据集路径：
+正式入口为 `slurm/generation/generate.sbatch`：vLLM 批量生成并保存精确 token，随后 HF 对这些 token 做批量 teacher-forcing，补齐概率与 hidden state。两个阶段在同一作业内各只加载一次模型。
 
 ```bash
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
 
-python3 scripts/generation/generate_responses.py \
-  --dataset vilp \
-  --dataset-source /opt/lexiangrui/datasets/vilp \
-  --model-family llava_1_5 \
-  --model-path /opt/lexiangrui/models/llava-1.5-7b-hf \
-  --adapter-path results/lora/llava/adapter \
-  --output results/generation/llava/greedy/vilp.jsonl \
-  --phase greedy \
-  --num-samples 0
+sbatch --export=ALL,MODEL=llava slurm/generation/generate.sbatch
 ```
 
-生成严格分为两个互不读取对方结果的阶段：`--phase greedy --num-samples 0` 只写主回答，
-`--phase samples --num-samples 10` 只写 10 条随机采样回答，每条 sample 的 XML 拒绝重采样
-上限为 50。samples 阶段同时写入
+vLLM 内部仍将生成分为 greedy 与 K=10 samples 两个输出；每条 sample 的 XML 拒绝重采样
+上限为 50。HF 回放阶段写入
 每条采样答案末 token 的最后一层向量到 `results/hidden/<model>/<dataset>/`；不会写入
 greedy 回答或读取 greedy 文件。
 生成指令从 `prompts/generation/xml_lora_zero_shot.md` 显式加载；运行 JSONL 的
 `run` 记录中保存 `prompt_sha256` 用于锁定实际使用的内容。
 
-三模型 × 三数据集的批量提交也按阶段分开执行，不存在同时生成 greedy 与 samples 的入口：
+三模型的全量 generation + UQ 流水线统一提交：
 
 ```bash
-GENERATION_PHASE=greedy bash slurm/generation/submit_generation_grid.sh
-GENERATION_PHASE=samples bash slurm/generation/submit_generation_grid.sh
+bash slurm/submit_full_pipeline.sh
 ```
 
 ### 2. 计算 UQ
@@ -211,4 +201,3 @@ bash slurm/generation/submit_uq_grid.sh
 ```bash
 pytest
 ```
-

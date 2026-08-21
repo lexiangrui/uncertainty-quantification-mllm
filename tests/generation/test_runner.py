@@ -125,10 +125,10 @@ def test_sample_generation_writes_answers_tokens_and_resumes(monkeypatch, tmp_pa
     run, records = read(options["output"])
     record = records[0]
     assert run["scheduler"]["max_batch_size"] == 5
-    assert run["scheduler"]["type"] == "transformers_role_separated_dynamic_batching"
+    assert run["scheduler"]["type"] == "vllm_role_separated_dynamic_batching"
     assert run["scheduler"]["mixed_greedy_and_sampling"] is False
     assert run["generation_phase"] == "samples"
-    assert run["hidden_state_execution"] == "inline_sample_answer_last_token"
+    assert run["hidden_state_execution"] == "pending_hf_replay_answer_last_token"
     assert run["prompt_sha256"] == XML_LORA_PROMPT_SHA256
     assert record["hidden_states"]["shape"] == [5, 4]
     assert "greedy" not in record
