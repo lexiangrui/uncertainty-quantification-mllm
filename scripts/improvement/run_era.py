@@ -22,6 +22,38 @@ def _load_generation(path: Path):
     return rows[0]["run"], rows[1:]
 
 
+def _load_sample_ids(path: Path | None) -> set[str] | None:
+    if path is None:
+        return None
+    values = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()]
+    values = [value for value in values if value]
+    if not values:
+        raise ValueError(f"sample ID file is empty: {path}")
+    sample_ids = set(values)
+    if len(sample_ids) != len(values):
+        raise ValueError(f"sample ID file contains duplicates: {path}")
+    return sample_ids
+
+
+def _pending_records(
+    records: list[dict],
+    completed: set[str],
+    sample_ids_filter: set[str] | None,
+) -> dict[str, dict]:
+    records_by_id: dict[str, dict] = {}
+    for record in records:
+        sid = record.get("sample", {}).get("sample_id")
+        if not isinstance(sid, str) or sid in records_by_id:
+            raise ValueError(f"invalid or duplicate generation sample_id: {sid!r}")
+        records_by_id[sid] = record
+    return {
+        sid: record
+        for sid, record in records_by_id.items()
+        if sid not in completed
+        and (sample_ids_filter is None or sid in sample_ids_filter)
+    }
+
+
 def _greedy_token_ids(record: dict, generation_path: Path) -> list[int]:
     descriptor = record.get("generation_tokens") or {}
     relative = descriptor.get("path")
@@ -52,9 +84,8 @@ def main() -> None:
     parser.add_argument("--sample-ids-file", type=Path, default=None)
     args = parser.parse_args()
 
-    sample_ids_filter = None
-    if args.sample_ids_file:
-        sample_ids_filter = {line.strip() for line in args.sample_ids_file.open() if line.strip()}
+    sample_ids_filter = _load_sample_ids(args.sample_ids_file)
+    if sample_ids_filter is not None:
         print(f"Filtering to {len(sample_ids_filter)} IDs")
 
     gen_run, records = _load_generation(args.greedy_input)
@@ -65,13 +96,18 @@ def main() -> None:
         "greedy_input": str(args.greedy_input.resolve()),
         "greedy_run": gen_run,
     }
+    if sample_ids_filter is not None:
+        run["sample_filter"] = sorted(sample_ids_filter)
     completed = completed_sample_ids(args.output, run)
-    records_by_id = {}
-    for record in records:
-        sid = record.get("sample", {}).get("sample_id")
-        if not isinstance(sid, str) or sid in records_by_id:
-            raise ValueError(f"invalid or duplicate generation sample_id: {sid!r}")
-        records_by_id[sid] = record
+    records_by_id = _pending_records(records, completed, sample_ids_filter)
+    if not records_by_id:
+        print(f"completed: written=0 skipped={len(completed)} output={args.output}")
+        return
+    print(
+        f"ERA pending attention forwards={len(records_by_id)} "
+        f"completed={len(completed)}",
+        flush=True,
+    )
 
     backend = EraBackend(
         args.family,
@@ -84,15 +120,9 @@ def main() -> None:
     written = skipped = 0
     for sample in iter_dataset(dataset, args.dataset_source, args.limit):
         sid = sample.sample_id
-        if sid in completed or (
-            sample_ids_filter is not None and sid not in sample_ids_filter
-        ):
+        if sid not in records_by_id:
             continue
-        record = records_by_id.get(sid)
-        if not record:
-            print(f"skip {sid}: generation record missing", flush=True)
-            skipped += 1
-            continue
+        record = records_by_id[sid]
         greedy = record.get("greedy", {})
         if not greedy.get("sections_valid") or not greedy.get("raw_response") or not sample.image:
             skipped += 1

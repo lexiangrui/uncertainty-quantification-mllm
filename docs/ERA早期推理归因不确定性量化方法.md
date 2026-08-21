@@ -41,4 +41,4 @@ $$
 - **集群调度脚本**：[`slurm/improvement/run_era.sbatch`](../slurm/improvement/run_era.sbatch)
 - **针对性单元测试**：[`tests/improvement/test_era.py`](../tests/improvement/test_era.py)
 
-当前实现读取 HF replay 完成后的正式 greedy JSONL 及其精确 token sidecar，不重新生成回答；InternVL3.5-8B 使用 `InternVL3_5-8B` 与 `results/lora/internvl/adapter-original`。无图样本不参与 ERA 图像归因。
+当前实现读取 HF replay 完成后的正式 greedy JSONL 及其精确 token sidecar，不重新生成回答。正式 Slurm 流程读取每个模型的 400 条低不确定性子集 ID，在模型前向前过滤其余样本，并在没有待处理目标时跳过模型加载；无图样本不参与 ERA 图像归因。

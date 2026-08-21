@@ -17,6 +17,19 @@ MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
 cd "$PROJECT_ROOT"
 mkdir -p logs/era results/era_components/"$MODEL"
 shift_args=("$@")
+SUBSET_IDS_FILE="${ERA_SAMPLE_IDS_FILE:-results/analysis/luh/${MODEL}_subset_ids.txt}"
+if [[ ! -s "$SUBSET_IDS_FILE" ]]; then
+  echo "ERA subset ID file missing or empty: $SUBSET_IDS_FILE" >&2
+  echo "Run scripts/extract_per_model_subset.py before submitting production ERA." >&2
+  exit 1
+fi
+SUBSET_COUNT=$(awk 'NF { count += 1 } END { print count + 0 }' "$SUBSET_IDS_FILE")
+EXPECTED_SUBSET_SIZE=${ERA_EXPECTED_SUBSET_SIZE:-400}
+if [[ "$SUBSET_COUNT" -ne "$EXPECTED_SUBSET_SIZE" ]]; then
+  echo "ERA subset must contain $EXPECTED_SUBSET_SIZE non-empty IDs; found $SUBSET_COUNT" >&2
+  exit 1
+fi
+echo "ERA production subset: $SUBSET_IDS_FILE ($SUBSET_COUNT IDs)"
 
 case "$MODEL" in
   llava)    FAM=llava_1_5;  MP="$MODEL_ROOT/llava-1.5-7b-hf";     AD=results/lora/llava/adapter ;;
@@ -41,6 +54,7 @@ for dataset in vilp hallusionbench mmvet; do
     --model-path "$MP" \
     --adapter-path "$AD" \
     --dataset-source "$SRC" \
+    --sample-ids-file "$SUBSET_IDS_FILE" \
     "${shift_args[@]}"
   flock -u 9
   exec 9>&-

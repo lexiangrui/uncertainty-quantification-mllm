@@ -133,7 +133,7 @@ vLLM raw、HF replay、UQ、Judge 和 ERA 均以 `sample_id` 断点续跑。每�
 
 `scripts/judging/judge_responses.py` 只评价 greedy 主回答。闭源 Judge 的服务地址和密钥只从 `OPENAI_BASE_URL`、`OPENAI_API_KEY` 读取，Prompt 哈希保存在输出的 `run` metadata 中。
 
-ERA 读取 HF replay 后的 greedy JSONL 及其精确 token sidecar，并通过 HF eager attention 计算浅层归因分量：
+ERA 读取 HF replay 后的 greedy JSONL 及其精确 token sidecar，并通过 HF eager attention 计算浅层归因分量。正式 Slurm 入口默认读取 `results/analysis/luh/<model>_subset_ids.txt`，只对每个模型的 400 条低不确定性子集执行 attention forward：
 
 ```bash
 sbatch --export=ALL,MODEL=llava slurm/improvement/run_era.sbatch

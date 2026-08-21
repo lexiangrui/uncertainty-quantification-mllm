@@ -185,6 +185,13 @@ def main():
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(all_subsets, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    for model, subset in all_subsets.items():
+        sample_ids = subset["positive_ids"] + subset["negative_ids"]
+        if len(sample_ids) != len(set(sample_ids)):
+            raise ValueError(f"{model}: duplicate sample IDs in extracted subset")
+        ids_path = args.output.parent / f"{model}_subset_ids.txt"
+        ids_path.write_text("".join(f"{sid}\n" for sid in sample_ids), encoding="utf-8")
+        print(f"{model}: ERA sample IDs -> {ids_path} ({len(sample_ids)})")
 
     # Quick baseline AUROC check
     print("\n=== Baseline AUROC check ===")
