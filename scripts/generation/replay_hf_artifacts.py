@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import shutil
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -75,6 +76,14 @@ def _tokens(payload: dict[str, torch.Tensor], key: str, sample_id: str) -> tuple
     if not isinstance(tensor, torch.Tensor):
         raise ValueError(f"missing {key} token IDs for {sample_id}")
     return tuple(int(value) for value in tensor.tolist())
+
+
+def _canonical_response(response, generation_record: dict):
+    """Keep exact replay tensors while parsing vLLM's stop-trimmed output text."""
+    canonical_text = generation_record.get("raw_response")
+    if not isinstance(canonical_text, str) or not canonical_text:
+        raise ValueError("generation record has no canonical raw_response")
+    return replace(response, text=canonical_text)
 
 
 def _run_replay_calls(
@@ -190,6 +199,7 @@ def replay_file(
             if "greedy" in record:
                 greedy = dict(record["greedy"])
                 response = responses[f"replay:{sample_id}:greedy:greedy"]
+                response = _canonical_response(response, greedy)
                 replay_record, _ = _response_record(backend, response, "xml")
                 for key in (
                     "signals", "sections_valid", "section_error",
@@ -203,6 +213,7 @@ def replay_file(
                 hidden_values = []
                 for index, item in enumerate(record["samples"]):
                     response = responses[f"replay:{sample_id}:sample:{index}"]
+                    response = _canonical_response(response, item)
                     replay_record, signals = _response_record(backend, response, "xml")
                     current = {**item}
                     for key in (
