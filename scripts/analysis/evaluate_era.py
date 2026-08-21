@@ -48,6 +48,9 @@ def main() -> None:
                         help="absolute decoder layers to average (default: 0 1)")
     parser.add_argument("--features", nargs="+", default=list(FEATURES))
     parser.add_argument("--components-dir", type=Path, default=PROJECT_ROOT / "results/era_components")
+    parser.add_argument("--generation-dir", type=Path, default=PROJECT_ROOT / "results/generation")
+    parser.add_argument("--uq-dir", type=Path, default=PROJECT_ROOT / "results/uq")
+    parser.add_argument("--judge-dir", type=Path, default=PROJECT_ROOT / "results/judging")
     parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "results/analysis/era/final_evaluation.json")
     parser.add_argument("--bootstrap-samples", type=int, default=1000)
     args = parser.parse_args()
@@ -56,7 +59,7 @@ def main() -> None:
     group_ids = {}
     for model in MODELS:
         for ds in DATASETS:
-            p = PROJECT_ROOT / f"results/generation/{model}/greedy/{ds}.jsonl"
+            p = args.generation_dir / model / "greedy" / f"{ds}.jsonl"
             if p.exists():
                 for obj in load_jsonl_records(p):
                     if obj.get("record_type") != "sample":
@@ -84,7 +87,7 @@ def main() -> None:
                         record_payload = obj.get("era")
                         if record_payload:
                             feats[sid] = layers_mean(layer_features(record_payload), args.layers)
-            p = PROJECT_ROOT / f"results/uq/{model}/{ds}.jsonl"
+            p = args.uq_dir / model / f"{ds}.jsonl"
             if p.exists():
                 for obj in load_jsonl_records(p):
                     if obj.get("record_type") != "sample":
@@ -98,7 +101,7 @@ def main() -> None:
                                 row[m] = float(e["score"])
                         if len(row) == len(BASELINES):
                             uq[sid] = row
-            p = PROJECT_ROOT / f"results/judging/{model}/{ds}.jsonl"
+            p = args.judge_dir / model / f"{ds}.jsonl"
             if p.exists():
                 for obj in load_jsonl_records(p):
                     if obj.get("record_type") == "run":

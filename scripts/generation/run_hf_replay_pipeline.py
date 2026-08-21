@@ -9,7 +9,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.generation.replay_hf_artifacts import replay_file
+from scripts.generation.replay_hf_artifacts import _load_sample_ids, replay_file
 from src.models import load_replay_backend
 from src.models.runtime import replay_batch_size, visible_gpu_memory_gib
 
@@ -31,7 +31,9 @@ def main() -> None:
     parser.add_argument("--output-root", required=True, type=Path)
     parser.add_argument("--batch-size", type=int, default=0)
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--sample-ids-file", type=Path)
     args = parser.parse_args()
+    sample_ids_filter = _load_sample_ids(args.sample_ids_file)
 
     memory_gib = visible_gpu_memory_gib()
     batch_size = args.batch_size or replay_batch_size(memory_gib)
@@ -56,6 +58,7 @@ def main() -> None:
                 adapter_path=args.adapter_path,
                 batch_size=batch_size,
                 limit=args.limit,
+                sample_ids_filter=sample_ids_filter,
                 backend=backend,
             )
             print(f"HF replay {dataset}/{phase}: written={written} skipped={skipped}")

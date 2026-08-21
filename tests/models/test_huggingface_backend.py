@@ -83,6 +83,10 @@ class FakeTokenizer:
             "attention_mask": torch.ones((len(rendered), 2), dtype=torch.long),
         }
 
+    def convert_tokens_to_ids(self, token):
+        assert token == "<IMG_CONTEXT>"
+        return 99
+
 
 def test_original_internvl_builds_text_only_inputs_without_pixels() -> None:
     backend = object.__new__(HuggingFaceReplayBackend)
@@ -107,6 +111,28 @@ def test_original_internvl_rejects_mixed_modality_batch() -> None:
         backend._original_batch_inputs(
             [_request("image", image=Image.new("RGB", (2, 2))), _request("text")]
         )
+
+
+def test_original_internvl_uses_dynamic_tiles_and_matching_context_tokens() -> None:
+    config = SimpleNamespace(
+        force_image_size=448,
+        dynamic_image_size=True,
+        min_dynamic_patch=1,
+        max_dynamic_patch=12,
+        use_thumbnail=True,
+    )
+    backend = object.__new__(HuggingFaceReplayBackend)
+    backend.model = SimpleNamespace(config=config, num_image_token=2)
+    backend.processor = FakeTokenizer()
+    backend.device = torch.device("cpu")
+
+    inputs = backend._original_batch_inputs(
+        [_request("image", image=Image.new("RGB", (896, 448)))]
+    )
+
+    assert inputs["pixel_values"].shape == (3, 3, 448, 448)
+    assert inputs["image_flags"].shape == (3, 1)
+    assert backend.processor.rendered[0].count("<IMG_CONTEXT>") == 6
 
 
 def test_original_internvl_text_replay_calls_language_model_directly() -> None:

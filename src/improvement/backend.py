@@ -6,7 +6,7 @@ from pathlib import Path
 import torch
 
 from src.generation.prompt import build_prompt
-from src.models.internvl import INTERNVL_SYSTEM_PROMPT
+from src.models.internvl import INTERNVL_SYSTEM_PROMPT, dynamic_image_tiles
 from src.models.transformers_compat import patch_tied_weights_keys_compat
 
 
@@ -129,17 +129,26 @@ class EraBackend:
             from torchvision.transforms import InterpolationMode
             import torchvision.transforms as T
 
-            image = image.convert("RGB")
+            base_model = self._base_model()
+            config = base_model.config
+            image_size = int(getattr(config, "force_image_size", None) or 448)
             transform = T.Compose(
                 [
-                    T.Resize((448, 448), interpolation=InterpolationMode.BICUBIC),
+                    T.Resize((image_size, image_size), interpolation=InterpolationMode.BICUBIC),
                     T.ToTensor(),
                     T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
                 ]
             )
-            pixel_values = transform(image).unsqueeze(0).to(self.device, dtype=torch.bfloat16)
-            num_image_tokens = int(self.model.num_image_token)
-            image_tokens = "<img>" + "<IMG_CONTEXT>" * num_image_tokens + "</img>"
+            image_tiles = dynamic_image_tiles(image, config)
+            pixel_values = torch.stack([transform(tile) for tile in image_tiles]).to(
+                self.device, dtype=torch.bfloat16
+            )
+            num_image_tokens = int(base_model.num_image_token)
+            image_tokens = (
+                "<img>"
+                + "<IMG_CONTEXT>" * (num_image_tokens * len(image_tiles))
+                + "</img>"
+            )
             user = f"<image>\n{prompt.user}".replace("<image>", image_tokens, 1)
             rendered = (
                 f"<|im_start|>system\n{INTERNVL_SYSTEM_PROMPT}<|im_end|>\n"
@@ -151,8 +160,10 @@ class EraBackend:
                 rendered, return_tensors="pt", add_special_tokens=False
             )
             inputs["pixel_values"] = pixel_values
-            inputs["image_flags"] = torch.ones((1, 1), dtype=torch.long, device=self.device)
-            self._base_model().img_context_token_id = self._image_token_id
+            inputs["image_flags"] = torch.ones(
+                (len(image_tiles), 1), dtype=torch.long, device=self.device
+            )
+            base_model.img_context_token_id = self._image_token_id
             return {k: v.to(self.device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
         content = []
         if image is not None:

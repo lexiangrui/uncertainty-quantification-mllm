@@ -28,6 +28,19 @@ def _chunks(values: list[Any], size: int) -> Iterator[list[Any]]:
         yield values[start : start + size]
 
 
+def _load_sample_ids(path: Path | None) -> set[str] | None:
+    if path is None:
+        return None
+    values = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()]
+    values = [value for value in values if value]
+    if not values:
+        raise ValueError(f"sample ID file is empty: {path}")
+    sample_ids = set(values)
+    if len(sample_ids) != len(values):
+        raise ValueError(f"sample ID file contains duplicates: {path}")
+    return sample_ids
+
+
 def _token_payload(path: Path, record: dict) -> dict[str, torch.Tensor]:
     descriptor = record.get("generation_tokens") or {}
     relative = descriptor.get("path")
@@ -114,6 +127,7 @@ def replay_file(
     adapter_path: Path | None,
     batch_size: int,
     limit: int | None,
+    sample_ids_filter: set[str] | None = None,
     backend: HuggingFaceReplayBackend | None = None,
 ) -> tuple[int, int]:
     rows = load_jsonl_records(input_path)
@@ -122,7 +136,15 @@ def replay_file(
     if batch_size <= 0:
         raise ValueError("batch_size must be positive")
     input_run = dict(rows[0]["run"])
-    records = rows[1 : limit + 1 if limit is not None else None]
+    records = rows[1:]
+    if sample_ids_filter is not None:
+        records = [
+            record
+            for record in records
+            if record.get("sample", {}).get("sample_id") in sample_ids_filter
+        ]
+    if limit is not None:
+        records = records[:limit]
     samples = {
         sample.sample_id: sample
         for sample in iter_dataset(input_run["dataset"], dataset_source, None)
@@ -143,6 +165,10 @@ def replay_file(
         "replay_batch_size": batch_size,
         "replay_complete": True,
     }
+    if family == "internvl3_5_original":
+        run["replay_image_preprocessing"] = "vllm_internvl_dynamic_tiles_v1"
+    if sample_ids_filter is not None:
+        run["sample_filter"] = sorted(sample_ids_filter)
     completed = completed_sample_ids(output_path, run)
     pending = [
         record
@@ -266,7 +292,9 @@ def main() -> None:
         help="HF replay batch; 0 selects from visible GPU memory",
     )
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--sample-ids-file", type=Path, default=None)
     args = parser.parse_args()
+    sample_ids_filter = _load_sample_ids(args.sample_ids_file)
     memory_gib = visible_gpu_memory_gib()
     batch_size = args.batch_size or replay_batch_size(memory_gib)
     print(f"HF replay GPU memory={memory_gib:.1f} GiB batch_size={batch_size}")
@@ -279,6 +307,7 @@ def main() -> None:
         adapter_path=args.adapter_path,
         batch_size=batch_size,
         limit=args.limit,
+        sample_ids_filter=sample_ids_filter,
     )
     print(f"completed HF replay: written={written} skipped={skipped} output={args.output}")
 

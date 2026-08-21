@@ -10,7 +10,7 @@ from PIL import Image
 from src.generation.prompt import GenerationPrompt
 
 from .base import GeneratedResponse, GenerationRequest
-from .internvl import INTERNVL_SYSTEM_PROMPT
+from .internvl import INTERNVL_SYSTEM_PROMPT, dynamic_image_tiles
 from .transformers_compat import patch_tied_weights_keys_compat
 
 
@@ -228,7 +228,9 @@ class HuggingFaceReplayBackend:
         from torchvision.transforms import InterpolationMode
         import torchvision.transforms as T
 
-        image_size = int(getattr(self.model, "config", None).force_image_size or 448)
+        base_model = self.model.get_base_model() if hasattr(self.model, "get_base_model") else self.model
+        config = base_model.config
+        image_size = int(getattr(config, "force_image_size", None) or 448)
         transform = T.Compose(
             [
                 T.Resize((image_size, image_size), interpolation=InterpolationMode.BICUBIC),
@@ -236,7 +238,6 @@ class HuggingFaceReplayBackend:
                 T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
         )
-        base_model = self.model.get_base_model() if hasattr(self.model, "get_base_model") else self.model
         num_image_tokens = int(base_model.num_image_token)
         rendered: list[str] = []
         tiles: list[torch.Tensor] = []
@@ -244,12 +245,17 @@ class HuggingFaceReplayBackend:
         for request in requests:
             image = request.image
             assert image is not None
-            image = image.convert("RGB") if isinstance(image, Image.Image) else image
-            tile = transform(image).unsqueeze(0)
-            tiles.append(tile)
-            image_flags.append(torch.ones((1, 1), dtype=torch.long))
+            if not isinstance(image, Image.Image):
+                raise TypeError("original InternVL expects PIL images")
+            image_tiles = dynamic_image_tiles(image, config)
+            tiles.append(torch.stack([transform(tile) for tile in image_tiles]))
+            image_flags.append(torch.ones((len(image_tiles), 1), dtype=torch.long))
             question = f"<image>\n{request.prompt.user}"
-            image_tokens = "<img>" + "<IMG_CONTEXT>" * num_image_tokens + "</img>"
+            image_tokens = (
+                "<img>"
+                + "<IMG_CONTEXT>" * (num_image_tokens * len(image_tiles))
+                + "</img>"
+            )
             question = question.replace("<image>", image_tokens, 1)
             rendered.append(
                 f"<|im_start|>system\n{request.prompt.system or INTERNVL_SYSTEM_PROMPT}<|im_end|>\n"

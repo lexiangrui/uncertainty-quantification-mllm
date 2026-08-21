@@ -93,9 +93,14 @@ def main() -> None:
     run = {
         "method": "era",
         "token_alignment": "continuous_slices_with_xml",
+        "model_family": args.family,
+        "model_path": str(args.model_path.resolve()),
+        "adapter_path": str(args.adapter_path.resolve()) if args.adapter_path else None,
         "greedy_input": str(args.greedy_input.resolve()),
         "greedy_run": gen_run,
     }
+    if args.family == "internvl3_5_original":
+        run["image_preprocessing"] = "vllm_internvl_dynamic_tiles_v1"
     if sample_ids_filter is not None:
         run["sample_filter"] = sorted(sample_ids_filter)
     completed = completed_sample_ids(args.output, run)
