@@ -28,6 +28,7 @@ def main() -> None:
     parser.add_argument("--model-path", required=True, type=Path)
     parser.add_argument("--adapter-path", required=True, type=Path)
     parser.add_argument("--data-root", required=True, type=Path)
+    parser.add_argument("--input-root", type=Path)
     parser.add_argument("--output-root", required=True, type=Path)
     parser.add_argument("--batch-size", type=int, default=0)
     parser.add_argument("--limit", type=int)
@@ -46,7 +47,7 @@ def main() -> None:
             "sdpa" if args.model_family == "internvl3_5_original" else "flash_attention_2"
         ),
     )
-    raw_root = args.output_root / "vllm_raw"
+    raw_root = args.input_root or args.output_root / "vllm_raw"
     for dataset, source in _sources(args.data_root).items():
         for phase in ("greedy", "samples"):
             written, skipped = replay_file(
