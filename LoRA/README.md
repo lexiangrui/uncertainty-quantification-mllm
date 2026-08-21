@@ -10,7 +10,7 @@
 <vision>视觉证据</vision><reasoning>简短推理</reasoning><answer>最终答案</answer>
 ```
 
-正式模型为 LLaVA-1.5-7B、Qwen2.5-VL-7B-Instruct 和原始 InternVL3.5-8B。InternVL 使用 `InternVL3_5-8B` checkpoint 与匹配的 `adapter-original`。
+正式模型为 LLaVA-1.5-7B、Qwen2.5-VL-7B-Instruct 和 InternVL3.5-8B。InternVL 使用 `InternVL3_5-8B` checkpoint 与 `results/lora/internvl/adapter-original`。
 
 ## 数据与正式配置
 
@@ -20,7 +20,7 @@
 | --- | --- | --- |
 | LLaVA-1.5-7B | `LoRA/configs/llava_inline_lora_5000.json` | `results/lora/llava/adapter/` |
 | Qwen2.5-VL-7B-Instruct | `LoRA/configs/qwen2_5_vl_inline_lora_5000.json` | `results/lora/qwen/adapter/` |
-| 原始 InternVL3.5-8B | `LoRA/configs/internvl3_5_original_lora.json` | `results/lora/internvl/adapter-original/` |
+| InternVL3.5-8B | `LoRA/configs/internvl3_5_original_lora.json` | `results/lora/internvl/adapter-original/` |
 
 正式映射以 `slurm/generation/generate.sbatch` 和 `slurm/improvement/run_era.sbatch` 为准。
 
@@ -35,7 +35,7 @@
 | warmup ratio | `0.03` |
 | target modules | 语言模型的 `q_proj`、`v_proj` |
 
-视觉塔、projector 和基础模型参数保持冻结。LLaVA 与 Qwen2.5-VL 最大序列长度为 1024；原始 InternVL 为 4096，图像尺寸 448，当前正式配置每张图最多使用一个 patch。LLaVA 的监督结尾 token 为 `</s>`，Qwen 与 InternVL 为 `<|im_end|>`。
+视觉塔、projector 和基础模型参数保持冻结。LLaVA 与 Qwen2.5-VL 最大序列长度为 1024；InternVL3.5-8B 为 4096，图像尺寸 448，当前正式配置每张图最多使用一个 patch。LLaVA 的监督结尾 token 为 `</s>`，Qwen 与 InternVL 为 `<|im_end|>`。
 
 训练输出包含 adapter 权重、adapter 配置、tokenizer/processor 配置、训练与验证指标、`training_config.json` 和可恢复 checkpoint。`training_config.json` 记录训练 Prompt 的 SHA256，adapter 不是合并后的完整模型权重。
 

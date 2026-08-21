@@ -6,14 +6,14 @@
 
 | 类别 | 当前配置 |
 | --- | --- |
-| 模型 | LLaVA-1.5-7B、Qwen2.5-VL-7B-Instruct、原始 InternVL3.5-8B |
+| 模型 | LLaVA-1.5-7B、Qwen2.5-VL-7B-Instruct、InternVL3.5-8B |
 | 数据集 | ViLP（900）、HallusionBench（1,129）、MM-Vet（218） |
 | 回答协议 | `<vision>...</vision><reasoning>...</reasoning><answer>...</answer>` |
 | 生成 | 1 条 greedy + 10 条随机采样；sample 最多 50 次 XML 拒绝重采样 |
 | UQ | Perplexity、Semantic Entropy、UMPIRE |
 | 改进方法 | ERA（Early Rationale Attribution） |
 
-三个模型分别挂载 XML 格式 LoRA。InternVL 使用原始 OpenGVLab `InternVL3_5-8B` checkpoint 和匹配的 `adapter-original`，vLLM 生成与 HF 内部状态回放共用同一套 token 与聊天模板。
+三个模型分别挂载 XML 格式 LoRA。InternVL3.5-8B 使用 OpenGVLab `InternVL3_5-8B` checkpoint 与 `results/lora/internvl/adapter-original`。
 
 ## 正式推理架构
 
@@ -43,7 +43,7 @@ dataset + XML prompt + base model/LoRA
 - `scripts/generation/run_vllm_pipeline.py` 在三个数据集及 greedy/samples 两个阶段之间复用同一个 vLLM engine，不重复加载权重。
 - `scripts/generation/run_hf_replay_pipeline.py` 对全部阶段复用同一个 HF 模型，也不在 greedy 与 samples 之间重复加载。
 - 显存档位由 `src/models/runtime.py` 根据当前可见 GPU 自动选择。32 GiB GPU 默认使用 `max_num_seqs=8`、HF replay batch size `5`；HF 遇到 OOM 时递归拆分当前 batch 后重试。
-- HallusionBench 的有图与无图记录在 HF replay 时分组批处理。原始 InternVL 对无图记录不构造视觉 token、`pixel_values` 或 `image_flags`，而是直接调用其语言模型前向。
+- HallusionBench 的有图与无图记录在 HF replay 时分组批处理。InternVL3.5-8B 对无图记录不构造视觉 token、`pixel_values` 或 `image_flags`，而是直接调用其语言模型前向。
 - 解析失败的少量异常回答保留原文并标记 `sections_valid=false`；它们不会静默修复，也不会进入后续 UQ 计算。
 
 ## 目录与正式产物
