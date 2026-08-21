@@ -74,3 +74,19 @@ def test_completed_ids_reject_max_model_len_change(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="run configuration mismatch"):
         completed_sample_ids(path, current)
+
+
+def test_hf_replay_resume_ignores_upstream_context_capacity(tmp_path) -> None:
+    path = tmp_path / "results.jsonl"
+    previous = {
+        "name": "test",
+        "internal_state_engine": "hf_teacher_forcing",
+        "model_runtime": {"engine": "vllm", "max_model_len": 4096},
+    }
+    current = {
+        **previous,
+        "model_runtime": {"engine": "vllm", "max_model_len": 18_000},
+    }
+    write_sample_json_line(path, previous, {"sample": {"sample_id": "done"}})
+
+    assert completed_sample_ids(path, current) == {"done"}

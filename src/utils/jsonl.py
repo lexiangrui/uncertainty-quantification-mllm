@@ -72,10 +72,19 @@ def _result_defining_run_config(run: Any) -> Any:
     for key, ignored_keys in _EXECUTION_ONLY_NESTED_KEYS.items():
         section = normalized.get(key)
         if isinstance(section, dict):
+            ignored = ignored_keys
+            if (
+                key == "model_runtime"
+                and normalized.get("internal_state_engine")
+                == "hf_teacher_forcing"
+            ):
+                # Replay consumes frozen token IDs. The upstream vLLM context
+                # capacity cannot change replay probabilities or hidden states.
+                ignored = ignored | {"max_model_len"}
             normalized[key] = {
                 name: value
                 for name, value in section.items()
-                if name not in ignored_keys
+                if name not in ignored
             }
     return normalized
 
