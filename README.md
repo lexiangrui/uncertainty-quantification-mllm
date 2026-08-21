@@ -13,7 +13,7 @@
 | UQ | Perplexity、Semantic Entropy、UMPIRE |
 | 改进方法 | ERA（Early Rationale Attribution） |
 
-三个模型分别挂载 XML 格式 LoRA。InternVL 的正式链路使用原始 OpenGVLab checkpoint，而不是旧的 `InternVL3_5-8B-HF` 转换版，以保证 vLLM 生成和 HF 内部状态回放使用同一套 token 与聊天模板。
+三个模型分别挂载 XML 格式 LoRA。InternVL 使用原始 OpenGVLab `InternVL3_5-8B` checkpoint 和匹配的 `adapter-original`，vLLM 生成与 HF 内部状态回放共用同一套 token 与聊天模板。
 
 ## 正式推理架构
 

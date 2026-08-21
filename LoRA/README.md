@@ -10,7 +10,7 @@
 <vision>视觉证据</vision><reasoning>简短推理</reasoning><answer>最终答案</answer>
 ```
 
-正式模型为 LLaVA-1.5-7B、Qwen2.5-VL-7B-Instruct 和原始 InternVL3.5-8B。推理链路中的 InternVL 已从旧的 `InternVL3_5-8B-HF` 转换 checkpoint 切换到原始 `InternVL3_5-8B`，并使用与其匹配的 `adapter-original`。
+正式模型为 LLaVA-1.5-7B、Qwen2.5-VL-7B-Instruct 和原始 InternVL3.5-8B。InternVL 使用 `InternVL3_5-8B` checkpoint 与匹配的 `adapter-original`。
 
 ## 数据与正式配置
 
@@ -22,7 +22,7 @@
 | Qwen2.5-VL-7B-Instruct | `LoRA/configs/qwen2_5_vl_inline_lora_5000.json` | `results/lora/qwen/adapter/` |
 | 原始 InternVL3.5-8B | `LoRA/configs/internvl3_5_original_lora.json` | `results/lora/internvl/adapter-original/` |
 
-同目录下名称包含旧 HF InternVL 或 `legacy` 输出位置的配置只用于历史复现，不应被 generation/ERA 正式作业引用。正式映射以 `slurm/generation/generate.sbatch` 和 `slurm/improvement/run_era.sbatch` 为准。
+正式映射以 `slurm/generation/generate.sbatch` 和 `slurm/improvement/run_era.sbatch` 为准。
 
 共同超参数：
 
@@ -83,7 +83,7 @@ sbatch --export=ALL,CONFIG=LoRA/configs/internvl3_5_original_lora.json \
   slurm/lora/train_internvl35_original.sbatch
 ```
 
-不要把旧 HF InternVL adapter 挂载到原始 InternVL checkpoint。
+InternVL checkpoint 与 adapter 必须使用上表中的配套版本。
 
 ## 正式生成中的挂载
 
