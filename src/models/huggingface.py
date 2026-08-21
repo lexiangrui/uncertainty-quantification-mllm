@@ -202,15 +202,31 @@ class HuggingFaceReplayBackend:
 
     def _original_batch_inputs(self, requests: list[GenerationRequest]):
         """Build the original InternVLChatModel inputs (image tiles + IMG_CONTEXT)."""
+        assert self.model is not None and self.processor is not None and self.device is not None
+        has_images = {request.image is not None for request in requests}
+        if len(has_images) != 1:
+            raise ValueError("an original InternVL batch cannot mix image and text-only requests")
+        tokenizer = self.processor
+        tokenizer.padding_side = "left"
+        if has_images == {False}:
+            rendered = [
+                f"<|im_start|>system\n{request.prompt.system or INTERNVL_SYSTEM_PROMPT}<|im_end|>\n"
+                f"<|im_start|>user\n{request.prompt.user}<|im_end|>\n"
+                "<|im_start|>assistant\n"
+                for request in requests
+            ]
+            inputs = tokenizer(
+                rendered,
+                return_tensors="pt",
+                padding=True,
+                add_special_tokens=False,
+            )
+            return {name: value.to(self.device) for name, value in inputs.items()}
+
         from PIL import Image
         from torchvision.transforms import InterpolationMode
         import torchvision.transforms as T
 
-        assert self.model is not None and self.processor is not None and self.device is not None
-        if any(request.image is None for request in requests):
-            raise ValueError("original InternVL generation requires an image for every request")
-        tokenizer = self.processor
-        tokenizer.padding_side = "left"
         image_size = int(getattr(self.model, "config", None).force_image_size or 448)
         transform = T.Compose(
             [
@@ -244,6 +260,22 @@ class HuggingFaceReplayBackend:
         inputs["image_flags"] = torch.cat(image_flags, dim=0).to(self.device)
         base_model.img_context_token_id = tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
         return {name: value.to(self.device) for name, value in inputs.items()}
+
+    def _replay_forward(self, full_inputs: dict):
+        assert self.model is not None
+        kwargs = {
+            "use_cache": False,
+            "output_hidden_states": True,
+            "return_dict": True,
+        }
+        if self.family == "internvl3_5_original" and "pixel_values" not in full_inputs:
+            base_model = (
+                self.model.get_base_model()
+                if hasattr(self.model, "get_base_model")
+                else self.model
+            )
+            return base_model.language_model(**full_inputs, **kwargs)
+        return self.model(**full_inputs, **kwargs)
 
     @torch.inference_mode()
     def teacher_force_responses(
@@ -327,12 +359,7 @@ class HuggingFaceReplayBackend:
                 (*value.shape[:-1], max_generated), dtype=value.dtype, device=value.device
             )
             full_inputs[key] = torch.cat([value, padding], dim=-1)
-        outputs = self.model(
-            **full_inputs,
-            use_cache=False,
-            output_hidden_states=True,
-            return_dict=True,
-        )
+        outputs = self._replay_forward(full_inputs)
         logits = getattr(outputs, "logits", None)
         if logits is None:
             raise RuntimeError("HF replay model did not return logits")

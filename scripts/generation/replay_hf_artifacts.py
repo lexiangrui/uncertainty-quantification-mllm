@@ -77,6 +77,24 @@ def _tokens(payload: dict[str, torch.Tensor], key: str, sample_id: str) -> tuple
     return tuple(int(value) for value in tensor.tolist())
 
 
+def _run_replay_calls(
+    backend: HuggingFaceReplayBackend,
+    calls: list[tuple[GenerationRequest, tuple[int, ...]]],
+    batch_size: int,
+) -> dict:
+    """Replay homogeneous modality batches; HallusionBench changes modality mid-file."""
+    responses = {}
+    for has_image in (True, False):
+        modality_calls = [
+            item for item in calls if (item[0].image is not None) == has_image
+        ]
+        for call_batch in _chunks(modality_calls, batch_size):
+            requests = [item[0] for item in call_batch]
+            sequences = [item[1] for item in call_batch]
+            responses.update(backend.teacher_force_responses(requests, sequences))
+    return responses
+
+
 def replay_file(
     *,
     input_path: Path,
@@ -163,11 +181,7 @@ def replay_file(
                     )
                 )
 
-        responses = {}
-        for call_batch in _chunks(calls, batch_size):
-            requests = [item[0] for item in call_batch]
-            sequences = [item[1] for item in call_batch]
-            responses.update(backend.teacher_force_responses(requests, sequences))
+        responses = _run_replay_calls(backend, calls, batch_size)
 
         for record, sample, _payload in prepared:
             sample_id = sample.sample_id

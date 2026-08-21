@@ -1,21 +1,23 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import torch
+from PIL import Image
 
 from src.generation.prompt import GenerationPrompt
 from src.models.base import GeneratedResponse, GenerationRequest
 from src.models.huggingface import HuggingFaceReplayBackend
 
 
-def _request(name: str) -> GenerationRequest:
+def _request(name: str, *, image=None) -> GenerationRequest:
     return GenerationRequest(
         request_id=name,
         sample_id=name,
         role="sample",
         draw_index=0,
         seed=1,
-        image=None,
+        image=image,
         prompt=GenerationPrompt(system="", user="Question"),
     )
 
@@ -63,3 +65,59 @@ def test_replay_rejects_mismatched_inputs() -> None:
     backend = object.__new__(HuggingFaceReplayBackend)
     with pytest.raises(ValueError, match="equal length"):
         backend.teacher_force_responses([_request("one")], [])
+
+
+class FakeTokenizer:
+    def __init__(self):
+        self.rendered = None
+        self.padding_side = "right"
+
+    def __call__(self, rendered, **_kwargs):
+        self.rendered = rendered
+        return {
+            "input_ids": torch.tensor([[1, 2], [3, 4]][: len(rendered)]),
+            "attention_mask": torch.ones((len(rendered), 2), dtype=torch.long),
+        }
+
+
+def test_original_internvl_builds_text_only_inputs_without_pixels() -> None:
+    backend = object.__new__(HuggingFaceReplayBackend)
+    backend.model = object()
+    backend.processor = FakeTokenizer()
+    backend.device = torch.device("cpu")
+
+    inputs = backend._original_batch_inputs([_request("text")])
+
+    assert set(inputs) == {"input_ids", "attention_mask"}
+    assert "<img>" not in backend.processor.rendered[0]
+    assert "Question" in backend.processor.rendered[0]
+
+
+def test_original_internvl_rejects_mixed_modality_batch() -> None:
+    backend = object.__new__(HuggingFaceReplayBackend)
+    backend.model = object()
+    backend.processor = FakeTokenizer()
+    backend.device = torch.device("cpu")
+
+    with pytest.raises(ValueError, match="cannot mix"):
+        backend._original_batch_inputs(
+            [_request("image", image=Image.new("RGB", (2, 2))), _request("text")]
+        )
+
+
+def test_original_internvl_text_replay_calls_language_model_directly() -> None:
+    marker = object()
+
+    class LanguageModel:
+        def __call__(self, **kwargs):
+            assert "pixel_values" not in kwargs
+            assert kwargs["output_hidden_states"] is True
+            return marker
+
+    backend = object.__new__(HuggingFaceReplayBackend)
+    backend.family = "internvl3_5_original"
+    backend.model = SimpleNamespace(
+        get_base_model=lambda: SimpleNamespace(language_model=LanguageModel())
+    )
+
+    assert backend._replay_forward({"input_ids": torch.tensor([[1]])}) is marker
