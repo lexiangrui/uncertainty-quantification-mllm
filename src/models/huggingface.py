@@ -264,6 +264,10 @@ class HuggingFaceReplayBackend:
         except torch.OutOfMemoryError:
             if len(requests) == 1:
                 raise
+            print(
+                f"HF replay OOM at batch_size={len(requests)}; splitting and retrying",
+                flush=True,
+            )
             torch.cuda.empty_cache()
             middle = len(requests) // 2
             return {
