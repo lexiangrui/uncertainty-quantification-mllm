@@ -12,7 +12,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.generation.runner import run_generation
 from src.models import load_generation_backend
-from src.models.runtime import visible_gpu_memory_gib, vllm_max_num_seqs
+from src.models.runtime import (
+    visible_gpu_memory_gib,
+    vllm_max_model_len,
+    vllm_max_num_seqs,
+)
 
 
 def _sources(data_root: Path) -> dict[str, Path]:
@@ -32,7 +36,12 @@ def main() -> None:
     parser.add_argument("--output-root", required=True, type=Path)
     parser.add_argument("--max-num-seqs", type=int, default=0)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.85)
-    parser.add_argument("--max-model-len", type=int, default=4096)
+    parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=0,
+        help="Override engine context capacity; 0 selects the family default",
+    )
     parser.add_argument("--max-new-tokens", type=int, default=512)
     parser.add_argument("--limit", type=int)
     args = parser.parse_args()
@@ -42,14 +51,18 @@ def main() -> None:
 
     memory_gib = visible_gpu_memory_gib()
     max_num_seqs = args.max_num_seqs or vllm_max_num_seqs(memory_gib)
-    print(f"vLLM GPU memory={memory_gib:.1f} GiB max_num_seqs={max_num_seqs}")
+    max_model_len = args.max_model_len or vllm_max_model_len(args.model_family)
+    print(
+        f"vLLM GPU memory={memory_gib:.1f} GiB "
+        f"max_num_seqs={max_num_seqs} max_model_len={max_model_len}"
+    )
     backend = load_generation_backend(
         args.model_family,
         args.model_path,
         adapter_path=args.adapter_path,
         max_num_seqs=max_num_seqs,
         gpu_memory_utilization=args.gpu_memory_utilization,
-        max_model_len=args.max_model_len,
+        max_model_len=max_model_len,
     )
     raw_root = args.output_root / "vllm_raw"
     for dataset, source in _sources(args.data_root).items():

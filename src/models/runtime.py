@@ -4,6 +4,14 @@ from __future__ import annotations
 import torch
 
 
+_DEFAULT_VLLM_MAX_MODEL_LEN = 4096
+_VLLM_MAX_MODEL_LEN_BY_FAMILY = {
+    # Audited production bound with the checked-in XML prompt and datasets:
+    # 16,384 visual + 155 rendered text - 1 placeholder + 512 output = 17,050.
+    "qwen2_5_vl": 18_000,
+}
+
+
 def visible_gpu_memory_gib() -> float:
     if not torch.cuda.is_available():
         raise RuntimeError("hybrid generation requires a CUDA GPU")
@@ -38,3 +46,10 @@ def vllm_max_num_seqs(memory_gib: float) -> int:
     if memory_gib < 48:
         return 8
     return 16
+
+
+def vllm_max_model_len(family: str) -> int:
+    """Return the audited production context capacity for a model family."""
+    return _VLLM_MAX_MODEL_LEN_BY_FAMILY.get(
+        family, _DEFAULT_VLLM_MAX_MODEL_LEN
+    )

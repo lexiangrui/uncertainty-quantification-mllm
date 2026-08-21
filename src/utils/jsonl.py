@@ -44,6 +44,42 @@ def load_jsonl_records(path: Path) -> list[dict[str, Any]]:
     return results
 
 
+_EXECUTION_ONLY_TOP_LEVEL_KEYS = frozenset({"replay_batch_size"})
+_EXECUTION_ONLY_NESTED_KEYS = {
+    "scheduler": frozenset(
+        {
+            "max_batch_size",
+            "request_window_samples",
+            "max_num_seqs",
+            "adaptive_oom_split",
+        }
+    ),
+    "model_runtime": frozenset(
+        {"max_num_seqs", "gpu_memory_utilization"}
+    ),
+}
+
+
+def _result_defining_run_config(run: Any) -> Any:
+    """Remove throughput-only knobs while retaining all result-defining fields."""
+    if not isinstance(run, dict):
+        return run
+    normalized = {
+        key: value
+        for key, value in run.items()
+        if key not in _EXECUTION_ONLY_TOP_LEVEL_KEYS
+    }
+    for key, ignored_keys in _EXECUTION_ONLY_NESTED_KEYS.items():
+        section = normalized.get(key)
+        if isinstance(section, dict):
+            normalized[key] = {
+                name: value
+                for name, value in section.items()
+                if name not in ignored_keys
+            }
+    return normalized
+
+
 def completed_sample_ids(
     path: Path,
     run: dict[str, Any],
@@ -67,7 +103,9 @@ def completed_sample_ids(
             except json.JSONDecodeError as error:
                 raise ValueError(f"invalid JSON at {path}:{line_number}") from error
             if line_number == 1 and record.get("record_type") == "run":
-                if record.get("run") != run:
+                if _result_defining_run_config(
+                    record.get("run")
+                ) != _result_defining_run_config(run):
                     raise ValueError(
                         f"run configuration mismatch at {path}:{line_number}"
                     )
@@ -78,7 +116,9 @@ def completed_sample_ids(
             if layout == "header":
                 if record.get("record_type") != "sample" or "run" in record:
                     raise ValueError(f"invalid sample record at {path}:{line_number}")
-            elif record.get("run") != run:
+            elif _result_defining_run_config(
+                record.get("run")
+            ) != _result_defining_run_config(run):
                 raise ValueError(f"run configuration mismatch at {path}:{line_number}")
             sample_id = record.get("sample", {}).get("sample_id")
             if not isinstance(sample_id, str):
