@@ -1,70 +1,65 @@
 # 三模型 XML 格式 LoRA
 
-本目录保存第一阶段使用的 XML 格式 LoRA 数据构造、训练和测试代码。三个正式 adapter 与完整训练记录已整理到 `results/lora/<mllm>/adapter/`。
+本目录保存 XML 格式数据构造、LoRA 训练和验证代码。LoRA 的目标是稳定回答组织方式，不额外学习 ViLP、HallusionBench 或 MM-Vet 的正式评测内容。
 
 ## 训练目标
 
-三个模型学习只输出一行、标签顺序固定的 XML：
+三个模型只输出一行、标签唯一且顺序固定的 XML：
 
 ```xml
 <vision>视觉证据</vision><reasoning>简短推理</reasoning><answer>最终答案</answer>
 ```
 
-模型分别为 LLaVA-1.5-7B、Qwen2.5-VL-7B-Instruct 和 InternVL3.5-8B-HF。LoRA 只用于约束回答格式；ViLP、HallusionBench 和 MM-Vet 未参与 LoRA 数据构造。
+正式模型为 LLaVA-1.5-7B、Qwen2.5-VL-7B-Instruct 和原始 InternVL3.5-8B。推理链路中的 InternVL 已从旧的 `InternVL3_5-8B-HF` 转换 checkpoint 切换到原始 `InternVL3_5-8B`，并使用与其匹配的 `adapter-original`。
 
-## 正式训练状态
+## 数据与正式配置
 
-正式数据来自 VQAv2 train2014。每条样本由教师模型生成 `vision`、`reasoning`、`answer` 字段，再由本地代码验证并封装为 XML。最终训练集共有 5,000 条：4,000 条训练、1,000 条 validation。
+训练数据来自 VQAv2 train2014。每条样本由多模态教师生成 `vision`、`reasoning`、`answer`，再由本地代码验证并封装成 XML。当前正式数据共 5,000 条：4,000 train、1,000 validation。
 
-| 模型 | adapter 目录 | train / validation | updates | validation loss |
-| --- | --- | ---: | ---: | ---: |
-| LLaVA-1.5-7B | `results/lora/llava/adapter/` | 4,000 / 1,000 | 250 | 记录于训练输出 |
-| Qwen2.5-VL-7B-Instruct | `results/lora/qwen/adapter/` | 4,000 / 1,000 | 250 | 记录于训练输出 |
-| InternVL3.5-8B-HF | `results/lora/internvl/adapter/` | 4,000 / 1,000 | 250 | 记录于训练输出 |
+| 模型 | 正式配置 | 正式 adapter |
+| --- | --- | --- |
+| LLaVA-1.5-7B | `LoRA/configs/llava_inline_lora_5000.json` | `results/lora/llava/adapter/` |
+| Qwen2.5-VL-7B-Instruct | `LoRA/configs/qwen2_5_vl_inline_lora_5000.json` | `results/lora/qwen/adapter/` |
+| 原始 InternVL3.5-8B | `LoRA/configs/internvl3_5_original_lora.json` | `results/lora/internvl/adapter-original/` |
 
-每个 adapter 目录均包含：
+同目录下名称包含旧 HF InternVL 或 `legacy` 输出位置的配置只用于历史复现，不应被 generation/ERA 正式作业引用。正式映射以 `slurm/generation/generate.sbatch` 和 `slurm/improvement/run_era.sbatch` 为准。
 
-```text
-adapter_model.safetensors
-adapter_config.json
-tokenizer.json
-tokenizer_config.json
-processor_config.json
-chat_template.jinja
-train_metrics.jsonl
-validation_metrics.jsonl
-training_config.json
-checkpoint-latest.pt
+共同超参数：
+
+| 参数 | 值 |
+| --- | ---: |
+| epochs | 1 |
+| learning rate | `2e-4` |
+| LoRA rank / alpha / dropout | `8 / 16 / 0.05` |
+| micro batch / gradient accumulation | `1 / 16` |
+| warmup ratio | `0.03` |
+| target modules | 语言模型的 `q_proj`、`v_proj` |
+
+视觉塔、projector 和基础模型参数保持冻结。LLaVA 与 Qwen2.5-VL 最大序列长度为 1024；原始 InternVL 为 4096，图像尺寸 448，当前正式配置每张图最多使用一个 patch。LLaVA 的监督结尾 token 为 `</s>`，Qwen 与 InternVL 为 `<|im_end|>`。
+
+训练输出包含 adapter 权重、adapter 配置、tokenizer/processor 配置、训练与验证指标、`training_config.json` 和可恢复 checkpoint。`training_config.json` 记录训练 Prompt 的 SHA256，adapter 不是合并后的完整模型权重。
+
+## Prompt 与教师数据
+
+- XML 指令：`prompts/LoRA/xml_lora_instruction.md`
+- 教师 system prompt：`prompts/LoRA/teacher_prompt.md`
+- few-shot 示例：`prompts/LoRA/few_shot_examples.json`
+
+教师数据记录保存 Prompt 哈希；训练配置保存 XML 指令哈希。教师 API 凭据只通过环境变量提供：
+
+```bash
+export QWEN_TEACHER_BASE_URL=
+export QWEN_TEACHER_API_KEY=
 ```
 
-这些是可挂载到基础模型的 LoRA adapter，不是合并后的完整模型权重。
+## 数据构造与训练
 
-训练时的 XML 指令由根目录的 `prompts/LoRA/xml_lora_instruction.md` 显式加载。
-每次训练写出的 `training_config.json` 会记录 `prompt_sha256`，以便
-对应到具体 Prompt 内容。教师数据生成使用的 system prompt 和 few-shot 示例也在
-`prompts/LoRA/teacher_prompt.md` 与 `prompts/LoRA/few_shot_examples.json`；生成记录保存其哈希。
-
-## 训练配置
-
-三个正式配置位于：
+数据、基础模型和教师凭据不进入仓库。集群默认路径：
 
 ```text
-LoRA/configs/llava_inline_lora_5000.json
-LoRA/configs/qwen2_5_vl_inline_lora_5000.json
-LoRA/configs/internvl3_5_inline_lora_5000.json
+/opt/lexiangrui/datasets/vqav2_xml_sft/
+/opt/lexiangrui/models/
 ```
-
-共同超参数为：1 epoch、学习率 `2e-4`、LoRA rank `8`、alpha `16`、dropout `0.05`、micro batch `1`、梯度累积 `16`、warmup ratio `0.03`。仅语言模型的 `q_proj` 和 `v_proj` 注入 LoRA；视觉塔、projector 和原始模型参数保持冻结。
-
-LLaVA 与 Qwen2.5-VL 的最大序列长度为 `1024`，InternVL3.5 为 `4096`。监督目标覆盖 assistant XML 和模型的 end-of-turn token：LLaVA 使用 `</s>`，其余两个模型使用 `<|im_end|>`。
-
-## 数据与训练入口
-
-数据、基础权重和教师 API 凭据不进入仓库：
-
-- VQAv2 XML 数据：`/opt/lexiangrui/datasets/vqav2_xml_sft/`
-- 基础模型：`/opt/lexiangrui/models/`
-- 正式 adapter：`results/lora/<mllm>/adapter/`
 
 数据构造入口：
 
@@ -78,38 +73,34 @@ LoRA/scripts/finalize_dataset.py
 
 ```text
 LoRA/scripts/train_multimodal_lora.py
-slurm/lora/train_multimodal_lora.sbatch
+slurm/lora/train_internvl35_original.sbatch
 ```
 
-教师服务配置仅通过环境变量提供：
+示例：
 
 ```bash
-QWEN_TEACHER_BASE_URL=
-QWEN_TEACHER_API_KEY=
+sbatch --export=ALL,CONFIG=LoRA/configs/internvl3_5_original_lora.json \
+  slurm/lora/train_internvl35_original.sbatch
 ```
 
-## 在第一阶段生成中挂载 adapter
+不要把旧 HF InternVL adapter 挂载到原始 InternVL checkpoint。
 
-以 LLaVA 为例：
+## 正式生成中的挂载
+
+不建议手工逐数据集调用底层生成脚本。正式 vLLM + HF 流水线会自动选择 checkpoint 与 adapter：
 
 ```bash
-python3 scripts/generation/generate_responses.py \
-  --dataset vilp \
-  --dataset-source /opt/lexiangrui/datasets/vilp \
-  --model-family llava_1_5 \
-  --model-path /opt/lexiangrui/models/llava-1.5-7b-hf \
-  --adapter-path results/lora/llava/adapter \
-  --output results/generation/llava/greedy/vilp.jsonl
+sbatch --export=ALL,MODEL=llava slurm/generation/generate.sbatch
+sbatch --export=ALL,MODEL=qwen slurm/generation/generate.sbatch
+sbatch --export=ALL,MODEL=internvl slurm/generation/generate.sbatch
 ```
 
-Qwen2.5-VL 和 InternVL3.5 分别使用对应 family、基础模型目录和表中的 adapter 目录。
+InternVL 使用 `family=internvl3_5_original`、`$MODEL_ROOT/InternVL3_5-8B` 和 `results/lora/internvl/adapter-original`。vLLM 负责生成，HF 对同一 token 序列回放；两阶段必须挂载同一个 adapter。
 
 ## 测试
 
 LoRA 单元测试不访问真实 API，也不下载模型或数据：
 
 ```bash
-pytest -q LoRA/tests --ignore=LoRA/tests/test_reject_resample.py
+pytest -q LoRA/tests
 ```
-
-`test_reject_resample.py` 依赖已移除的实验代码，当前不纳入验收范围。

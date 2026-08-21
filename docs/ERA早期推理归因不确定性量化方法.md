@@ -34,9 +34,11 @@ $$
 
 ## 三、工程实现与文件清单
 
-- **核心算法实现**：[`src/improvement/era.py`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/src/improvement/era.py)
-- **多模态输入构造与对齐**：[`src/improvement/backend.py`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/src/improvement/backend.py)
-- **批量特征提取入口**：[`scripts/improvement/run_era.py`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/scripts/improvement/run_era.py)
-- **LUH 难例全量评估**：[`scripts/analysis/evaluate_era.py`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/scripts/analysis/evaluate_era.py)
-- **集群调度脚本**：[`slurm/improvement/run_era.sbatch`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/slurm/improvement/run_era.sbatch)
-- **针对性单元测试**：[`tests/improvement/test_era.py`](file:///Users/lexiangrui/Desktop/Uncertainty%20Quantification%20of%20MLLM/tests/improvement/test_era.py)
+- **核心算法实现**：[`src/improvement/era.py`](../src/improvement/era.py)
+- **多模态输入构造与对齐**：[`src/improvement/backend.py`](../src/improvement/backend.py)
+- **批量特征提取入口**：[`scripts/improvement/run_era.py`](../scripts/improvement/run_era.py)
+- **LUH 难例全量评估**：[`scripts/analysis/evaluate_era.py`](../scripts/analysis/evaluate_era.py)
+- **集群调度脚本**：[`slurm/improvement/run_era.sbatch`](../slurm/improvement/run_era.sbatch)
+- **针对性单元测试**：[`tests/improvement/test_era.py`](../tests/improvement/test_era.py)
+
+当前实现读取 HF replay 完成后的正式 greedy JSONL 及其精确 token sidecar，不重新生成回答；InternVL 使用原始 `InternVL3_5-8B` 与 `results/lora/internvl/adapter-original`。无图样本不参与 ERA 图像归因。

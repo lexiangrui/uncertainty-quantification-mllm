@@ -29,6 +29,8 @@ python scripts/judging/judge_responses.py \
   --model YOUR_JUDGE_MODEL
 ```
 
+`--greedy-input` 应指向 HF replay 完成后的正式 `results/generation/<model>/greedy/<dataset>.jsonl`，不能使用 `vllm_raw/` 中尚未完成内部信号回放的中间文件。
+
 裁判只处理 greedy 主回答，一次请求同时给出最终答案正确性和视觉/推理
 幻觉评分。图片以内嵌 data URL 放入 user message；无图样本只发送文本。
 模型返回 `analysis`、`correct`、`rating` 和 `hallucination_types`，程序根据
@@ -45,7 +47,7 @@ Prompt 版本、生成输入或运行配置不同则拒绝续写。
 
 ## 开源 Judge
 
-项目只保留三种 judge，VAUQ、VL-Uncertainty 和 Semantic Uncertainty 均从项目根目录的 `src.llm_judge` 包导入实现。各方法不得自行维护另一份正则表达式、Judge prompt、宽松 fallback 或 verdict 解析器。
+项目只保留这一套统一 Judge 包；VAUQ、VL-Uncertainty 和 Semantic Uncertainty 均从项目根目录的 `src.llm_judge` 导入所需实现。各方法不得自行维护另一份正则表达式、Judge prompt、宽松 fallback 或 verdict 解析器。
 
 - `RuleJudge` / `extract_choice`：用于 CVBench 等封闭选择题。`extract_choice` 解析字母或从 0 开始的数字选项标识并返回统一的零基索引；`extract_choice_letter` 是返回字母的便捷封装；`RuleJudge.judge(prediction, gold_index, choices, mode)` 直接给出对错，不做语义判断。
 - `OpenSourceJudge(model_name=...)`：由模型名称选择 Qwen 后端。`Qwen2.5-3B-Instruct` 和 `Qwen3-4B-Instruct-2507` 使用文本正确性 Judge；`Qwen3.6-VL` 使用多模态 MMHal Judge。需要将 `model_path` 指向本地 checkpoint 时单独传入该参数。
