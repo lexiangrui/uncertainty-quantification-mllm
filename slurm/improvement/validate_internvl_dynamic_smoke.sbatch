@@ -15,17 +15,21 @@ cd "$PROJECT_ROOT"
 
 LOCKED_IDS=${LOCKED_IDS:-results/analysis/luh/internvl_subset_ids_pre_dynamic_fix.txt}
 OUTPUT_ROOT=${OUTPUT_ROOT:-results/validation/internvl_dynamic_smoke}
-PER_DATASET=${PER_DATASET:-2}
+PER_CLASS_PER_DATASET=${PER_CLASS_PER_DATASET:-1}
+POSITIVE_COUNT=${POSITIVE_COUNT:-200}
 
 mkdir -p "$OUTPUT_ROOT/era" logs/era
-awk -v target="$PER_DATASET" '
-  BEGIN { hb=0; vi=0; mm=0 }
-  /^hallusionbench-/ && hb < target { print; hb++; next }
-  /^vilp-/ && vi < target { print; vi++; next }
-  /^mmvet-/ && mm < target { print; mm++; next }
+awk -v target="$PER_CLASS_PER_DATASET" -v positives="$POSITIVE_COUNT" '
+  BEGIN { hp=vp=mp=hn=vn=mn=0 }
+  NR <= positives && /^hallusionbench-/ && hp < target { print; hp++; next }
+  NR <= positives && /^vilp-/ && vp < target { print; vp++; next }
+  NR <= positives && /^mmvet-/ && mp < target { print; mp++; next }
+  NR > positives && /^hallusionbench-/ && hn < target { print; hn++; next }
+  NR > positives && /^vilp-/ && vn < target { print; vn++; next }
+  NR > positives && /^mmvet-/ && mn < target { print; mn++; next }
 ' "$LOCKED_IDS" > "$OUTPUT_ROOT/sample_ids.txt"
 
-expected=$((3 * PER_DATASET))
+expected=$((6 * PER_CLASS_PER_DATASET))
 actual=$(awk 'NF { count++ } END { print count + 0 }' "$OUTPUT_ROOT/sample_ids.txt")
 if [[ "$actual" -ne "$expected" ]]; then
   echo "expected $expected smoke IDs, found $actual" >&2
