@@ -39,7 +39,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run ERA (Early Rationale Attribution) component extraction")
     parser.add_argument("--greedy-input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--family", required=True, choices=("llava_1_5", "qwen2_5_vl", "internvl3_5"))
+    parser.add_argument(
+        "--family",
+        required=True,
+        choices=("llava_1_5", "qwen2_5_vl", "internvl3_5", "internvl3_5_original"),
+    )
     parser.add_argument("--model-path", required=True, type=Path)
     parser.add_argument("--adapter-path", type=Path, default=None)
     parser.add_argument("--dataset-source", required=True, type=Path)

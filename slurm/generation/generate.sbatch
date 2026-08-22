@@ -29,7 +29,7 @@ BATCH_SIZE=5
 case "$MODEL" in
   llava)    FAM=llava_1_5;  MP="$MODEL_ROOT/llava-1.5-7b-hf";     AD=results/lora/llava/adapter ;;
   qwen)     FAM=qwen2_5_vl; MP="$MODEL_ROOT/Qwen2.5-VL-7B-Instruct"; AD=results/lora/qwen/adapter ;;
-  internvl) FAM=internvl3_5; MP="$MODEL_ROOT/InternVL3_5-8B-HF";    AD=results/lora/internvl/adapter ;;
+  internvl) FAM=internvl3_5_original; MP="$MODEL_ROOT/InternVL3_5-8B"; AD=results/lora/internvl/adapter-original ;;
   *) echo "unknown MODEL=$MODEL" >&2; exit 1 ;;
 esac
 mkdir -p "results/generation/$MODEL/greedy" "results/generation/$MODEL/samples"

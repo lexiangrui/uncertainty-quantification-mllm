@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model-family",
         required=True,
-        choices=("llava_1_5", "qwen2_5_vl", "internvl3_5"),
+        choices=("llava_1_5", "qwen2_5_vl", "internvl3_5", "internvl3_5_original"),
     )
     parser.add_argument("--model-path", required=True, type=Path)
     parser.add_argument("--adapter-path", required=True, type=Path)

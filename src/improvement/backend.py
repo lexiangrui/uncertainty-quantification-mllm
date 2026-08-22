@@ -6,6 +6,8 @@ from pathlib import Path
 import torch
 
 from src.generation.prompt import build_prompt
+from src.models.internvl import INTERNVL_SYSTEM_PROMPT, dynamic_image_tiles
+from src.models.transformers_compat import patch_tied_weights_keys_compat
 
 
 class EraBackend:
@@ -49,6 +51,36 @@ class EraBackend:
         elif self.family == "internvl3_5":
             from transformers import InternVLForConditionalGeneration
             cls = InternVLForConditionalGeneration
+        elif self.family == "internvl3_5_original":
+            from transformers import AutoModel, AutoTokenizer
+
+            patch_tied_weights_keys_compat()
+            self.processor = AutoTokenizer.from_pretrained(
+                self.model_path,
+                local_files_only=True,
+                trust_remote_code=True,
+                use_fast=False,
+            )
+            self.model = AutoModel.from_pretrained(
+                self.model_path,
+                device_map="auto",
+                low_cpu_mem_usage=True,
+                local_files_only=True,
+                trust_remote_code=True,
+                torch_dtype=torch.bfloat16,
+                use_flash_attn=False,
+            ).eval()
+            if self.adapter_path is not None:
+                from peft import PeftModel
+
+                self.model = PeftModel.from_pretrained(
+                    self.model, self.adapter_path, local_files_only=True
+                ).eval()
+            self.device = next(self.model.parameters()).device
+            self._image_token_id = int(
+                self.processor.convert_tokens_to_ids("<IMG_CONTEXT>")
+            )
+            return
         else:
             raise ValueError(f"unsupported family: {self.family}")
 
@@ -90,6 +122,55 @@ class EraBackend:
 
     def _prepare_prompt(self, image, question):
         prompt = build_prompt(question, image is not None)
+        if self.family == "internvl3_5_original":
+            if image is None:
+                raise ValueError("original InternVL ERA requires an image")
+            from torchvision.transforms import InterpolationMode
+            import torchvision.transforms as transforms
+
+            base_model = self._base_model()
+            config = base_model.config
+            image_size = int(getattr(config, "force_image_size", None) or 448)
+            transform = transforms.Compose(
+                [
+                    transforms.Resize(
+                        (image_size, image_size), interpolation=InterpolationMode.BICUBIC
+                    ),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
+                    ),
+                ]
+            )
+            image_tiles = dynamic_image_tiles(image, config)
+            pixel_values = torch.stack([transform(tile) for tile in image_tiles]).to(
+                self.device, dtype=torch.bfloat16
+            )
+            num_image_tokens = int(base_model.num_image_token)
+            image_tokens = (
+                "<img>"
+                + "<IMG_CONTEXT>" * (num_image_tokens * len(image_tiles))
+                + "</img>"
+            )
+            user = f"<image>\n{prompt.user}".replace("<image>", image_tokens, 1)
+            rendered = (
+                f"<|im_start|>system\n{INTERNVL_SYSTEM_PROMPT}<|im_end|>\n"
+                f"<|im_start|>user\n{user}<|im_end|>\n"
+                "<|im_start|>assistant\n"
+            )
+            self.processor.padding_side = "left"
+            inputs = self.processor(
+                rendered, return_tensors="pt", add_special_tokens=False
+            )
+            inputs["pixel_values"] = pixel_values
+            inputs["image_flags"] = torch.ones(
+                (len(image_tiles), 1), dtype=torch.long, device=self.device
+            )
+            base_model.img_context_token_id = self._image_token_id
+            return {
+                key: value.to(self.device) if isinstance(value, torch.Tensor) else value
+                for key, value in inputs.items()
+            }
         content = []
         if image is not None:
             content.append({"type": "image"})

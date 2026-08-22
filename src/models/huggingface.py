@@ -10,6 +10,8 @@ from PIL import Image
 from src.generation.prompt import GenerationPrompt
 
 from .base import GeneratedResponse, GenerationBackend, GenerationRequest
+from .internvl import INTERNVL_SYSTEM_PROMPT, dynamic_image_tiles
+from .transformers_compat import patch_tied_weights_keys_compat
 
 
 class HuggingFaceMultimodalBackend(GenerationBackend):
@@ -23,7 +25,12 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
     ) -> None:
         if not model_path.is_dir():
             raise NotADirectoryError(model_path)
-        if family not in {"internvl3_5", "qwen2_5_vl", "llava_1_5"}:
+        if family not in {
+            "internvl3_5",
+            "internvl3_5_original",
+            "qwen2_5_vl",
+            "llava_1_5",
+        }:
             raise ValueError(f"unknown model family: {family}")
 
         self.family = family
@@ -73,7 +80,26 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
             return
         from transformers import AutoProcessor
 
-        if self.family == "internvl3_5":
+        if self.family == "internvl3_5_original":
+            from transformers import AutoModel, AutoTokenizer
+
+            patch_tied_weights_keys_compat()
+            self.processor = AutoTokenizer.from_pretrained(
+                self.model_path,
+                local_files_only=True,
+                trust_remote_code=True,
+                use_fast=False,
+            )
+            self.model = AutoModel.from_pretrained(
+                self.model_path,
+                device_map="auto",
+                low_cpu_mem_usage=True,
+                local_files_only=True,
+                trust_remote_code=True,
+                torch_dtype=torch.bfloat16,
+                use_flash_attn=self.attn_implementation == "flash_attention_2",
+            ).eval()
+        elif self.family == "internvl3_5":
             from transformers import InternVLForConditionalGeneration as model_class
         elif self.family == "qwen2_5_vl":
             from transformers import Qwen2_5_VLForConditionalGeneration as model_class
@@ -92,32 +118,36 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
                     "device; resubmit on a healthy GPU node instead of falling back to a "
                     "Hub kernel or CPU attention."
                 )
-        self.processor = AutoProcessor.from_pretrained(
-            self.model_path, local_files_only=True
-        )
-        device_map = (
-            {
-                "model.visual": 0,
-                "model.language_model": 1,
-                "lm_head": 1,
+        if self.family != "internvl3_5_original":
+            self.processor = AutoProcessor.from_pretrained(
+                self.model_path, local_files_only=True
+            )
+            device_map = (
+                {
+                    "model.visual": 0,
+                    "model.language_model": 1,
+                    "lm_head": 1,
+                }
+                if self.device_map_name == "vision_language_split"
+                else "auto"
+            )
+            model_kwargs = {
+                "device_map": device_map,
+                "low_cpu_mem_usage": True,
+                "local_files_only": True,
             }
-            if self.device_map_name == "vision_language_split"
-            else "auto"
-        )
-        model_kwargs = {
-            "device_map": device_map,
-            "low_cpu_mem_usage": True,
-            "local_files_only": True,
-        }
-        model_kwargs["dtype"] = (
-            torch.float16 if self.family == "llava_1_5" else torch.bfloat16
-        )
-        if self.attn_implementation is not None:
-            model_kwargs["attn_implementation"] = self.attn_implementation
-        self.model = model_class.from_pretrained(
-            self.model_path, **model_kwargs
-        ).eval()
-        if self.attn_implementation == "flash_attention_2":
+            model_kwargs["dtype"] = (
+                torch.float16 if self.family == "llava_1_5" else torch.bfloat16
+            )
+            if self.attn_implementation is not None:
+                model_kwargs["attn_implementation"] = self.attn_implementation
+            self.model = model_class.from_pretrained(
+                self.model_path, **model_kwargs
+            ).eval()
+        if (
+            self.attn_implementation == "flash_attention_2"
+            and self.family != "internvl3_5_original"
+        ):
             device_map = getattr(self.model, "hf_device_map", {})
             offloaded_modules = sorted(
                 name
@@ -207,6 +237,8 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
     def _batch_inputs(self, requests: list[GenerationRequest]):
         self._load()
         assert self.processor is not None and self.device is not None
+        if self.family == "internvl3_5_original":
+            return self._original_batch_inputs(requests)
         rendered: list[str] = []
         images = []
         has_images = {request.image is not None for request in requests}
@@ -238,6 +270,87 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
         if images:
             kwargs["images"] = images
         inputs = self.processor(**kwargs)
+        return {name: value.to(self.device) for name, value in inputs.items()}
+
+    def _original_batch_inputs(self, requests: list[GenerationRequest]):
+        """Build original InternVL prompt IDs and dynamically tiled image inputs."""
+        assert self.model is not None and self.processor is not None and self.device is not None
+        has_images = {request.image is not None for request in requests}
+        if len(has_images) != 1:
+            raise ValueError("an original InternVL batch cannot mix image and text-only requests")
+
+        tokenizer = self.processor
+        tokenizer.padding_side = "left"
+        base_model = (
+            self.model.get_base_model()
+            if hasattr(self.model, "get_base_model")
+            else self.model
+        )
+        base_model.img_context_token_id = tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
+
+        if has_images == {False}:
+            rendered = [
+                f"<|im_start|>system\n{request.prompt.system or INTERNVL_SYSTEM_PROMPT}<|im_end|>\n"
+                f"<|im_start|>user\n{request.prompt.user}<|im_end|>\n"
+                "<|im_start|>assistant\n"
+                for request in requests
+            ]
+            inputs = tokenizer(
+                rendered,
+                return_tensors="pt",
+                padding=True,
+                add_special_tokens=False,
+            )
+            return {name: value.to(self.device) for name, value in inputs.items()}
+
+        from torchvision.transforms import InterpolationMode
+        import torchvision.transforms as transforms
+
+        config = base_model.config
+        image_size = int(getattr(config, "force_image_size", None) or 448)
+        transform = transforms.Compose(
+            [
+                transforms.Resize(
+                    (image_size, image_size), interpolation=InterpolationMode.BICUBIC
+                ),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
+                ),
+            ]
+        )
+        num_image_tokens = int(base_model.num_image_token)
+        rendered = []
+        tiles = []
+        for request in requests:
+            image = request.image
+            assert image is not None
+            if not isinstance(image, Image.Image):
+                raise TypeError("original InternVL expects PIL images")
+            image_tiles = dynamic_image_tiles(image, config)
+            tiles.append(torch.stack([transform(tile) for tile in image_tiles]))
+            image_tokens = (
+                "<img>"
+                + "<IMG_CONTEXT>" * (num_image_tokens * len(image_tiles))
+                + "</img>"
+            )
+            user = f"<image>\n{request.prompt.user}".replace(
+                "<image>", image_tokens, 1
+            )
+            rendered.append(
+                f"<|im_start|>system\n{request.prompt.system or INTERNVL_SYSTEM_PROMPT}<|im_end|>\n"
+                f"<|im_start|>user\n{user}<|im_end|>\n"
+                "<|im_start|>assistant\n"
+            )
+        inputs = tokenizer(
+            rendered,
+            return_tensors="pt",
+            padding=True,
+            add_special_tokens=False,
+        )
+        inputs["pixel_values"] = torch.cat(tiles, dim=0).to(
+            self.device, dtype=torch.bfloat16
+        )
         return {name: value.to(self.device) for name, value in inputs.items()}
 
     @torch.inference_mode()
@@ -296,7 +409,11 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
             raise RuntimeError("Transformers generation did not return token scores")
         hidden_trajectory = torch.stack(hidden_steps, dim=1) if hidden_steps else None
         step_count = len(outputs.logits)
-        generated = outputs.sequences[:, prompt_width : prompt_width + step_count]
+        # Standard Transformers outputs include the prompt in ``sequences``;
+        # original InternVL forwards ``inputs_embeds`` and returns only a
+        # placeholder prefix plus generated tokens.  The final ``step_count``
+        # tokens are the generated continuation in both cases.
+        generated = outputs.sequences[:, -step_count:]
         raw_log_probs = torch.stack(
             [
                 torch.log_softmax(step_logits.float(), dim=-1)
