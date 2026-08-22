@@ -385,6 +385,10 @@ class HuggingFaceMultimodalBackend(GenerationBackend):
             "stop_strings": ["</answer>"],
             "tokenizer": tokenizer,
         }
+        # Original InternVL's remote ``generate`` wrapper already forwards
+        # ``use_cache=True`` to its language model.
+        if self.family == "internvl3_5_original":
+            generation_kwargs.pop("use_cache")
         if do_sample:
             generation_kwargs["temperature"] = 1.0
         hidden_steps: list[torch.Tensor] = []
