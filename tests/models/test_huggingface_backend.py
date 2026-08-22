@@ -142,6 +142,7 @@ def test_original_internvl_text_replay_calls_language_model_directly() -> None:
         def __call__(self, **kwargs):
             assert "pixel_values" not in kwargs
             assert kwargs["output_hidden_states"] is False
+            assert kwargs["logits_to_keep"] == 3
             return marker
 
     backend = object.__new__(HuggingFaceReplayBackend)
@@ -150,7 +151,9 @@ def test_original_internvl_text_replay_calls_language_model_directly() -> None:
         get_base_model=lambda: SimpleNamespace(language_model=LanguageModel())
     )
 
-    assert backend._replay_forward({"input_ids": torch.tensor([[1]])}) is marker
+    assert backend._replay_forward(
+        {"input_ids": torch.tensor([[1]])}, logits_to_keep=3
+    ) is marker
 
 
 def test_semantic_embedding_module_returns_decoder_body() -> None:
@@ -163,6 +166,35 @@ def test_semantic_embedding_module_returns_decoder_body() -> None:
     )
 
     assert backend._semantic_embedding_module() is decoder
+
+
+def test_original_internvl_image_replay_limits_language_model_logits() -> None:
+    marker = SimpleNamespace(logits=torch.zeros((1, 3, 8)))
+
+    class LanguageModel(torch.nn.Module):
+        def forward(self, **kwargs):
+            assert kwargs["logits_to_keep"] == 3
+            return marker
+
+    class ReplayModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.language_model = LanguageModel()
+
+        def get_base_model(self):
+            return self
+
+        def forward(self, input_ids, pixel_values, **_kwargs):
+            return self.language_model(input_ids=input_ids)
+
+    backend = object.__new__(HuggingFaceReplayBackend)
+    backend.family = "internvl3_5_original"
+    backend.model = ReplayModel()
+
+    assert backend._replay_forward(
+        {"input_ids": torch.tensor([[1]]), "pixel_values": torch.tensor([1.0])},
+        logits_to_keep=3,
+    ) is marker
 
 
 def test_replay_hooks_only_final_decoder_hidden_for_samples() -> None:
@@ -184,7 +216,9 @@ def test_replay_hooks_only_final_decoder_hidden_for_samples() -> None:
         def forward(self, input_ids, **kwargs):
             assert kwargs["output_hidden_states"] is False
             hidden = self.language_model.model(input_ids).last_hidden_state
-            logits = torch.zeros((*input_ids.shape, 8), dtype=torch.float32)
+            # Mirror logits_to_keep=max_generated+1: positions correspond to
+            # the final prompt token followed by generated-token positions.
+            logits = torch.zeros((input_ids.shape[0], 3, 8), dtype=torch.float32)
             return SimpleNamespace(logits=logits, last_hidden_state=hidden)
 
     backend = object.__new__(HuggingFaceReplayBackend)

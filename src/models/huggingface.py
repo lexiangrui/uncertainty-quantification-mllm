@@ -290,20 +290,38 @@ class HuggingFaceReplayBackend:
         base_model.img_context_token_id = tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
         return {name: value.to(self.device) for name, value in inputs.items()}
 
-    def _replay_forward(self, full_inputs: dict):
+    def _replay_forward(self, full_inputs: dict, *, logits_to_keep: int):
         assert self.model is not None
         kwargs = {
             "use_cache": False,
             "output_hidden_states": False,
             "return_dict": True,
         }
-        if self.family == "internvl3_5_original" and "pixel_values" not in full_inputs:
+        if self.family == "internvl3_5_original":
             base_model = (
                 self.model.get_base_model()
                 if hasattr(self.model, "get_base_model")
                 else self.model
             )
-            return base_model.language_model(**full_inputs, **kwargs)
+            if "pixel_values" not in full_inputs:
+                return base_model.language_model(
+                    **full_inputs, **kwargs, logits_to_keep=logits_to_keep
+                )
+
+            # InternVL's outer forward does not expose Qwen's logits_to_keep.
+            # Inject it at the language-model boundary while retaining the
+            # upstream multimodal embedding path byte-for-byte.
+            def limit_logits(_module, args, model_kwargs):
+                model_kwargs["logits_to_keep"] = logits_to_keep
+                return args, model_kwargs
+
+            handle = base_model.language_model.register_forward_pre_hook(
+                limit_logits, with_kwargs=True
+            )
+            try:
+                return self.model(**full_inputs, **kwargs)
+            finally:
+                handle.remove()
         return self.model(**full_inputs, **kwargs)
 
     @torch.inference_mode()
@@ -406,19 +424,29 @@ class HuggingFaceReplayBackend:
                     hidden = output[0]
                 if not isinstance(hidden, torch.Tensor) or hidden.ndim != 3:
                     raise RuntimeError("language decoder did not expose its last hidden state")
-                captured_hidden.append(hidden)
+                captured_hidden.append(
+                    hidden[:, -max_generated:, :]
+                    .detach()
+                    .to(device="cpu", dtype=torch.float32)
+                )
 
             handle = self._semantic_embedding_module().register_forward_hook(
                 capture_hidden
             )
         try:
-            outputs = self._replay_forward(full_inputs)
+            outputs = self._replay_forward(
+                full_inputs, logits_to_keep=max_generated + 1
+            )
         finally:
             if handle is not None:
                 handle.remove()
         logits = getattr(outputs, "logits", None)
         if logits is None:
             raise RuntimeError("HF replay model did not return logits")
+        logits_offset = int(full_inputs["input_ids"].shape[1] - logits.shape[1])
+        first_answer_logit = prompt_width - 1 - logits_offset
+        if first_answer_logit < 0:
+            raise RuntimeError("HF replay returned too few logits for answer scoring")
         last_hidden = captured_hidden[-1] if captured_hidden else None
         if need_hidden and last_hidden is None:
             raise RuntimeError("HF replay did not capture the final hidden layer")
@@ -427,7 +455,7 @@ class HuggingFaceReplayBackend:
             zip(requests, token_sequences, strict=True)
         ):
             length = len(token_ids)
-            positions = slice(prompt_width - 1, prompt_width - 1 + length)
+            positions = slice(first_answer_logit, first_answer_logit + length)
             selected = logits[index, positions, :].float()
             targets = generated[index, :length].to(selected.device)
             token_log_probs = (
@@ -436,9 +464,7 @@ class HuggingFaceReplayBackend:
             )
             hidden_steps = None
             if last_hidden is not None:
-                hidden_steps = last_hidden[
-                    index, prompt_width : prompt_width + length, :
-                ].detach().float().cpu()
+                hidden_steps = last_hidden[index, :length, :]
             log_probs = tuple(float(value) for value in token_log_probs.cpu().tolist())
             values[request.request_id] = GeneratedResponse(
                 text=self.processor.decode(
