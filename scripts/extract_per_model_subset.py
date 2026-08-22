@@ -175,10 +175,17 @@ def main():
     parser.add_argument("--gen-dir", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--target-size", type=int, default=200)
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        choices=MODELS,
+        default=list(MODELS),
+        help="Models to extract (default: all models).",
+    )
     args = parser.parse_args()
 
     all_subsets = {}
-    for model in MODELS:
+    for model in args.models:
         result = extract_per_model(args.uq_dir, args.judge_dir, args.gen_dir, model, args.target_size)
         all_subsets[model] = result
         print(f"{model}: positive={result['n_positive']} negative={result['n_negative']}")
@@ -195,7 +202,7 @@ def main():
 
     # Quick baseline AUROC check
     print("\n=== Baseline AUROC check ===")
-    for model in MODELS:
+    for model in args.models:
         sub = all_subsets[model]
         all_ids = set(sub["positive_ids"] + sub["negative_ids"])
         pos_set = set(sub["positive_ids"])
