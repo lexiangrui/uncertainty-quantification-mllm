@@ -219,6 +219,7 @@ def test_replay_hooks_only_final_decoder_hidden_for_samples() -> None:
 
         def forward(self, input_ids, **kwargs):
             assert kwargs["output_hidden_states"] is False
+            assert kwargs["logits_to_keep"] == 3
             hidden = self.language_model.model(input_ids).last_hidden_state
             # Mirror logits_to_keep=max_generated+1: positions correspond to
             # the final prompt token followed by generated-token positions.

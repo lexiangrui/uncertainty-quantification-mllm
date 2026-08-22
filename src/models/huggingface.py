@@ -323,7 +323,9 @@ class HuggingFaceReplayBackend:
                 return self.model(**full_inputs, **kwargs)
             finally:
                 handle.remove()
-        return self.model(**full_inputs, **kwargs)
+        return self.model(
+            **full_inputs, **kwargs, logits_to_keep=logits_to_keep
+        )
 
     @torch.inference_mode()
     def teacher_force_responses(
