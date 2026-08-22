@@ -61,8 +61,12 @@ def test_replay_oom_recursively_splits() -> None:
     requests = [_request(str(index)) for index in range(5)]
     values = backend.teacher_force_responses(requests, [(1,)] * 5)
     assert set(values) == {"0", "1", "2", "3", "4"}
-    assert calls == [5, 2, 3, 1, 2]
+    assert calls == [5, 2, 2, 1]
     assert exception_contexts == [None] * len(calls)
+
+    calls.clear()
+    backend.teacher_force_responses(requests, [(1,)] * 5)
+    assert calls == [2, 2, 1]
 
 
 def test_replay_rejects_mismatched_inputs() -> None:

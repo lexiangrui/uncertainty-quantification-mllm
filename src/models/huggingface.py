@@ -46,6 +46,7 @@ class HuggingFaceReplayBackend:
         self.processor = None
         self.model = None
         self.device = None
+        self._replay_batch_limit: int | None = None
 
     @property
     def runtime_config(self) -> dict:
@@ -338,6 +339,17 @@ class HuggingFaceReplayBackend:
         for request, token_ids in zip(requests, token_sequences, strict=True):
             if not token_ids:
                 raise ValueError(f"empty replay token sequence: {request.request_id}")
+        batch_limit = getattr(self, "_replay_batch_limit", None)
+        if batch_limit is not None and len(requests) > batch_limit:
+            values: dict[str, GeneratedResponse] = {}
+            for start in range(0, len(requests), batch_limit):
+                stop = start + batch_limit
+                values.update(
+                    self.teacher_force_responses(
+                        requests[start:stop], token_sequences[start:stop]
+                    )
+                )
+            return values
         try:
             return self._teacher_force_batch(requests, token_sequences)
         except torch.OutOfMemoryError:
@@ -347,21 +359,21 @@ class HuggingFaceReplayBackend:
         # Retry only after leaving the exception handler. Otherwise Python keeps
         # the failed forward traceback (and its CUDA tensors) alive while the
         # smaller recursive batches run, so each retry has less free memory.
+        learned_limit = max(1, len(requests) // 2)
+        current_limit = getattr(self, "_replay_batch_limit", None)
+        self._replay_batch_limit = (
+            learned_limit
+            if current_limit is None
+            else min(current_limit, learned_limit)
+        )
         print(
-            f"HF replay OOM at batch_size={len(requests)}; splitting and retrying",
+            f"HF replay OOM at batch_size={len(requests)}; "
+            f"retrying with persistent batch_limit={self._replay_batch_limit}",
             flush=True,
         )
         gc.collect()
         torch.cuda.empty_cache()
-        middle = len(requests) // 2
-        return {
-            **self.teacher_force_responses(
-                requests[:middle], token_sequences[:middle]
-            ),
-            **self.teacher_force_responses(
-                requests[middle:], token_sequences[middle:]
-            ),
-        }
+        return self.teacher_force_responses(requests, token_sequences)
 
     @torch.inference_mode()
     def _teacher_force_batch(
