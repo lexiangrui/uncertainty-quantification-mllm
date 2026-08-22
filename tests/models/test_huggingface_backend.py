@@ -11,12 +11,12 @@ from src.models.base import GeneratedResponse, GenerationRequest
 from src.models.huggingface import HuggingFaceReplayBackend
 
 
-def _request(name: str, *, image=None) -> GenerationRequest:
+def _request(name: str, *, image=None, role="sample") -> GenerationRequest:
     return GenerationRequest(
         request_id=name,
         sample_id=name,
-        role="sample",
-        draw_index=0,
+        role=role,
+        draw_index=0 if role == "sample" else None,
         seed=1,
         image=image,
         prompt=GenerationPrompt(system="", user="Question"),
@@ -141,7 +141,7 @@ def test_original_internvl_text_replay_calls_language_model_directly() -> None:
     class LanguageModel:
         def __call__(self, **kwargs):
             assert "pixel_values" not in kwargs
-            assert kwargs["output_hidden_states"] is True
+            assert kwargs["output_hidden_states"] is False
             return marker
 
     backend = object.__new__(HuggingFaceReplayBackend)
@@ -151,3 +151,64 @@ def test_original_internvl_text_replay_calls_language_model_directly() -> None:
     )
 
     assert backend._replay_forward({"input_ids": torch.tensor([[1]])}) is marker
+
+
+def test_semantic_embedding_module_returns_decoder_body() -> None:
+    decoder = object()
+    backend = object.__new__(HuggingFaceReplayBackend)
+    backend.model = SimpleNamespace(
+        get_base_model=lambda: SimpleNamespace(
+            language_model=SimpleNamespace(model=decoder)
+        )
+    )
+
+    assert backend._semantic_embedding_module() is decoder
+
+
+def test_replay_hooks_only_final_decoder_hidden_for_samples() -> None:
+    class Decoder(torch.nn.Module):
+        def forward(self, input_ids):
+            hidden = input_ids.unsqueeze(-1).float().repeat(1, 1, 3)
+            return SimpleNamespace(last_hidden_state=hidden)
+
+    class LanguageModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.model = Decoder()
+
+    class ReplayModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.language_model = LanguageModel()
+
+        def forward(self, input_ids, **kwargs):
+            assert kwargs["output_hidden_states"] is False
+            hidden = self.language_model.model(input_ids).last_hidden_state
+            logits = torch.zeros((*input_ids.shape, 8), dtype=torch.float32)
+            return SimpleNamespace(logits=logits, last_hidden_state=hidden)
+
+    backend = object.__new__(HuggingFaceReplayBackend)
+    backend.family = "llava_1_5"
+    backend.model = ReplayModel()
+    backend.processor = SimpleNamespace(
+        pad_token_id=0,
+        eos_token_id=7,
+        decode=lambda *_args, **_kwargs: "answer",
+    )
+    backend.device = torch.device("cpu")
+    backend._batch_inputs = lambda _requests: {
+        "input_ids": torch.tensor([[5, 6]]),
+        "attention_mask": torch.ones((1, 2), dtype=torch.long),
+    }
+
+    sample = backend._teacher_force_batch(
+        [_request("sample")], [(1, 2)]
+    )["sample"]
+    greedy = backend._teacher_force_batch(
+        [_request("greedy", role="greedy")], [(1, 2)]
+    )["greedy"]
+
+    assert sample.hidden_steps is not None
+    assert sample.hidden_steps.shape == (2, 3)
+    assert torch.equal(sample.hidden_steps[:, 0], torch.tensor([1.0, 2.0]))
+    assert greedy.hidden_steps is None

@@ -201,6 +201,28 @@ class HuggingFaceReplayBackend:
         inputs = self.processor(**kwargs)
         return {name: value.to(self.device) for name, value in inputs.items()}
 
+    def _semantic_embedding_module(self):
+        """Return the decoder body whose output is the final hidden layer.
+
+        Replay only needs the answer-last-token representation for sampled
+        responses. Hooking the decoder body avoids materializing every layer's
+        hidden state for the full multimodal sequence.
+        """
+        assert self.model is not None
+        full_model = (
+            self.model.get_base_model()
+            if hasattr(self.model, "get_base_model")
+            else self.model
+        )
+        language_model = getattr(full_model, "language_model", None)
+        if language_model is None:
+            core = getattr(full_model, "model", None)
+            language_model = getattr(core, "language_model", None)
+        if language_model is None:
+            raise RuntimeError("multimodal model does not expose its language model")
+        decoder = getattr(language_model, "model", None)
+        return decoder if decoder is not None else language_model
+
     def _original_batch_inputs(self, requests: list[GenerationRequest]):
         """Build the original InternVLChatModel inputs (image tiles + IMG_CONTEXT)."""
         assert self.model is not None and self.processor is not None and self.device is not None
@@ -272,7 +294,7 @@ class HuggingFaceReplayBackend:
         assert self.model is not None
         kwargs = {
             "use_cache": False,
-            "output_hidden_states": True,
+            "output_hidden_states": False,
             "return_dict": True,
         }
         if self.family == "internvl3_5_original" and "pixel_values" not in full_inputs:
@@ -371,12 +393,35 @@ class HuggingFaceReplayBackend:
                 (*value.shape[:-1], max_generated), dtype=value.dtype, device=value.device
             )
             full_inputs[key] = torch.cat([value, padding], dim=-1)
-        outputs = self._replay_forward(full_inputs)
+        roles = {request.role for request in requests}
+        if len(roles) != 1:
+            raise ValueError("HF replay batches must contain one decoding role")
+        need_hidden = roles == {"sample"}
+        captured_hidden: list[torch.Tensor] = []
+        handle = None
+        if need_hidden:
+            def capture_hidden(_module, _args, output) -> None:
+                hidden = getattr(output, "last_hidden_state", None)
+                if hidden is None and isinstance(output, tuple) and output:
+                    hidden = output[0]
+                if not isinstance(hidden, torch.Tensor) or hidden.ndim != 3:
+                    raise RuntimeError("language decoder did not expose its last hidden state")
+                captured_hidden.append(hidden)
+
+            handle = self._semantic_embedding_module().register_forward_hook(
+                capture_hidden
+            )
+        try:
+            outputs = self._replay_forward(full_inputs)
+        finally:
+            if handle is not None:
+                handle.remove()
         logits = getattr(outputs, "logits", None)
         if logits is None:
             raise RuntimeError("HF replay model did not return logits")
-        hidden_states = getattr(outputs, "hidden_states", None)
-        last_hidden = hidden_states[-1] if hidden_states else None
+        last_hidden = captured_hidden[-1] if captured_hidden else None
+        if need_hidden and last_hidden is None:
+            raise RuntimeError("HF replay did not capture the final hidden layer")
         values: dict[str, GeneratedResponse] = {}
         for index, (request, token_ids) in enumerate(
             zip(requests, token_sequences, strict=True)
