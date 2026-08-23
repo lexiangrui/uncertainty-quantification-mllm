@@ -21,8 +21,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset-source", required=True, type=Path)
     parser.add_argument("--greedy-input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--model", required=True)
+    parser.add_argument(
+        "--model",
+        default="gpt-5.6-terra",
+        help="Judge model (default: gpt-5.6-terra)",
+    )
     parser.add_argument("--max-tokens", type=int, default=512)
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=90.0,
+        help="Per-request API timeout in seconds (reasoning judges need 300+)",
+    )
     parser.add_argument("--limit", type=int)
     parser.add_argument("--concurrency", "--max-workers", dest="concurrency", type=int, default=10,
                         help="Number of concurrent judge API requests (default: 10)")
@@ -31,7 +41,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    judge = ClosedSourceJudge(args.model, max_tokens=args.max_tokens)
+    judge = ClosedSourceJudge(
+        args.model, max_tokens=args.max_tokens, timeout_seconds=args.timeout
+    )
     written, skipped = run_closed_source_judging(
         judge=judge,
         dataset=args.dataset,

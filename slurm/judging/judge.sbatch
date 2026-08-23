@@ -14,7 +14,9 @@ set -euo pipefail
 source "${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}/slurm/common.sh"
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
-JUDGE_MODEL="${JUDGE_MODEL:-gpt-4o-2024-08-06}"
+JUDGE_MODEL="${JUDGE_MODEL:-gpt-5.6-terra}"
+JUDGE_MAX_TOKENS="${JUDGE_MAX_TOKENS:-4096}"
+JUDGE_TIMEOUT="${JUDGE_TIMEOUT:-300}"
 cd "$PROJECT_ROOT"
 mkdir -p logs/judging "results/judging/$MODEL"
 
@@ -34,6 +36,8 @@ for dataset in vilp hallusionbench mmvet; do
     --greedy-input "results/generation/$MODEL/greedy/$dataset.jsonl" \
     --output "results/judging/$MODEL/$dataset.jsonl" \
     --model "$JUDGE_MODEL" \
+    --max-tokens "$JUDGE_MAX_TOKENS" \
+    --timeout "$JUDGE_TIMEOUT" \
     --concurrency 10
   flock -u 9
   exec 9>&-

@@ -114,7 +114,7 @@ def test_environment_is_required(monkeypatch) -> None:
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setattr(
-        "src.llm_judge.closed_source._load_codex_credentials",
+        "src.llm_judge.closed_source._load_local_credentials",
         lambda: ("", ""),
     )
     with pytest.raises(RuntimeError, match="OPENAI_BASE_URL"):

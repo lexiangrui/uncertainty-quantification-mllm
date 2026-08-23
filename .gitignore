@@ -6,6 +6,7 @@ __pycache__/
 
 # Local environments and secrets.
 *.env
+.ven
 configs/judges/openai.env.example
 !LoRA/configs/qwen_teacher.env.example
 *.local

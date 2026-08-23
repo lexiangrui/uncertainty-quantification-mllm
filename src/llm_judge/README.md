@@ -7,16 +7,18 @@
 3. `RuleJudge`：不调用模型的确定性规则判断，支持选择题和 Yes/No。
 4. `NLIJudge`：本地 DeBERTa 的前提-假设蕴含判断，用于 Semantic Entropy 的语义聚类，不负责最终答案或幻觉评分。
 
-正式第一阶段 Judge 使用 `ClosedSourceJudge`，通过 OpenAI Python SDK
-的 Responses API 调用兼容服务。连接信息只从环境变量读取：
+正式第一阶段 Judge 使用 `ClosedSourceJudge`，默认裁判模型为
+`gpt-5.6-terra`，通过 OpenAI Python SDK 的 Responses API 调用兼容服务。
+连接信息优先从环境变量读取：
 
 ```bash
 export OPENAI_BASE_URL=
 export OPENAI_API_KEY=
 ```
 
-两项为空时程序直接拒绝启动。仓库中的
-`configs/judges/openai.env.example` 只保留空变量名，不保存服务地址或密钥。
+两项为空时会读取项目根目录下不提交 Git 的 `.ven`；两处均无有效配置时
+程序拒绝启动。仓库中的 `configs/judges/openai.env.example` 只保留空变量名，
+不保存服务地址或密钥。
 
 调用入口：
 
@@ -26,7 +28,8 @@ python scripts/judging/judge_responses.py \
   --dataset-source /server/datasets/vilp/ViLP.parquet \
   --greedy-input /server/results/generation/llava/greedy/vilp.jsonl \
   --output /server/results/judging/llava/vilp.jsonl \
-  --model YOUR_JUDGE_MODEL
+  --max-tokens 4096 \
+  --timeout 300
 ```
 
 `--greedy-input` 应指向 HF replay 完成后的正式 `results/generation/<model>/greedy/<dataset>.jsonl`，不能使用 `vllm_raw/` 中尚未完成内部信号回放的中间文件。
@@ -77,7 +80,7 @@ result = judge.judge(image, question, reference, prediction, dataset="mmvet")
 # result == {"analysis": ..., "correct": bool, "rating": int, "hallucination": bool}
 
 # 远程闭源/托管模型
-judge = ClosedSourceJudge("YOUR_JUDGE_MODEL")
+judge = ClosedSourceJudge("gpt-5.6-terra")
 ```
 
 ## NLI Judge

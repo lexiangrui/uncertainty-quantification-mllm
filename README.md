@@ -73,7 +73,7 @@ tests/                                 回归测试
 | HF replay 后 samples | `results/generation/<model>/samples/<dataset>.jsonl` |
 | UMPIRE hidden sidecar | `results/hidden/<model>/<dataset>/*.pt` |
 | UQ | `results/uq/<model>/<dataset>.jsonl` |
-| Judge | `results/judging/<model>/<dataset>.jsonl` |
+| Judge（GPT-5.6-Terra） | `results/judging/<model>/<dataset>.jsonl` |
 | 指标 | `results/metrics/<model>/<dataset>.json` |
 | ERA 分量 | `results/era_components/<model>/<dataset>.jsonl` |
 | 分析 | `results/analysis/` |
@@ -131,7 +131,7 @@ vLLM raw、HF replay、UQ、Judge 和 ERA 均以 `sample_id` 断点续跑。每�
 
 `scripts/uq/compute_uq.py` 只读取 HF replay 后的 greedy/samples：Perplexity 使用 greedy 最终答案的 HF log probability；Semantic Entropy 使用 samples 的最终答案与 mean log probability；UMPIRE 额外读取 sample 最终答案末 token 的末层 hidden sidecar。
 
-`scripts/judging/judge_responses.py` 只评价 greedy 主回答。闭源 Judge 的服务地址和密钥只从 `OPENAI_BASE_URL`、`OPENAI_API_KEY` 读取，Prompt 哈希保存在输出的 `run` metadata 中。
+`scripts/judging/judge_responses.py` 只评价 greedy 主回答。正式 LLM Judge 为 `gpt-5.6-terra`；命令行与 Slurm 入口均以它为默认模型，同时保留 `--model` / `JUDGE_MODEL` 覆盖能力。服务地址和密钥优先读取 `OPENAI_BASE_URL`、`OPENAI_API_KEY`，也可放在不提交 Git 的项目根目录 `.ven` 中。Prompt 哈希和实际裁判模型保存在输出的 `run` metadata 中。
 
 ERA 读取 HF replay 后的 greedy JSONL 及其精确 token sidecar，并通过 HF eager attention 计算浅层归因分量。正式 Slurm 入口默认读取 `results/analysis/luh/<model>_subset_ids.txt`，只对每个模型的 400 条低不确定性子集执行 attention forward：
 

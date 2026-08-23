@@ -191,34 +191,24 @@ def parse_closed_source_response(text: str) -> JudgeResult:
     )
 
 
-def _load_codex_credentials() -> tuple[str, str]:
-    """Resolve base_url and api_key from the local Codex CLI configuration."""
-    auth_path = Path.home() / ".codex" / "auth.json"
-    config_path = Path.home() / ".codex" / "config.toml"
-    api_key = ""
-    if auth_path.is_file():
+def _load_local_credentials() -> tuple[str, str]:
+    """Resolve base_url and api_key from the project-local .ven secrets file."""
+    env_path = _PROJECT_ROOT / ".ven"
+    values: dict[str, str] = {}
+    if env_path.is_file():
         try:
-            auth = json.loads(auth_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            auth = {}
-        api_key = str(auth.get("OPENAI_API_KEY", "")).strip()
-    base_url = ""
-    if config_path.is_file():
-        try:
-            import tomllib
-
-            with config_path.open("rb") as handle:
-                config = tomllib.load(handle)
-        except (OSError, ValueError, TypeError):
-            config = {}
-        providers = config.get("model_providers", {})
-        for provider in providers.values():
-            if isinstance(provider, dict):
-                candidate = str(provider.get("base_url", "")).strip()
-                if candidate:
-                    base_url = candidate
-                    break
-    return base_url, api_key
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key in ("OPENAI_BASE_URL", "OPENAI_API_KEY") and key not in values:
+                    values[key] = value
+        except OSError:
+            pass
+    return values.get("OPENAI_BASE_URL", ""), values.get("OPENAI_API_KEY", "")
 
 
 class ClosedSourceJudge:
@@ -240,13 +230,13 @@ class ClosedSourceJudge:
             base_url = os.environ.get("OPENAI_BASE_URL", "").strip()
             api_key = os.environ.get("OPENAI_API_KEY", "").strip()
             if not base_url or not api_key:
-                fallback_url, fallback_key = _load_codex_credentials()
+                fallback_url, fallback_key = _load_local_credentials()
                 base_url = base_url or fallback_url
                 api_key = api_key or fallback_key
             if not base_url or not api_key:
                 raise RuntimeError(
                     "OPENAI_BASE_URL and OPENAI_API_KEY must be set as environment "
-                    "variables or available in ~/.codex (auth.json + config.toml)"
+                    "variables or listed in the project-local .ven file"
                 )
             from openai import OpenAI
 
