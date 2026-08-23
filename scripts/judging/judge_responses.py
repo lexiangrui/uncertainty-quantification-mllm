@@ -26,12 +26,12 @@ def parse_args() -> argparse.Namespace:
         default="gpt-5.6-terra",
         help="Judge model (default: gpt-5.6-terra)",
     )
-    parser.add_argument("--max-tokens", type=int, default=512)
+    parser.add_argument("--max-tokens", type=int, default=4096)
     parser.add_argument(
         "--timeout",
         type=float,
-        default=90.0,
-        help="Per-request API timeout in seconds (reasoning judges need 300+)",
+        default=300.0,
+        help="Per-request API timeout in seconds (default: 300)",
     )
     parser.add_argument("--limit", type=int)
     parser.add_argument("--concurrency", "--max-workers", dest="concurrency", type=int, default=10,
