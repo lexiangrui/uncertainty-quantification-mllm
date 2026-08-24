@@ -1,10 +1,12 @@
+"""Tests for the consolidated Experiment 2 ERA analysis."""
+
 from __future__ import annotations
 
 import math
 
 import pytest
 
-from scripts.analysis.d_era_results import (
+from scripts.analysis.exp2_era_results import (
     attention_features,
     holm_adjust,
     percentile_interval,

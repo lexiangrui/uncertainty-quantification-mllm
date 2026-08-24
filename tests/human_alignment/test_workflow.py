@@ -99,6 +99,21 @@ def test_prepare_splits_disagreement_dimensions_and_preserves_annotations(tmp_pa
     assert load_annotations(workspace)["annotations"]["llava/vilp/correct"]["correct"] is False
 
 
+def test_save_annotations_rejects_nonhuman_provenance(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="invalid correct provenance"):
+        save_annotations(
+            tmp_path,
+            {
+                "llava/vilp/sample": {
+                    "correct": True,
+                    "provenance": {
+                        "correct": {"kind": "automated", "model": "third-judge"}
+                    },
+                }
+            },
+        )
+
+
 def test_finalize_refuses_incomplete_then_writes_human_aligned_labels(tmp_path: Path) -> None:
     gpt, gemini, workspace = _inputs(tmp_path)
     build_alignment_workspace(
@@ -230,51 +245,6 @@ def test_image_export_fails_when_alignment_sample_is_missing(tmp_path: Path, mon
             {"vilp": "/unused"},
             tmp_path,
         )
-
-
-def test_finalize_marks_automated_adjudication_in_protocol_and_provenance(tmp_path: Path) -> None:
-    gpt, gemini, workspace = _inputs(tmp_path)
-    build_alignment_workspace(
-        gpt_dir=gpt,
-        gemini_dir=gemini,
-        workspace=workspace,
-        models=("llava",),
-        datasets=("vilp",),
-        export_images=False,
-    )
-    save_annotations(
-        workspace,
-        {
-            "llava/vilp/correct": {"correct": False},
-            "llava/vilp/hallucination": {
-                "hallucination": False,
-                "provenance": {
-                    "hallucination": {
-                        "kind": "automated",
-                        "model": "claude-opus-5",
-                    }
-                },
-            },
-            "llava/vilp/both": {"correct": True, "hallucination": True},
-        },
-    )
-    output = tmp_path / "judging"
-    finalize_aligned_results(
-        gpt_dir=gpt,
-        gemini_dir=gemini,
-        workspace=workspace,
-        output_dir=output,
-        models=("llava",),
-        datasets=("vilp",),
-    )
-    rows = [json.loads(line) for line in (output / "llava/vilp.jsonl").read_text().splitlines()]
-    assert rows[0]["run"]["protocol"] == "machine-assisted-dual-judge-v1"
-    assert rows[0]["run"]["automated_adjudication_models"] == ["claude-opus-5"]
-    labels = {row["sample"]["sample_id"]: row["judge"] for row in rows[1:]}
-    assert labels["hallucination"]["alignment"]["hallucination"] == {
-        "kind": "automated",
-        "model": "claude-opus-5",
-    }
 
 
 def test_finalize_can_apply_human_selected_gpt_policy(tmp_path: Path) -> None:

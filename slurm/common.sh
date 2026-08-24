@@ -9,8 +9,7 @@ HF_PYTHON="${HF_PYTHON:-$HOME/.venvs/MLLM-UQ/bin/python}"
 
 # torch/FlashAttention JIT compilation may include <Python.h>.  The compute
 # nodes provide the Python 3.12 runtime but not the matching system dev package;
-# use the user-local headers extracted by scripts/setup/install_python_headers.sh
-# when available.
+# use preinstalled user-local headers when available.
 PYTHON312_DEV="${PYTHON312_DEV:-$HOME/.local/python312-dev}"
 if [[ -f "$PYTHON312_DEV/usr/include/python3.12/Python.h" ]]; then
   export C_INCLUDE_PATH="$PYTHON312_DEV/usr/include/python3.12:$PYTHON312_DEV/usr/include${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"

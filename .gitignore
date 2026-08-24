@@ -86,6 +86,3 @@ report/**/*.xdy
 report/**/*.xdv
 report/**/*.pdf
 report/**/_minted-*/
-
-# Local report figure backups; keep only the active source assets in Git.
-report/figures/*（old）.*

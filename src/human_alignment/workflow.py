@@ -151,6 +151,10 @@ def load_annotations(workspace: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if value.get("schema_version") != SCHEMA_VERSION or not isinstance(value.get("annotations"), dict):
         raise ValueError(f"unsupported annotations file: {path}")
+    value["annotations"] = {
+        key: _validate_annotation(annotation)
+        for key, annotation in value["annotations"].items()
+    }
     return value
 
 
@@ -185,28 +189,21 @@ def _validate_annotation(value: Any) -> dict[str, Any]:
         raise ValueError("invalid annotation provenance")
     normalized_provenance: dict[str, dict[str, Any]] = {}
     for field, entry in provenance.items():
-        if not isinstance(entry, dict) or entry.get("kind") not in {"human", "automated"}:
+        if not isinstance(entry, dict) or entry.get("kind") != "human":
             raise ValueError(f"invalid {field} provenance")
         model = entry.get("model")
-        if entry["kind"] == "automated" and (not isinstance(model, str) or not model):
-            raise ValueError(f"automated {field} provenance requires a model")
+        if model is not None:
+            raise ValueError(f"human {field} provenance cannot name a model")
         updated_at = entry.get("updated_at")
         if updated_at is not None and not isinstance(updated_at, str):
             raise ValueError(f"invalid {field} provenance timestamp")
         normalized_provenance[field] = {
-            "kind": entry["kind"],
-            "model": model if entry["kind"] == "automated" else None,
+            "kind": "human",
+            "model": None,
             "updated_at": updated_at,
         }
     result["provenance"] = normalized_provenance
     return result
-
-
-def _label_source(annotation: dict[str, Any], field: str) -> dict[str, Any]:
-    entry = (annotation.get("provenance") or {}).get(field)
-    if isinstance(entry, dict) and entry.get("kind") == "automated":
-        return {"kind": "automated", "model": entry.get("model")}
-    return {"kind": "human", "model": None}
 
 
 def save_annotations(workspace: Path, annotations: dict[str, Any]) -> None:
@@ -392,18 +389,6 @@ def finalize_aligned_results(
             incomplete.append(f"{key}:hallucination")
     if incomplete:
         raise ValueError(f"human alignment is incomplete ({len(incomplete)} fields): {incomplete[:5]}")
-    adjudication_models = sorted(
-        source["model"]
-        for key, row in queue_by_key.items()
-        for field in ("correct", "hallucination")
-        for source in [_label_source(annotations.get(key, {}), field)]
-        if row["disagreements"][field]
-        and key.split("/", 1)[0] not in trusted_gpt_models
-        and source["kind"] == "automated"
-        and isinstance(source["model"], str)
-    )
-    adjudication_models = sorted(set(adjudication_models))
-    automated_used = bool(adjudication_models)
 
     stage = output_dir.parent / f".{output_dir.name}.tmp-{os.getpid()}"
     if stage.exists():
@@ -453,14 +438,14 @@ def finalize_aligned_results(
                     correct_source = (
                         {"kind": "human_policy", "model": gpt_run.get("judge_model")}
                         if correct_disagrees and use_trusted_gpt
-                        else _label_source(annotation, "correct")
+                        else {"kind": "human", "model": None}
                         if correct_disagrees
                         else {"kind": "judge_consensus", "model": None}
                     )
                     hallucination_source = (
                         {"kind": "human_policy", "model": gpt_run.get("judge_model")}
                         if hallucination_disagrees and use_trusted_gpt
-                        else _label_source(annotation, "hallucination")
+                        else {"kind": "human", "model": None}
                         if hallucination_disagrees
                         else {"kind": "judge_consensus", "model": None}
                     )
@@ -479,15 +464,10 @@ def finalize_aligned_results(
                     adjudicated += int(correct_disagrees or hallucination_disagrees)
                     final_rows.append({"sample": gpt["sample"], "input": gpt["input"], "judge": judge})
                 run = {
-                    "protocol": (
-                        "machine-assisted-dual-judge-v1"
-                        if automated_used
-                        else "human-aligned-dual-judge-v1"
-                    ),
+                    "protocol": "human-aligned-dual-judge-v1",
                     "judge_models": [gpt_run.get("judge_model"), gemini_run.get("judge_model")],
                     "human_adjudicator": human_adjudicator,
                     "trusted_gpt_models": list(trusted_gpt_models),
-                    "automated_adjudication_models": adjudication_models,
                     "raw_judge_inputs": [str(gpt_path.resolve()), str(gemini_path.resolve())],
                     "raw_judge_sha256": [_sha256(gpt_path), _sha256(gemini_path)],
                     "annotations_sha256": _sha256(workspace / "annotations.json"),
