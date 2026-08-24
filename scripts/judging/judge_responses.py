@@ -10,6 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.llm_judge import ClosedSourceJudge
+from src.llm_judge.paths import validate_raw_judge_output
 from src.llm_judge.runner import run_closed_source_judging
 
 
@@ -41,6 +42,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    validate_raw_judge_output(args.output, args.model)
     judge = ClosedSourceJudge(
         args.model, max_tokens=args.max_tokens, timeout_seconds=args.timeout
     )

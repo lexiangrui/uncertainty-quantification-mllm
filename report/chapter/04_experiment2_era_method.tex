@@ -1,4 +1,4 @@
-\clearpage
+\Needspace{14\baselineskip}
 \section{Experiment 2: Early Rationale Attribution for Uncertainty Quantification}
 \label{sec:era_method}
 \markboth{\thesection\quad Experiment 2: ERA Method Design}{}
@@ -6,7 +6,7 @@
 \subsection{Methodological Motivation}
 \label{subsec:era_motivation}
 
-Experiment~1 shows that existing uncertainty quantification methods, including Perplexity, Semantic Entropy, and UMPIRE, can distinguish correct from incorrect responses to some extent on the full evaluation data, yet fail conspicuously on low-uncertainty hallucination (LUH). In particular, hallucinated positives and non-hallucinated negatives are deliberately matched in the score space of the three baseline UQ methods within the constructed low-uncertainty subsets, where all baseline AUROC values approach random performance. This result indicates that generation probabilities, consistency across repeated samples, and the stability of final hidden representations are insufficient for identifying cases in which a model produces erroneous content consistently.
+Experiment~1 shows that existing uncertainty quantification methods, including Perplexity, Semantic Entropy, and UMPIRE, can distinguish correct from incorrect responses to some extent on the full evaluation data, yet fail conspicuously on low-uncertainty hallucination (LUH). In particular, hallucinated positives and non-hallucinated negatives are deliberately matched in the score space of the three baseline UQ methods within the constructed low-uncertainty subsets, where fixed-direction baseline AUROC values are near random or mildly reverse ordered. This result indicates that generation probabilities, consistency across repeated samples, and the stability of final hidden representations are insufficient for identifying cases in which a model produces erroneous content consistently.
 
 The underlying reason is that conventional UQ methods primarily answer the following question:
 

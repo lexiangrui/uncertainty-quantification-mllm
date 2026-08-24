@@ -86,14 +86,14 @@ The text-side UQ methods above can be directly applied to the text output of an 
 
 In summary, multimodal UQ has evolved from reusing text scores to explicitly probing visual evidence and cross-modal representations, but whether these scores can identify the strictly defined hallucination still needs to be verified with independent hallucination labels.
 
-\subsection{Common Gaps in Existing Research}
+\subsection{Common Issues in Existing Research}
 \label{subsec:gaps}
 
-Based on the above survey, I argue that existing UQ research suffers from four interrelated gaps in predicting low-uncertainty hallucination, as summarized in \Cref{tab:gaps}.
+Based on the above survey, I identify four interrelated issues in existing UQ research on predicting low-uncertainty hallucination, as summarized in \Cref{tab:gaps}.
 
 \begin{table}[tbp]
 \centering
-\caption{Four gaps of existing UQ research in predicting low-uncertainty hallucination.}
+\caption{Four common issues in existing UQ research on predicting low-uncertainty hallucination.}
 \label{tab:gaps}
 \small
 \setlength{\tabcolsep}{4pt}
@@ -130,22 +130,27 @@ The low-uncertainty hallucination studied in this report is not a new type of ha
 \subsection{Research Method and Experimental Pipeline}
 \label{subsec:pipeline}
 
-I first systematically evaluate existing UQ methods, analyze the relationship between uncertainty and answer correctness and hallucination risk, and extract for each model hallucinated samples that all three baseline methods judge as low-uncertainty (positive LUH samples) together with non-hallucinated samples in the same low-uncertainty region (negative samples). I then design a new UQ method based on the failure modes exposed by the consensus LUH missed by the three baselines, and examine whether the new method can identify these LUH from the non-hallucinated samples in the low-uncertainty region. The overall research pipeline is
-\[
-\begin{aligned}
-\text{response generation}
-&\rightarrow \text{independent correctness and hallucination labeling}\\
-&\rightarrow \text{evaluation of existing UQ methods}\\
-&\rightarrow \text{low-uncertainty subset extraction}\\
-&\rightarrow \text{new method design and validation}.
-\end{aligned}
-\]
-The first four stages constitute Experiment~1 and the last stage constitutes Experiment~2; Experiment~2 fully reuses the samples, labels, and metric definitions of Experiment~1, and the two experiments are consecutive.
-\Cref{fig:overall_research_pipeline} visualizes this division and the handoff of the fixed consensus LUH subset between the two experiments.
+To address the research question, I design a consecutive two-stage research pipeline, shown in \Cref{fig:overall_research_pipeline}.
+
+\begin{enumerate}[leftmargin=2em]
+\item \textbf{Experiment~1: UQ evaluation framework design and LUH blind-spot discovery (Sections~\ref{sec:experiment1_framework}--\ref{sec:experiment1_results}).}
+\begin{itemize}[leftmargin=1.5em]
+    \item I use format-oriented LoRA to standardize three open-source MLLMs with distinct architectures---LLaVA-1.5, Qwen2.5-VL, and InternVL3.5---to produce a three-part XML response. A multimodal LLM judge independently labels answer correctness $C$ and hallucination $H$ in the same call.
+    \item On three benchmarks (ViLP, HallusionBench, and MM-Vet; 2,247 instances in total), I evaluate Perplexity (PPL), Semantic Entropy (SE), and UMPIRE, thereby quantifying the systematic failure of conventional methods on low-uncertainty hallucination (LUH).
+    \item For each model, I extract 200 LUH positives jointly missed by the three baselines and 200 score-structure-matched non-hallucinated negatives. This produces a balanced 400-sample difficult subset on which fixed-direction baseline AUROC ranges from 0.417 to 0.502, corresponding to random performance or mild reverse ordering.
+\end{itemize}
+
+\item \textbf{Experiment~2: ERA early-rationale-attribution method design and validation (Sections~4--5).}
+\begin{itemize}[leftmargin=1.5em]
+    \item To address the mechanism underlying baseline failure on LUH---the model can develop internal confidence while autoregressively generating a rationale, causing its final decision to depart from the actual visual and question inputs---I propose \textbf{ERA} (Early Rationale Attribution), a UQ method.
+    \item In the shallow decoder layers (Layers~0--1), ERA partitions the sequence into five contiguous semantic regions: image $I$, question $Q$, visual description $V$, rationale $R$, and final answer $A$. A single forward pass measures the relative dependence of the answer on self-generated rationale versus external evidence, yielding $U_{\mathrm{ERA}}$.
+    \item I reuse the difficult subsets and evaluation protocol from Experiment~1 without modification to test whether ERA can distinguish LUH missed by conventional methods from low-uncertainty non-hallucinated responses.
+\end{itemize}
+\end{enumerate}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\linewidth]{overall_research_pipeline}
+    \includegraphics[width=\linewidth]{研究路线图}
     \caption{Overall research pipeline. Experiment~1 generates and independently labels responses, evaluates three baseline UQ methods, and extracts the consensus LUH subset; Experiment~2 develops and validates the new method on the fixed subset.}
     \label{fig:overall_research_pipeline}
 \end{figure}

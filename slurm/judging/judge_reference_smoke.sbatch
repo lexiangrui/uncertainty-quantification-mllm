@@ -25,6 +25,6 @@ for model in llava qwen internvl; do
     "$HF_PYTHON" scripts/judging/judge_reference_rule.py \
       --dataset "$dataset" --dataset-source "$SRC" \
       --greedy-input "results/generation/$model/greedy/$dataset.jsonl" \
-      --output "results/judging/$model/$dataset.jsonl" --limit 10
+      --output "results/judging_reference_smoke/$model/$dataset.jsonl" --limit 10
   done
 done

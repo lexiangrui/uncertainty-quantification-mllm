@@ -15,7 +15,8 @@ source "${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}/slurm/common.sh"
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
 cd "$PROJECT_ROOT"
-mkdir -p logs/era results/era_components/"$MODEL"
+COMPONENTS_ROOT="${ERA_COMPONENTS_DIR:-results/era_components}"
+mkdir -p logs/era "$COMPONENTS_ROOT/$MODEL"
 shift_args=("$@")
 SUBSET_IDS_FILE="${ERA_SAMPLE_IDS_FILE:-results/analysis/luh/${MODEL}_subset_ids.txt}"
 if [[ ! -s "$SUBSET_IDS_FILE" ]]; then
@@ -38,24 +39,35 @@ case "$MODEL" in
   *) echo "unknown MODEL=$MODEL" >&2; exit 1 ;;
 esac
 
+ERA_ARGS=()
+lock_fd=7
 for dataset in vilp hallusionbench mmvet; do
-  exec 9>"results/era_components/$MODEL/.${dataset}.lock"
-  flock 9
+  eval "exec ${lock_fd}>\"$COMPONENTS_ROOT/$MODEL/.${dataset}.lock\""
+  flock "$lock_fd"
   case "$dataset" in
     vilp) SRC="$DATA_ROOT/vilp/ViLP.parquet" ;;
     hallusionbench) SRC="$DATA_ROOT/HallusionBench/data" ;;
     mmvet) SRC="$DATA_ROOT/MMVet/data/test-00000-of-00001.parquet" ;;
   esac
   GREEDY_BASE="${GREEDY_DIR:-results/generation}"
-  "$HF_PYTHON" scripts/improvement/run_era.py \
-    --greedy-input "$GREEDY_BASE"/"$MODEL"/greedy/"$dataset".jsonl \
-    --output results/era_components/"$MODEL"/"$dataset".jsonl \
-    --family "$FAM" \
-    --model-path "$MP" \
-    --adapter-path "$AD" \
-    --dataset-source "$SRC" \
-    --sample-ids-file "$SUBSET_IDS_FILE" \
-    "${shift_args[@]}"
-  flock -u 9
-  exec 9>&-
+  ERA_ARGS+=(
+    --task
+    "$GREEDY_BASE/$MODEL/greedy/$dataset.jsonl"
+    "$COMPONENTS_ROOT/$MODEL/$dataset.jsonl"
+    "$SRC"
+  )
+  lock_fd=$((lock_fd + 1))
+done
+
+"$HF_PYTHON" scripts/improvement/run_era.py \
+  --family "$FAM" \
+  --model-path "$MP" \
+  --adapter-path "$AD" \
+  --sample-ids-file "$SUBSET_IDS_FILE" \
+  "${ERA_ARGS[@]}" \
+  "${shift_args[@]}"
+
+for fd in 7 8 9; do
+  flock -u "$fd"
+  eval "exec ${fd}>&-"
 done

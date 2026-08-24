@@ -78,12 +78,17 @@ class HuggingFaceReplayBackend:
         if self.attn_implementation == "flash_attention_2":
             from transformers.utils import is_flash_attn_2_available
 
-            if not torch.cuda.is_available() or not is_flash_attn_2_available():
+            if not torch.cuda.is_available():
                 raise RuntimeError(
-                    "FlashAttention2 requires an initialized CUDA device and the local "
-                    "flash-attn extension. The current Slurm allocation has no usable CUDA "
-                    "device; resubmit on a healthy GPU node instead of falling back to a "
-                    "Hub kernel or CPU attention."
+                    "FlashAttention2 requires an initialized CUDA device, but this "
+                    "process has no usable CUDA device. Resubmit on a healthy GPU node "
+                    "instead of falling back to a Hub kernel or CPU attention."
+                )
+            if not is_flash_attn_2_available():
+                raise RuntimeError(
+                    "FlashAttention2 was requested, but the local flash-attn extension "
+                    "is not installed or is incompatible with this Torch/CUDA runtime. "
+                    "Install a compatible flash-attn build before enabling it."
                 )
 
         if self.family == "internvl3_5_original":

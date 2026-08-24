@@ -9,13 +9,16 @@ set -uo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
-HF_PYTHON="${HF_PYTHON:-$HOME/.venvs/vlm-transformers/bin/python}"
+HF_PYTHON="${HF_PYTHON:-$HOME/.venvs/MLLM-UQ/bin/python}"
 DATA_ROOT="${DATA_ROOT:-/opt/${USER}/datasets}"
 JUDGE_MODEL="${JUDGE_MODEL:-gpt-5.6-terra}"
 JUDGE_MAX_TOKENS="${JUDGE_MAX_TOKENS:-4096}"
 JUDGE_TIMEOUT="${JUDGE_TIMEOUT:-300}"
 JUDGE_CONCURRENCY="${JUDGE_CONCURRENCY:-10}"
 POLL_SECONDS="${POLL_SECONDS:-60}"
+JUDGE_SLUG="$(printf '%s' "$JUDGE_MODEL" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g; s/^_+//; s/_+$//')"
+[[ -n "$JUDGE_SLUG" ]] || { echo "invalid JUDGE_MODEL: $JUDGE_MODEL" >&2; exit 2; }
+RAW_JUDGE_DIR="results/judging_$JUDGE_SLUG"
 
 # Prefer the project-local .ven credentials over an inherited shell setting.
 unset OPENAI_BASE_URL OPENAI_API_KEY
@@ -53,9 +56,9 @@ generation_running() {
 
 judge_one() {
   local model="$1" dataset="$2"
-  local out="results/judging/$model/$dataset.jsonl"
+  local out="$RAW_JUDGE_DIR/$model/$dataset.jsonl"
   echo "=== $(date '+%F %T') judge model=$model dataset=$dataset judge=$JUDGE_MODEL ==="
-  mkdir -p "results/judging/$model"
+  mkdir -p "$RAW_JUDGE_DIR/$model"
   if "$HF_PYTHON" scripts/judging/judge_responses.py \
       --dataset "$dataset" \
       --dataset-source "$(dataset_source "$dataset")" \
@@ -65,7 +68,7 @@ judge_one() {
       --max-tokens "$JUDGE_MAX_TOKENS" \
       --timeout "$JUDGE_TIMEOUT" \
       --concurrency "$JUDGE_CONCURRENCY"; then
-    touch "results/judging/$model/.$dataset.done"
+    touch "$RAW_JUDGE_DIR/$model/.$dataset.done"
   else
     echo "!!! judge failed: model=$model dataset=$dataset" >&2
     return 1
@@ -79,7 +82,7 @@ for pass in 1 2; do
   fi
   for model in "${MODELS[@]}"; do
     for dataset in "${DATASETS[@]}"; do
-      local_marker="results/judging/$model/.$dataset.done"
+      local_marker="$RAW_JUDGE_DIR/$model/.$dataset.done"
       if ((pass == 1)) && [[ -f "$local_marker" ]]; then
         continue
       fi

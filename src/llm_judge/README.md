@@ -27,10 +27,14 @@ python scripts/judging/judge_responses.py \
   --dataset vilp \
   --dataset-source /server/datasets/vilp/ViLP.parquet \
   --greedy-input /server/results/generation/llava/greedy/vilp.jsonl \
-  --output /server/results/judging/llava/vilp.jsonl \
+  --output /server/results/judging_gpt_5_6_terra/llava/vilp.jsonl \
   --max-tokens 4096 \
   --timeout 300
 ```
+
+原始结果必须保存在由 Judge 模型名派生的独立目录，例如
+`gpt-5.6-terra -> judging_gpt_5_6_terra`。命令行会拒绝将原始结果写入
+保留给人类对齐正式标签的 `results/judging/`。
 
 `--greedy-input` 应指向 HF replay 完成后的正式 `results/generation/<model>/greedy/<dataset>.jsonl`，不能使用 `vllm_raw/` 中尚未完成内部信号回放的中间文件。
 

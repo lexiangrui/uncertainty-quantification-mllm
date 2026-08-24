@@ -17,11 +17,14 @@ MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
 JUDGE_MODEL="${JUDGE_MODEL:-gpt-5.6-terra}"
 JUDGE_MAX_TOKENS="${JUDGE_MAX_TOKENS:-4096}"
 JUDGE_TIMEOUT="${JUDGE_TIMEOUT:-300}"
+JUDGE_SLUG="$(printf '%s' "$JUDGE_MODEL" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g; s/^_+//; s/_+$//')"
+[[ -n "$JUDGE_SLUG" ]] || { echo "invalid JUDGE_MODEL: $JUDGE_MODEL" >&2; exit 2; }
+RAW_JUDGE_DIR="results/judging_$JUDGE_SLUG"
 cd "$PROJECT_ROOT"
-mkdir -p logs/judging "results/judging/$MODEL"
+mkdir -p logs/judging "$RAW_JUDGE_DIR/$MODEL"
 
 for dataset in vilp hallusionbench mmvet; do
-  exec 9>"results/judging/$MODEL/.${dataset}.lock"
+  exec 9>"$RAW_JUDGE_DIR/$MODEL/.${dataset}.lock"
   flock 9
   case $dataset in
     vilp) SRC="$DATA_ROOT/vilp/ViLP.parquet" ;;
@@ -34,7 +37,7 @@ for dataset in vilp hallusionbench mmvet; do
     --dataset "$dataset" \
     --dataset-source "$SRC" \
     --greedy-input "results/generation/$MODEL/greedy/$dataset.jsonl" \
-    --output "results/judging/$MODEL/$dataset.jsonl" \
+    --output "$RAW_JUDGE_DIR/$MODEL/$dataset.jsonl" \
     --model "$JUDGE_MODEL" \
     --max-tokens "$JUDGE_MAX_TOKENS" \
     --timeout "$JUDGE_TIMEOUT" \

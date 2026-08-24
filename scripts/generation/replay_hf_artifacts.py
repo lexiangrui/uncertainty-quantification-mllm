@@ -23,6 +23,23 @@ from src.models.runtime import replay_batch_size, visible_gpu_memory_gib
 from src.utils import completed_sample_ids, load_jsonl_records, write_sample_json_line
 
 
+def _replay_attention_implementation(family: str) -> str:
+    """Select the attention implementation supported by each model package."""
+
+    if family != "internvl3_5_original":
+        return "flash_attention_2"
+    try:
+        from transformers.utils import is_flash_attn_2_available
+
+        if is_flash_attn_2_available():
+            return "flash_attention_2"
+    except Exception:
+        pass
+    # InternVL's original remote code maps use_flash_attn=False to eager and
+    # overwrites the nested language-model config during construction.
+    return "eager"
+
+
 def _chunks(values: list[Any], size: int) -> Iterator[list[Any]]:
     for start in range(0, len(values), size):
         yield values[start : start + size]
@@ -154,9 +171,7 @@ def replay_file(
             family,
             model_path,
             adapter_path=adapter_path,
-            attn_implementation=(
-                "sdpa" if family == "internvl3_5_original" else "flash_attention_2"
-            ),
+            attn_implementation=_replay_attention_implementation(family),
         )
     run = {
         **input_run,

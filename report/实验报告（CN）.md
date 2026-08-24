@@ -29,14 +29,7 @@ LUH 是幻觉检测的漏报，反映该 UQ 方法未能识别模型稳定生成
 
 按照不确定性水平与是否包含幻觉，可将模型回答分为四类：
 
-| 场景分类 | UQ 表现 | 回答特征 | 是否属于幻觉 |
-|---|:---:|---|:---:|
-| 确定且可靠的回答 | 低不确定性 | 回答稳定，事实性内容与输入证据及可验证知识一致 | 否 |
-| 高不确定性幻觉 | 高不确定性 | 模型缺乏充分依据，多次生成不同且无证据支持的事实性内容 | 是 |
-| 高不确定性非幻觉 | 高不确定性 | 问题存在歧义、多个合理答案或开放式表达空间，但生成内容仍有依据 | 否 |
-| **低不确定性幻觉（LUH）** | **低不确定性** | **回答稳定且表面可信，但包含与输入矛盾、无法合理推出或与可验证知识不一致的事实性内容；属于 UQ 幻觉检测漏报** | **是** |
-
-![image-20260816115501794](/Users/lexiangrui/Library/Application Support/typora-user-images/image-20260816115501794.png)
+![四种幻觉类型](/Users/lexiangrui/Desktop/Uncertainty Quantification of MLLM/report/figures/四种幻觉类型.jpg)
 
 ### 1.2 多模态幻觉的评测研究
 
@@ -80,9 +73,9 @@ LUH 是幻觉检测的漏报，反映该 UQ 方法未能识别模型稳定生成
 
 总体而言，多模态 UQ 已从复用文本分数发展到显式探测视觉证据和跨模态表示，但这些分数能否识别 1.1 节严格定义的幻觉，仍需使用独立幻觉标签加以验证。
 
-### 1.4 现有研究的共同缺口
+### 1.4 现有研究的共性问题
 
-综合上述文献，本文认为现有 UQ 研究在预测低不确定性幻觉时存在四个相互关联的缺口。
+综合上述文献，本文认为现有 UQ 研究在预测低不确定性幻觉时存在四个相互关联的缺口
 
 | 缺口 | 现有研究中的常见做法 | 对低不确定性幻觉的影响 |
 |---|---|---|
@@ -105,23 +98,8 @@ LUH 是幻觉检测的漏报，反映该 UQ 方法未能识别模型稳定生成
 
 为解决上述核心问题，本文设计了前后承接的“两阶段”递进式研究路线（图 1.1）。
 
-```text
-      ┌────────────────────────────────────────────────────────┐
-      │               阶段一：基线 UQ 评估与 LUH 盲区挖掘       │
-      │  1. 结构化多模态生成 (LoRA 格式对齐：视/推/答三段式)    │
-      │  2. 独立双轴标注 (LLM Judge：正确性 C 与 幻觉 H)       │
-      │  3. 基线 UQ 评测与盲区挖掘 (PPL / SE / UMPIRE)         │
-      │  4. 提取基线全面失效 (AUROC ≈ 0.5) 的 400 样本 LUH 子集 │
-      └───────────────────────────┬────────────────────────────┘
-                                  │
-                                  ▼ (暴露机理：模型内生自确信，脱离外部真实输入)
-      ┌────────────────────────────────────────────────────────┐
-      │            阶段二：ERA 早期推理归因方法设计与验证      │
-      │  5. 浅层跨模态注意力流解耦 (Layer 0-1 划分为 5 语义分区)│
-      │  6. 早期推理归因指标计算 (量化决策对自生成推理的依赖率) │
-      │  7. LUH 困难子集性能验证 (AUROC / AUPRC / PRR 评估)   │
-      └────────────────────────────────────────────────────────┘
-```
+![研究路线图](/Users/lexiangrui/Desktop/Uncertainty Quantification of MLLM/report/figures/研究路线图.jpg)
+
 **图 1.1：本文两阶段研究路线与技术流程图。**
 
 具体研究流程分为前后衔接的两个实验：
@@ -129,10 +107,10 @@ LUH 是幻觉检测的漏报，反映该 UQ 方法未能识别模型稳定生成
 1. **实验一：UQ 评估框架设计与 LUH 盲区挖掘（第 2 ~ 3 节）**
    - 统一使用格式 LoRA 规范 3 个不同架构的开源 MLLM（LLaVA-1.5、Qwen2.5-VL、InternVL3.5）输出三段式 XML 结构，并由多模态 LLM Judge 在同一次调用中独立标注答案正确性 \(C\) 与幻觉 \(H\)；
    - 在 3 个评测基准（ViLP、HallusionBench、MM-Vet 共 2,247 样本）上系统评估 PPL、Semantic Entropy (SE) 与 UMPIRE 三类代表性 UQ 方法，定量揭示传统方法在低不确定性幻觉（LUH）上的系统性失效；
-   - 为每个模型提取 200 条被三种基线共同漏检的 LUH 正类与 200 条同分布非幻觉负类，构建基线完全无法区分（AUROC 仅 0.446 ~ 0.502）的 400 样本平衡困难测试子集。
+   - 为每个模型提取 200 条被三种基线共同漏检的 LUH 正类与 200 条分数结构匹配的非幻觉负类，构建基线难以区分（AUROC 为 0.417 ~ 0.502）的 400 样本平衡困难测试子集。
 
 2. **实验二：ERA 早期推理归因方法设计与验证（第 4 ~ 5 节）**
-   - 针对基线在 LUH 上失效的深层机理（模型自回归生成推理链时极易产生内生自确信，导致最终决策严重脱离真实视觉与问题输入），提出 **ERA（Early Rationale Attribution，早期推理归因）** 不确定性量化方法；
+   - 针对基线在 LUH 上失效的深层机理（模型自回归生成推理链时极易产生内在自信，导致最终决策严重脱离真实视觉与问题输入），提出 **ERA（Early Rationale Attribution，早期推理归因）** 不确定性量化方法；
    - 在浅层解码器（Layer 0-1）中将输入序列解耦为 5 个连续语义分区（图像 \(I\)、问题 \(Q\)、视觉描述 \(V\)、推理链 \(R\) 与最终答案 \(A\)），通过单次前向传播计算答案流向自生成推理链相较于外部真实输入的相对依赖比率 \(U_{\mathrm{ERA}}\)；
    - 完全复用实验一的困难子集与评估协议，检验 ERA 能否有效从低不确定性非幻觉中识别被传统方法漏检的 LUH 样本，显著提升低不确定性幻觉的判别能力。
 
@@ -155,7 +133,7 @@ LUH 是幻觉检测的漏报，反映该 UQ 方法未能识别模型稳定生成
 | Qwen2.5-VL-7B-Instruct（`Qwen/Qwen2.5-VL-7B-Instruct`） | 约 7B | 新一代原生多模态架构，动态分辨率，OCR 与视觉推理较强 | 新一代开源指令模型 |
 | InternVL3.5-8B（`OpenGVLab/InternVL3_5-8B`） | 约 8B | 视觉编码器、投影层与语言模型组成的多模态架构 | 第三种模型架构，扩大覆盖 |
 
-**LoRA 格式微调。** 预实验表明，三个模型在 greedy 与随机采样下都可能出现标签遗漏、标签不闭合、顺序错误或 XML 外续写；而 Judge 与 UQ 必须可靠分离视觉证据、推理与最终答案，因此对三个模型分别训练只针对回答组织方式的 LoRA adapter。训练数据仅来自 VQAv2 train2014 构造的 XML 监督数据：由多模态教师模型为真实 COCO 图像生成"视觉证据—推理—最终答案"三段内容并统一转换为 `<vision>/<reasoning>/<answer>` 单行 XML 格式，经人工抽样核对后固定为 4,000 条训练与 1,000 条验证；三个正式评测集完全不进入训练数据以避免泄漏。三个模型使用完全相同的训练配置（表 2.2）：仅以 LoRA 调整语言模型部分的注意力投影（`q_proj`、`v_proj`），**冻结视觉编码与多模态对齐部分**——即格式微调不改变模型的视觉感知与图文对齐能力，从而避免微调本身对幻觉率与正确率造成混淆：若直接微调视觉侧或全部参数，格式适配带来的回答分布变化将与任务能力变化纠缠在一起，后续无法判断评测结果差异究竟来自格式协议还是模型能力。为检验该冻结策略是否真正隔离了格式微调的影响，对比实验（解冻视觉编码或全参数微调对幻觉率/正确率的影响）见附录 A.8。三个 adapter 的验证 loss 分别为 0.765（LLaVA）、0.693（Qwen）、0.633（InternVL）；数据构造、训练配置与验收细节见附录 A.7。
+**LoRA 格式微调。** 预实验表明，三个模型在 greedy 与随机采样下都可能出现标签遗漏、标签不闭合、顺序错误或 XML 外续写；而 Judge 与 UQ 必须可靠分离视觉证据、推理与最终答案，因此对三个模型分别训练只针对回答组织方式的 LoRA adapter。训练数据仅来自 VQAv2 train2014 构造的 XML 监督数据：由多模态教师模型为真实 COCO 图像生成"视觉证据—推理—最终答案"三段内容并统一转换为 `<vision>/<reasoning>/<answer>` 单行 XML 格式，经人工抽样核对后固定为 4,000 条训练与 1,000 条验证；三个正式评测集完全不进入训练数据以避免泄漏。三个模型使用完全相同的训练配置（表 2.2）：仅以 LoRA 调整语言模型部分的注意力投影（`q_proj`、`v_proj`），**冻结视觉编码与多模态对齐部分**——即格式微调不改变模型的视觉感知与图文对齐能力，从而避免微调本身对幻觉率与正确率造成混淆。为检验该冻结策略是否真正隔离了格式微调的影响，对比实验（解冻视觉编码或全参数微调对幻觉率/正确率的影响）见附录 A.8。三个 adapter 的验证 loss 分别为 0.765（LLaVA）、0.693（Qwen）、0.633（InternVL）；数据构造、训练配置与验收细节见附录 A.7。
 
 **表 2.2：三模型格式 LoRA 训练配置。三个模型使用相同的数据划分、目标回答与超参数。**
 
@@ -167,7 +145,7 @@ LUH 是幻觉检测的漏报，反映该 UQ 方法未能识别模型稳定生成
 | 学习率 / 训练轮数 | 2×10⁻⁴ / 1 |
 | 验证 loss | 0.765（LLaVA）/ 0.693（Qwen）/ 0.633（InternVL） |
 
-**回答示例。** 以 InternVL3.5-8B 对 ViLP 一个样本的回答为例（`vilp-0-case1`，正确答案 4）。该问题本身体现了 ViLP 的构造方式：句首先验陈述"现代无人机通常有四个螺旋桨"与图像证据一致，模型给出如下完整、规范的单行 XML 回答，三个标签各出现一次且顺序固定、标签外无多余文本，可供 Judge 与 UQ 直接解析：
+**回答示例。
 
 > 问题：Modern drones typically have four propellers. How many propellers does the drone in the picture have?
 >
@@ -187,7 +165,7 @@ LUH 是幻觉检测的漏报，反映该 UQ 方法未能识别模型稳定生成
 | HallusionBench | 1,129 | 951 个图像问题 + 178 个非图像问题 | 视觉错觉、语言先验、错误前提与图文冲突 |
 | MM-Vet | 218 | 单图开放式视觉问答，六类核心能力 | 开放回答中的视觉事实错误与复合能力失败 |
 
-ViLP 的"900"指 900 个实际评测的 QIA 三元组（300 个问题文本 × 3 组图像—答案配对），QIA 即 Question–Image–Answer；HallusionBench 的"1,129"为官方 image（951）与 non-image（178）两个 split 之和；对无图样本不额外传入图像。三个数据集各自的构造方式、问题类型与考察对象详见附录 A.1。
+三个数据集详细信息见附录 A.1。
 
 #### 2.1.3 回答生成协议
 
@@ -202,7 +180,7 @@ ViLP 的"900"指 900 个实际评测的 QIA 三元组（300 个问题文本 × 3
 - **greedy 主回答**：`do_sample=false`，用于正确性/幻觉标注与 Perplexity 计算；
 - **K=10 随机采样回答**：`do_sample=true, temperature=1.0`，每条采样回答最多进行 50 次 XML 格式拒绝重采样，供 Semantic Entropy 与 UMPIRE 使用。
 
-同一批采样回答同时供 Semantic Entropy 与 UMPIRE 使用，避免采样差异。生成时记录最终回答 token 的逐 token log probability 与最后一层隐藏状态（后者仅用于 UMPIRE）；解析失败的样本不静默修复，作为实验结果显式统计（见附录 A.5）。
+同一批采样回答同时供 Semantic Entropy 与 UMPIRE 使用，避免采样差异。生成时记录最终回答 token 的逐 token log probability 与最后一层隐藏状态（用于 UMPIRE），回答中XML标签错误的样本在数据清洗中会被排除，最终的有效样本统计见附录 A.5。
 
 #### 2.1.4 正确性与幻觉的独立标注
 
@@ -211,16 +189,7 @@ ViLP 的"900"指 900 个实际评测的 QIA 三元组（300 个问题文本 × 3
 1. **正确性 \(C\)**：只比较 `<answer>` 与数据集参考答案的语义一致性；
 2. **幻觉 \(H\)**：只评价 `<vision>` 与 `<reasoning>` 是否包含图像、问题、上下文或可验证事实不支持的内容，按 0–6 量表打分，`rating < 3` 判为存在幻觉，并给出 `vision_hallucination` / `reasoning_hallucination` 类型。
 
-Judge 的评分指令与输出格式见附录 A.6。两个标签作用于回答的不同部分且相互独立，允许四种组合（表 2.4），使后续 UQ 评估可以同时覆盖错误检测与幻觉检测两个目标。
-
-**表 2.4：正确性 \(C\) 与幻觉 \(H\) 的四种标签组合。**
-
-| \(C\) | \(H\) | 含义 |
-|:---:|:---:|---|
-| 1 | 0 | 最终答案正确，视觉观察/推理无幻觉 |
-| 1 | 1 | 最终答案正确，但视觉观察/推理含幻觉 |
-| 0 | 0 | 最终答案错误，但视觉观察/推理无幻觉 |
-| 0 | 1 | 最终答案错误，且视觉观察/推理含幻觉 |
+Judge 的评分指令与输出格式见附录 A.6。两个标签作用于回答的不同部分且相互独立，允许四种组合，使后续 UQ 评估可以同时覆盖错误检测与幻觉检测两个目标。
 
 #### 2.1.5 三种基线 UQ 方法
 
@@ -278,7 +247,7 @@ c_i=\exp\!\bigl(\alpha(1-p_i)\bigr),
 
 #### 2.1.6 评估指标
 
-所有指标在每个“模型 × 数据集”单元格内独立计算，不跨模型或数据集比较原始分数。指标分为三组：标签基础、排序能力与盲区统计，分别回答“标签分布如何”“分数能否排序样本”“低分数区域隐藏多少幻觉”三个问题。
+所有指标在每个“模型 × 数据集”单元格内独立计算，不跨模型或数据集比较原始分数。
 
 **标签基础。** 正确性标签 \(C_i\) 与幻觉标签 \(H_i\) 的总体水平由两个比率刻画：
 
@@ -309,23 +278,23 @@ PRR 取值 0 表示与随机排序无异，1 表示达到 oracle 排序；它回
 
 #### 3.1.1 各单元格的准确率与幻觉率
 
-表 3.1 给出三个模型在三个数据集上的有效样本数、Accuracy 与 Hallucination Rate。有效样本为生成、Judge 与 UQ 三路均成功对齐的记录，共 6,685 条"问题—模型"样本；排除记录（全部为 XML 格式解析失败）见附录 A.5。
+表 3.1 给出三个模型在三个数据集上的有效样本数、Accuracy 与 Hallucination Rate。有效样本为生成、Judge 与 UQ 三路均成功对齐的记录，共 6,667 条"问题—模型"样本；在 6,741 条原始生成记录中排除 74 条 XML 分段解析失败样本，排除记录见附录 A.5。
 
 **表 3.1：各单元格的准确率与幻觉率（95% bootstrap 置信区间）。**
 
 | 模型 | 数据集 | N | Accuracy | Hallucination Rate |
 |---|---|---:|---:|---:|
-| LLaVA | ViLP | 888 | 51.0% (47.9, 54.1) | 52.4% (48.9, 55.7) |
-| LLaVA | HallusionBench | 1,116 | 49.3% (46.3, 52.2) | 72.2% (69.4, 74.9) |
-| LLaVA | MM-Vet | 217 | 22.6% (17.1, 28.6) | 66.8% (60.4, 72.8) |
-| Qwen | ViLP | 896 | 67.3% (64.0, 70.8) | 20.0% (17.3, 22.9) |
-| Qwen | HallusionBench | 1,114 | 58.3% (55.2, 61.2) | 46.6% (43.4, 50.0) |
-| Qwen | MM-Vet | 217 | 47.9% (41.0, 54.8) | 30.9% (24.9, 36.9) |
-| InternVL | ViLP | 899 | 63.4% (60.6, 66.3) | 27.7% (25.0, 30.5) |
-| InternVL | HallusionBench | 1,127 | 61.0% (58.0, 64.4) | 44.4% (41.0, 48.1) |
-| InternVL | MM-Vet | 211 | 60.7% (54.5, 66.8) | 28.0% (21.8, 34.1) |
+| LLaVA | ViLP | 886 | 52.1% (49.3, 55.0) | 52.0% (48.9, 55.2) |
+| LLaVA | HallusionBench | 1,108 | 51.3% (48.5, 54.1) | 77.6% (74.6, 80.7) |
+| LLaVA | MM-Vet | 216 | 22.7% (17.1, 28.7) | 69.9% (63.9, 75.9) |
+| Qwen | ViLP | 898 | 63.6% (60.4, 66.7) | 22.6% (20.1, 25.2) |
+| Qwen | HallusionBench | 1,099 | 66.1% (62.6, 69.6) | 42.6% (38.0, 47.1) |
+| Qwen | MM-Vet | 218 | 53.2% (46.8, 60.1) | 29.4% (23.4, 35.8) |
+| InternVL | ViLP | 900 | 61.8% (59.0, 64.7) | 25.4% (22.7, 28.3) |
+| InternVL | HallusionBench | 1,126 | 71.0% (67.6, 74.5) | 38.6% (34.4, 43.4) |
+| InternVL | MM-Vet | 216 | 55.1% (48.1, 62.0) | 26.4% (20.8, 32.9) |
 
-三个数据集构成清晰的难度梯度：HallusionBench 的幻觉率显著高于其余数据集（LLaVA 高达 72.2%），MM-Vet 的准确率普遍偏低（LLaVA 仅 22.6%），ViLP 则集中考察语言先验与视觉证据的冲突。同一数据集上不同模型的幻觉率差异很大（例如 HallusionBench 上 LLaVA 72.2% 对 Qwen 46.6%），说明幻觉率是"模型 × 数据集"共同作用的结果，不能由单一方面概括。
+三个数据集呈现不同的失效结构：HallusionBench 的幻觉率在三个模型上均为最高（LLaVA 高达 77.6%），MM-Vet 对 LLaVA 的正确性挑战最大（Accuracy 仅 22.7%），ViLP 则集中考察语言先验与视觉证据的冲突。同一数据集上不同模型的幻觉率差异很大：HallusionBench 上 LLaVA 为 77.6%，而 InternVL 为 38.6%。这说明幻觉率是"模型 × 数据集"共同作用的结果，不能由单一方面概括。
 
 #### 3.1.2 正确性—幻觉四象限与独立性
 
@@ -335,17 +304,17 @@ PRR 取值 0 表示与随机排序无异，1 表示达到 oracle 排序；它回
 
 | 模型 | 数据集 | C=1,H=0 | C=1,H=1 | C=0,H=0 | C=0,H=1 | H\|E=1 | H\|C=1 | φ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| LLaVA | ViLP | 36.6% | 14.4% | 11.0% | 38.0% | 77.5% | 28.3% | −0.493 |
-| LLaVA | HallusionBench | 22.8% | 26.4% | 4.9% | 45.8% | 90.3% | 53.6% | −0.409 |
-| LLaVA | MM-Vet | 15.7% | 6.9% | 17.5% | 59.9% | 77.4% | 30.6% | −0.415 |
-| Qwen | ViLP | 62.3% | 5.0% | 17.7% | 15.0% | 45.7% | 7.5% | −0.449 |
-| Qwen | HallusionBench | 44.6% | 13.6% | 8.8% | 32.9% | 78.9% | 23.4% | −0.549 |
-| Qwen | MM-Vet | 39.6% | 8.3% | 29.5% | 22.6% | 43.4% | 17.3% | −0.282 |
-| InternVL | ViLP | 57.3% | 6.1% | 15.0% | 21.6% | 59.0% | 9.6% | −0.531 |
-| InternVL | HallusionBench | 48.2% | 12.9% | 7.5% | 31.5% | 80.9% | 21.1% | −0.587 |
-| InternVL | MM-Vet | 55.0% | 5.7% | 17.1% | 22.3% | 56.6% | 9.4% | −0.514 |
+| LLaVA | ViLP | 38.7% | 13.4% | 9.3% | 38.6% | 80.7% | 25.8% | −0.549 |
+| LLaVA | HallusionBench | 19.8% | 31.5% | 2.6% | 46.1% | 94.6% | 61.4% | −0.398 |
+| LLaVA | MM-Vet | 16.7% | 6.0% | 13.4% | 63.9% | 82.6% | 26.5% | −0.512 |
+| Qwen | ViLP | 58.7% | 4.9% | 18.7% | 17.7% | 48.6% | 7.7% | −0.471 |
+| Qwen | HallusionBench | 48.8% | 17.3% | 8.6% | 25.3% | 74.5% | 26.2% | −0.463 |
+| Qwen | MM-Vet | 46.3% | 6.9% | 24.3% | 22.5% | 48.0% | 12.9% | −0.385 |
+| InternVL | ViLP | 57.2% | 4.6% | 17.3% | 20.9% | 54.7% | 7.4% | −0.527 |
+| InternVL | HallusionBench | 55.2% | 15.8% | 6.1% | 22.8% | 78.8% | 22.2% | −0.527 |
+| InternVL | MM-Vet | 51.9% | 3.2% | 21.8% | 23.1% | 51.5% | 5.9% | −0.515 |
 
-幻觉与错误并不重合：错误样本中的幻觉率（H|E=1）在 43.4%–90.3% 之间，正确样本中的幻觉率（H|C=1）在 7.5%–53.6% 之间；φ 均为负值（−0.59 至 −0.28），表示正确性与幻觉呈负相关——错误样本中幻觉更常见，但其绝对值远未达到"错误即幻觉"的等价关系。以 LLaVA/HallusionBench 为例，即使最终答案正确，仍有 53.6% 的样本在视觉观察或推理中包含幻觉——若以答案正误替代幻觉标签，这些样本会被全部漏掉。
+幻觉与错误并不重合：错误样本中的幻觉率（H|E=1）在 48.0%–94.6% 之间，正确样本中的幻觉率（H|C=1）在 5.9%–61.4% 之间；φ 均为负值（−0.55 至 −0.39），表示正确性与幻觉呈中等负相关——错误样本中幻觉更常见，但两者远非等价。以 LLaVA/HallusionBench 为例，即使最终答案正确，仍有 61.4% 的样本在视觉观察或推理中包含幻觉；反过来，该单元格也有 5.4% 的错误样本未被判为幻觉。若以答案正误替代幻觉标签，前一类样本会被系统性漏掉。
 
 这一结果验证了 1.1 节标签设计的必要性：正确性与幻觉必须作为两个独立标签分别标注。UQ 评估也只有在这两个标签上分别计算指标，才能回答"分数能否预测错误"与"分数能否预测幻觉"这两个不同的问题。
 
@@ -355,27 +324,27 @@ PRR 取值 0 表示与随机排序无异，1 表示达到 oracle 排序；它回
 
 #### 3.2.1 错误检测
 
-表 3.3 报告以错误 \(E\) 为正类的检测能力。三个模型上三种方法的宏平均 AUROC 均在 0.64–0.74 之间，显著优于随机水平（0.5）；Semantic Entropy 在三个模型上均为最优或并列最优（0.669 / 0.722 / 0.736），UMPIRE 次之（0.675 / 0.680 / 0.673），Perplexity 最低（0.637 / 0.652 / 0.643）。按 9 个单元格的排名统计（附录 A.2），Semantic Entropy 在 7/9 格取得错误检测最优，Perplexity 无任何一格最优。
+表 3.3 报告以错误 \(E\) 为正类的检测能力。三个模型上三种方法的宏平均 AUROC 在 0.64–0.77 之间，均优于随机水平（0.5）。Semantic Entropy 在三个模型上都是最优方法（0.680 / 0.733 / 0.771），UMPIRE 次之（0.669 / 0.693 / 0.714），Perplexity 最低（0.642 / 0.668 / 0.685）。按 9 个单元格的排名统计（附录 A.2），Semantic Entropy 在 8/9 格取得错误检测最优，UMPIRE 在 1/9 格最优，Perplexity 无任何一格最优。
 
 **表 3.3：错误检测的宏平均 AUROC（每模型跨三数据集等权；95% bootstrap 置信区间）。**
 
 | 模型 | Perplexity | Semantic Entropy | UMPIRE |
 |---|---:|---:|---:|
-| LLaVA | 0.637 (0.606, 0.666) | 0.669 (0.641, 0.697) | 0.675 (0.645, 0.705) |
-| Qwen | 0.652 (0.626, 0.680) | 0.722 (0.697, 0.746) | 0.680 (0.654, 0.707) |
-| InternVL | 0.643 (0.614, 0.671) | 0.736 (0.712, 0.758) | 0.673 (0.643, 0.700) |
+| LLaVA | 0.642 (0.609, 0.672) | 0.680 (0.650, 0.710) | 0.669 (0.638, 0.697) |
+| Qwen | 0.668 (0.639, 0.695) | 0.733 (0.706, 0.757) | 0.693 (0.667, 0.718) |
+| InternVL | 0.685 (0.654, 0.712) | 0.771 (0.745, 0.794) | 0.714 (0.686, 0.739) |
 
 #### 3.2.2 幻觉检测
 
-表 3.4 报告以幻觉 \(H\) 为正类的检测能力。整体水平明显低于错误检测：宏平均 AUROC 降至 0.51–0.70，方法排序与错误检测一致——Semantic Entropy 仍为最优（0.634 / 0.608 / 0.704），UMPIRE 次之（0.616 / 0.539 / 0.622），Perplexity 最弱（0.546 / 0.513 / 0.582）。按 9 格排名，Semantic Entropy 在 8/9 格取得幻觉检测最优，Perplexity 仍无任何一格最优；个别单元格中 Perplexity 的幻觉检测接近随机（如 Qwen/MM-Vet 上 AUROC 0.482）。
+表 3.4 报告以幻觉 \(H\) 为正类的检测能力。整体水平明显低于错误检测：宏平均 AUROC 仅为 0.55–0.71。Semantic Entropy 在三个模型上仍为最优（0.615 / 0.651 / 0.707），UMPIRE 次之（0.611 / 0.602 / 0.648），Perplexity 最弱（0.578 / 0.553 / 0.602）。按 9 格排名，Semantic Entropy 在 8/9 格取得最优，Perplexity 在 1/9 格最优，UMPIRE 无一格最优。个别单元格仍接近随机，例如 Qwen/ViLP 上 Perplexity 的 AUROC 仅为 0.528。
 
 **表 3.4：幻觉检测的宏平均 AUROC（每模型跨三数据集等权；95% bootstrap 置信区间）。**
 
 | 模型 | Perplexity | Semantic Entropy | UMPIRE |
 |---|---:|---:|---:|
-| LLaVA | 0.546 (0.511, 0.579) | 0.634 (0.604, 0.664) | 0.616 (0.584, 0.648) |
-| Qwen | 0.513 (0.479, 0.547) | 0.608 (0.576, 0.641) | 0.539 (0.506, 0.571) |
-| InternVL | 0.582 (0.550, 0.614) | 0.704 (0.675, 0.731) | 0.622 (0.592, 0.653) |
+| LLaVA | 0.578 (0.541, 0.612) | 0.615 (0.581, 0.648) | 0.611 (0.575, 0.645) |
+| Qwen | 0.553 (0.516, 0.590) | 0.651 (0.617, 0.683) | 0.602 (0.566, 0.640) |
+| InternVL | 0.602 (0.564, 0.636) | 0.707 (0.677, 0.735) | 0.648 (0.616, 0.676) |
 
 三种方法对幻觉的预测能力都弱于对错误的预测能力，且该差距在三个模型上一致存在。由于三种分数只由最终答案计算，而幻觉标签只评价视觉观察与推理部分，这一结果应解释为"答案不确定性对幻觉的代理预测能力"，而非对幻觉文本的直接测量：幻觉中确有与答案不确定性相关的成分，但远不足以将 UQ 分数直接视为幻觉概率。
 
@@ -387,11 +356,11 @@ PRR 取值 0 表示与随机排序无异，1 表示达到 oracle 排序；它回
 
 | 模型 | Perplexity | Semantic Entropy | UMPIRE |
 |---|---:|---:|---:|
-| LLaVA | −0.091 | −0.035 | −0.059 |
-| Qwen | −0.139 | −0.115 | −0.141 |
-| InternVL | −0.061 | −0.032 | −0.051 |
+| LLaVA | −0.064 | −0.065 | −0.058 |
+| Qwen | −0.115 | −0.082 | −0.091 |
+| InternVL | −0.083 | −0.064 | −0.066 |
 
-三个模型上所有方法的目标差距均为负值，即幻觉检测一致弱于错误检测；其中 Qwen 的差距最大（−0.11 至 −0.14），InternVL 最小（−0.03 至 −0.06）。逐单元格看（附录 A.2），差距在 MM-Vet 上最为突出（如 Qwen/UMPIRE 达 −0.307），而在个别单元格甚至为正值（如 LLaVA/HallusionBench 上三种方法幻觉检测反而更强），说明"分数预测幻觉"的损失并非均匀分布，而是集中在特定数据与能力类型上。这进一步表明：以答案不确定性作为幻觉代理存在结构性损失，识别低不确定性幻觉需要超越答案空间的信号。
+三个模型上所有方法的宏平均目标差距均为负值，即幻觉检测一致弱于错误检测；其中 Qwen 的差距最大（−0.082 至 −0.115），LLaVA 与 InternVL 的差距约为 −0.058 至 −0.083。逐单元格看（附录 A.2），27 个"单元格 × 方法"差距的平均为 −0.076，范围为 [−0.193, 0.037]；最大负差距出现在 LLaVA/MM-Vet 的 Perplexity（−0.193），而 LLaVA/HallusionBench 上三种方法的差距均略为正。这说明"分数预测幻觉"的损失并非均匀分布，而是集中在特定数据与能力类型上。这进一步表明：以答案不确定性作为幻觉代理存在结构性损失，识别低不确定性幻觉需要超越答案空间的信号。
 
 ### 3.3 低不确定性幻觉盲区
 
@@ -413,21 +382,21 @@ PRR 取值 0 表示与随机排序无异，1 表示达到 oracle 排序；它回
 
 | 模型 | 方法 | α=0.25 | α=0.50 |
 |---|---|---:|---:|
-| LLaVA | Perplexity | 0.220 (0.187, 0.253) | 0.478 (0.426, 0.512) |
-| LLaVA | Semantic Entropy | 0.172 (0.134, 0.198) | 0.440 (0.379, 0.470) |
-| LLaVA | UMPIRE | 0.149 (0.123, 0.182) | 0.371 (0.321, 0.405) |
-| Qwen | Perplexity | 0.242 (0.197, 0.277) | 0.529 (0.479, 0.578) |
-| Qwen | Semantic Entropy | 0.170 (0.141, 0.200) | 0.315 (0.262, 0.356) |
-| Qwen | UMPIRE | 0.200 (0.157, 0.239) | 0.439 (0.382, 0.483) |
-| InternVL | Perplexity | 0.182 (0.146, 0.243) | 0.501 (0.449, 0.548) |
-| InternVL | Semantic Entropy | 0.162 (0.132, 0.192) | 0.235 (0.191, 0.287) |
-| InternVL | UMPIRE | 0.108 (0.077, 0.145) | 0.358 (0.316, 0.405) |
+| LLaVA | Perplexity | 0.187 (0.162, 0.226) | 0.422 (0.384, 0.463) |
+| LLaVA | Semantic Entropy | 0.137 (0.107, 0.180) | 0.444 (0.393, 0.495) |
+| LLaVA | UMPIRE | 0.166 (0.135, 0.198) | 0.398 (0.349, 0.450) |
+| Qwen | Perplexity | 0.238 (0.189, 0.288) | 0.494 (0.433, 0.545) |
+| Qwen | Semantic Entropy | 0.222 (0.188, 0.255) | 0.286 (0.244, 0.341) |
+| Qwen | UMPIRE | 0.161 (0.121, 0.199) | 0.374 (0.328, 0.417) |
+| InternVL | Perplexity | 0.166 (0.104, 0.219) | 0.449 (0.398, 0.509) |
+| InternVL | Semantic Entropy | 0.158 (0.127, 0.189) | 0.268 (0.211, 0.315) |
+| InternVL | UMPIRE | 0.062 (0.039, 0.091) | 0.312 (0.265, 0.364) |
 
-以 \(\alpha=0.25\) 为例：即使只取分数最低的 25% 区域，三种方法在每个模型上仍有一定比例的幻觉样本落入其中——InternVL/UMPIRE 最低（10.8%），Qwen/Perplexity 最高（24.2%），即每四个幻觉样本中约有一个被"安全"地归入低不确定性侧。当阈值放宽到 \(\alpha=0.50\)，漏检规模显著扩大：多数单元格的 \(\mathrm{luh\_share}\) 达到 0.37–0.53，即约四成到一半的幻觉样本分数低于非幻觉样本的中位数，其中 Qwen/Perplexity 高达 52.9%。Semantic Entropy 的 \(\mathrm{luh\_share}\) 在 \(\alpha=0.50\) 上普遍最低（InternVL 仅 23.5%），与其幻觉检测 AUROC 最优一致，但这只是把盲区缩小，并未消除。总体而言，低不确定性幻觉是规模可观的系统性漏检，且与 3.3.1 的机制分析吻合：在"稳定但错误"的样本上，分数的排序能力系统性失效。
+以 \(\alpha=0.25\) 为例：即使只取非幻觉分数分布的最低 25% 区域，仍有 6.2%–23.8% 的幻觉样本落入其中；InternVL/UMPIRE 最低（6.2%），Qwen/Perplexity 最高（23.8%）。当阈值放宽到 \(\alpha=0.50\)，漏检规模扩大到 26.8%–49.4%，其中 Qwen/Perplexity 已接近一半。Semantic Entropy 在 Qwen 与 InternVL 的 \(\alpha=0.50\) 上盲区最小（0.286 / 0.268），而 LLaVA 上则是 UMPIRE 最小（0.398）；因此不存在一个在所有模型和阈值上都一致消除盲区的方法。总体而言，低不确定性幻觉仍是规模可观的系统性漏检，与 3.3.1 的"稳定但缺乏证据"机制分析吻合。
 
 #### 3.3.3 典型 LUH 案例分析
 
-本节给出三个典型 LUH 案例，分别对应语言先验凌驾视觉、视觉读数错误与"答案正确但含幻觉"三种情形；三者均被三种基线方法一致判为低不确定性（均处于各自单元格最低 20% 区域，且都在 3.4 节的低不确定性子集中）。案例图像见对应图；分数与 Judge 记录取自正式运行结果。
+本节给出三个典型 LUH 案例，分别对应语言先验凌驾视觉、视觉读数错误与"答案正确但含幻觉"三种情形。三者在三维基线分数的综合百分位上都属于低不确定性幻觉，并均被选入 3.4 节的困难子集正类。下述回答、分数与 Judge 记录均取自集群上的最新正式运行结果。
 
 **案例 1（LLaVA / ViLP，语言先验凌驾视觉证据）。** 问题句首给出"袋鼠以跳跃著称"的先验信息，图像实际是考拉：
 
@@ -438,13 +407,13 @@ PRR 取值 0 表示与随机排序无异，1 表示达到 oracle 排序；它回
 | 样本 | ViLP row 55, case 2 |
 | 问题 | The kangaroo is known for its excellent jumping. Which animal native to Australia is shown in the image demonstrating a jump? |
 | 参考答案 | Koala |
-| 模型回答 | `<vision>` The image shows a large, furry animal with a long tail and large paws jumping in mid-air. The animal has a distinctive face with a large, round head, long snout, and large, round ears. `</vision>` → `<reasoning>` The animal in the image is a kangaroo, which is a native mammal to Australia and is known for its excellent jumping abilities. `</reasoning>` → `<answer>` kangaroo |
-| Judge | rating 1，`vision_hallucination` + `reasoning_hallucination`（将明显类似考拉的动物误认为袋鼠，并编造"长尾"等特征） |
-| UQ 分数 | PPL 1.0001（单元格百分位 0.2%）、SE 0.0000（10 次采样完全一致）、UMPIRE −45.49 |
+| 模型回答 | `<vision>` The image shows a large animal with a long tail, large paws, and a distinctive coat pattern leaping into the air. The animal's body is positioned horizontally, with its legs extended and its head raised. The animal's face is clearly visible, showing a distinctive muzzle and large eyes. `</vision>` → `<reasoning>` The animal in the image is a kangaroo, which is a native Australian mammal known for its excellent jumping abilities. `</reasoning>` → `<answer>` kangaroo |
+| Judge | rating 1，`vision_hallucination` + `reasoning_hallucination`（将考拉误认为袋鼠，并编造"长尾"等与图像不符的特征） |
+| UQ 分数 | PPL 1.0001（单元格百分位 1.5%）、SE 0.5003（26.6%）、UMPIRE −41.04（5.0%） |
 
 <img src="figures/vilp_55_case2.jpg" alt="案例 1 图像：ViLP row 55（考拉）。" style="zoom: 33%;" />
 
-模型的视觉描述（圆头、长鼻、圆耳）其实更接近考拉，但推理环节被问题句首的"kangaroo is known for jumping"先验主导，最终自信地回答袋鼠。三种 UQ 信号全部指向"极度确定"：PPL≈1 表示模型对答案几乎赋予全部概率，SE=0 表示 10 次采样语义完全一致，UMPIRE 远低于 0 表示采样表征体积极小且概率一致。这是一个典型的"稳定且无依据"样本——语言先验使模型产生了高度一致的错误，而一致性类 UQ 方法把这种一致误读为可靠。
+模型的视觉描述被问题句首的"kangaroo is known for jumping"先验主导，最终自信地回答袋鼠。PPL 与 UMPIRE 均处于该单元格的最低 5% 左右；SE 虽非最低档，但三维综合排序仍将其选入 LUH 正类。这是一个典型的"稳定且无依据"样本：语言先验使模型对错误答案给出极高 token 概率，而答案空间的低不确定性并未保证视觉依据可靠。
 
 **案例 2（Qwen / MM-Vet，视觉读数错误）。** 问题询问汽油单价，模型把显示屏上的总金额误读为单价：
 
@@ -455,13 +424,13 @@ PRR 取值 0 表示与随机排序无异，1 表示达到 oracle 排序；它回
 | 样本 | MM-Vet v1_16（capability: ocr, math） |
 | 问题 | What is the gasoline price? |
 | 参考答案 | 4.299（≈4.3） |
-| 模型回答 | `<vision>` The image shows a digital display on a gas pump. At the top, it reads "This Sale" followed by two large numbers: 62.85 and 4.620. Below the numbers, it says "Gallons". The number 62.85 is clearly labeled as the price. `</vision>` → `<reasoning>` The price of the gasoline is explicitly displayed at the top of the digital screen as 62.85. `</reasoning>` → `<answer>` 62.85 |
-| Judge | rating 1，`vision_hallucination` + `reasoning_hallucination`（62.85 是销售总金额，单价约 4.3 美元/加仑；观察与推理均误读显示屏） |
-| UQ 分数 | PPL 1.0002、SE 0.0000（10 次采样完全一致）、UMPIRE −40.44 |
+| 模型回答 | `<vision>` The image shows a digital display on a gas pump. At the top, the text 'This Sale' is visible. Below that, the price is shown as '62.85', and underneath the price, the number of gallons dispensed is '4.620'. At the bottom of the display, the word 'Gallons' is written. `</vision>` → `<reasoning>` The price of the gasoline is clearly displayed at the top of the digital screen as '62.85'. `</reasoning>` → `<answer>` 62.85 |
+| Judge | rating 1，`vision_hallucination` + `reasoning_hallucination`（62.85 是销售总金额，单价约 4.299 美元/加仑；同时将 14.620 加仑误读为 4.620） |
+| UQ 分数 | PPL 1.0003（单元格百分位 16.5%）、SE 0.5004（37.6%）、UMPIRE −43.79（12.4%） |
 
 <img src="figures/mmvet_v1_16.jpg" alt="案例 2 图像：MM-Vet v1_16（加油机显示屏）。" style="zoom: 33%;" />
 
-模型不仅读错数字，还在视觉描述中编造了"62.85 is clearly labeled as the price"这一并不存在的确定感（Judge 指出 62.85 为总金额、单价约 4.3）。OCR/读数错误是 MM-Vet 中幻觉的主要来源之一，而本例说明这类错误可以伴随极低的 PPL 与完全一致的采样——错误读数是稳定的，但稳定不等于正确。
+模型不仅把总金额读成单价，还误读了加仑数，随后在推理中把错误读数表述为"clearly displayed"。其 PPL 与 UMPIRE 均处于该单元格的低分区域；虽然 SE 仅处于前 37.6%，三维综合不确定性仍足以使它进入 LUH 子集。本例说明，OCR/读数错误可以伴随极高的生成概率；局部采样分散也未必足以使基线正确识别幻觉。
 
 **案例 3（InternVL / HallusionBench，答案正确但视觉观察含幻觉）。** 问题询问苹果公司 2012–2022 年收入是否主要来自日本，模型答"否"（正确），但其视觉观察包含不实陈述：
 
@@ -472,15 +441,15 @@ PRR 取值 0 表示与随机排序无异，1 表示达到 oracle 排序；它回
 | 样本 | HallusionBench image, VS / chart, set 6, figure 1, question 3 |
 | 问题 | From 2012 to 2022, did Apple derive the majority of its revenue from Japan? |
 | 参考答案 | No |
-| 模型回答 | `<vision>` The stacked area chart shows the share of total revenue for Apple from 2012 to 2022, divided by region. The blue section represents the Americas, the dark gray section represents Europe, the light gray section represents Greater China, the red section represents Japan, and the green section represents the Rest of Asia Pacific. The red section for Japan is consistently the smallest among all regions throughout the entire period. `</vision>` → `<reasoning>` The red area representing Japan is the smallest in each quarter from 2012 to 2022, indicating that it contributed the least to Apple's revenue. Therefore, Apple did not derive the majority of its revenue from Japan. `</reasoning>` → `<answer>` no |
-| Judge | rating 1，`vision_hallucination`（图中部分时期亚太其他地区比日本更小，"始终最小"无证据支持）；**correct=true** |
-| UQ 分数 | PPL 1.0001、SE 0.0000（10 次采样完全一致）、UMPIRE −44.18 |
+| 模型回答 | `<vision>` The stacked area chart shows the share of total revenue for Apple from 2012 to 2022, divided by region. The 'Japan' region is represented by a red layer, which is consistently the smallest segment throughout the entire period. `</vision>` → `<reasoning>` Since the red layer representing Japan is the smallest and never exceeds 10% of the total revenue, it is clear that Apple did not derive the majority of its revenue from Japan. `</reasoning>` → `<answer>` no |
+| Judge | rating 2，`vision_hallucination`（亚太其他地区在多个时期比日本更小，"日本始终最小"的观察不准确）；**correct=true** |
+| UQ 分数 | PPL 1.0000（单元格百分位 17.5%）、SE 0.0000（19.7%）、UMPIRE −43.94（16.6%） |
 
 ![案例 3 图像：HallusionBench chart 6_1（苹果分地区收入）。](figures/hb_chart_6_1_3.png)
 
-本例是 1.1 节"正确性与幻觉独立"设计的直接体现：最终答案正确（C=1），但视觉观察包含无证据的绝对化陈述（H=1，rating 1）。若以答案正误替代幻觉标签，该样本会被当作完全正常；而三种 UQ 分数同样将其判为低不确定性——正确的答案同样可以伴随被 UQ 完全信任的幻觉观察，因为模型对"日本最小"这一错误视觉陈述同样过度自信，采样同样完全一致。
+本例是 1.1 节"正确性与幻觉独立"设计的直接体现：最终答案正确（C=1），但视觉观察包含无证据的绝对化陈述（H=1，rating 2）。若以答案正误替代幻觉标签，该样本会被当作完全正常；而三种 UQ 分数均处于该单元格的前 20% 低不确定性区域。这说明最终答案正确、采样稳定与中间视觉陈述有证据支持是三个不同的命题。
 
-三个案例共同说明：低不确定性幻觉并非单一机制，它可以来自语言先验（案例 1）、视觉读数（案例 2）与"正确答案下的幻觉观察"（案例 3），但共同点是模型生成高度稳定、概率高度自信，而内容缺乏证据支持——正是 3.3.1 所述"过度自信使采样信号失效"的具体形态。
+三个案例共同说明：低不确定性幻觉并非单一机制，它可以来自语言先验（案例 1）、视觉读数（案例 2）与"正确答案下的幻觉观察"（案例 3）。它们的共同点是：至少一个基线维度表现出强烈自信，三维综合分数较低，但视觉或推理内容仍缺乏证据支持。这正是 3.3.1 所述"答案空间信号无法验证证据充分性"的具体形态。
 
 ### 3.4 低不确定性子集提取与验证
 
@@ -495,7 +464,7 @@ PRR 取值 0 表示与随机排序无异，1 表示达到 oracle 排序；它回
 3. **负类匹配**：对每个正类样本，在 \(H=0\) 样本池中按三维百分位欧氏距离贪心搜索最近且未被占用的样本，一对一匹配 200 条，构成子集的负类；
 4. 正负类合并构成 400 样本的低不确定性子集。
 
-匹配在三维百分位空间进行（而非仅按平均百分位），确保三种基线分数在正负类间的分布都高度重叠，从而使所有方法的 AUROC 都接近随机水平。提取结果为 `results/analysis/luh/per_model_subsets.json` 与各模型的 `{model}_subset_ids.txt`。
+匹配在三维百分位空间进行（而非仅按平均百分位），使三种基线分数在正负类间高度重叠，并将其固定方向的 AUROC 压低至随机水平附近或轻微反排序。提取结果为 `results/analysis/luh/per_model_subsets.json` 与各模型的 `{model}_subset_ids.txt`。
 
 #### 3.4.2 子集构成与标签纯度
 
@@ -503,11 +472,11 @@ PRR 取值 0 表示与随机排序无异，1 表示达到 oracle 排序；它回
 
 | 模型 | 正类 | 负类 | 合计 | ViLP 正/负 | HallusionBench 正/负 | MM-Vet 正/负 |
 |---|---:|---:|---:|---:|---:|---:|
-| LLaVA | 200 | 200 | 400 | 86 / 133 | 103 / 45 | 11 / 22 |
-| Qwen | 200 | 200 | 400 | 88 / 117 | 87 / 60 | 25 / 23 |
-| InternVL | 200 | 200 | 400 | 101 / 116 | 87 / 63 | 12 / 21 |
+| LLaVA | 200 | 200 | 400 | 49 / 107 | 146 / 74 | 5 / 19 |
+| Qwen | 200 | 200 | 400 | 36 / 79 | 153 / 106 | 11 / 15 |
+| InternVL | 200 | 200 | 400 | 49 / 64 | 148 / 113 | 3 / 23 |
 
-子集标签纯度经验证为 100%：正类全部 \(H=1\)（Hallucination Rating 均值约 1.2，范围 [0, 2]），负类全部 \(H=0\)（Rating 均值约 5.5，范围 [3, 6]）。数据集分布上，正类中 HallusionBench 占比最高（该数据集幻觉率最高），负类中 ViLP 占比最高（该数据集低不确定性非幻觉样本最多）。
+子集标签纯度经验证为 100%：每个模型的 200 条正类全部 \(H=1\)，200 条负类全部 \(H=0\)。合并三个模型后，正类 Hallucination Rating 均值为 1.17，范围 [0, 2]；负类均值为 5.65，范围 [3, 6]。数据集分布上，正类高度集中于 HallusionBench（各模型占 73.0%–76.5%）；负类分布随模型变化，LLaVA 以 ViLP 为主（53.5%），Qwen 与 InternVL 则以 HallusionBench 为主（53.0% / 56.5%）。这一变化表明，最近邻匹配优先对齐分数结构，并不强制正负类的数据集边际分布相同。
 
 #### 3.4.3 基线在子集上的表现
 
@@ -515,17 +484,17 @@ PRR 取值 0 表示与随机排序无异，1 表示达到 oracle 排序；它回
 
 | 模型 | PPL | Semantic Entropy | UMPIRE |
 |---|---:|---:|---:|
-| LLaVA | 0.446 | 0.475 | 0.473 |
-| Qwen | 0.498 | 0.502 | 0.490 |
-| InternVL | 0.494 | 0.499 | 0.496 |
+| LLaVA | 0.423 | 0.475 | 0.417 |
+| Qwen | 0.490 | 0.502 | 0.482 |
+| InternVL | 0.489 | 0.498 | 0.502 |
 
-三种方法在所有模型子集上的 AUROC 均接近 0.5（0.446–0.502），正负类的分数均值与标准差高度接近（例如 LLaVA 子集上 PPL 正/负类均值 1.0037/1.0035，SE 0.326/0.347，UMPIRE −31.72/−30.48）。这确认了子集构造成功：**基线无法仅凭 UQ 分数区分该区域内的幻觉与非幻觉样本**，该困难子集由此成为实验二改进方法的"诚实测试集"。
+三种方法在九个"模型 × 方法"组合上的 AUROC 为 0.417–0.502。Qwen 与 InternVL 的六个结果均在 0.482–0.502 之间，几乎完全等于随机排序；LLaVA 的 PPL 与 UMPIRE 低于 0.5（0.423 / 0.417），表示固定分数方向下出现轻微反排序，而非获得了可用的正向幻觉检测能力。分数分布也与此一致：LLaVA 子集上 PPL 正/负类均值为 1.0013/1.0019，SE 为 0.238/0.258，UMPIRE 为 −36.03/−32.93。因此，在不根据该子集事后翻转分数方向的前提下，**基线无法仅凭 UQ 分数区分该区域内的幻觉与非幻觉样本**。该子集因而可作为实验二的固定困难评测集；但由于它是针对三种基线显式构造的，后续结果应与全量数据表现配合解读。
 
 ## 4 实验二：ERA 早期推理归因不确定性量化方法设计
 
 ### 4.1 方法动机
 
-实验一表明，Perplexity、Semantic Entropy 和 UMPIRE 等现有不确定性量化方法虽然能够在总体数据上一定程度地区分正确与错误回答，但在低不确定性幻觉（Low-Uncertainty Hallucination，LUH）样本上存在明显失效。尤其在构造的低不确定性困难子集中，幻觉正样本与非幻觉负样本在三种基线 UQ 分数空间中被刻意匹配，其 AUROC 均接近随机水平。这说明，仅依赖生成概率、重复采样一致性或最终隐藏表示的稳定程度，难以识别模型“稳定地产生错误内容”的情况。
+实验一表明，Perplexity、Semantic Entropy 和 UMPIRE 等现有不确定性量化方法虽然能够在总体数据上一定程度地区分正确与错误回答，但在低不确定性幻觉（Low-Uncertainty Hallucination，LUH）样本上存在明显失效。尤其在构造的低不确定性困难子集中，幻觉正样本与非幻觉负样本在三种基线 UQ 分数空间中被显式匹配，其 AUROC 处于随机水平附近或呈轻微反排序。这说明，仅依赖生成概率、重复采样一致性或最终隐藏表示的稳定程度，难以识别模型“稳定地产生错误内容”的情况。
 
 这一现象的根本原因在于，传统 UQ 方法主要回答的是：
 

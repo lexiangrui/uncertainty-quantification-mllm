@@ -56,6 +56,7 @@ prompts/                               版本化生成、LoRA 和 Judge prompt
 scripts/generation/                    vLLM 生成与 HF replay 入口
 scripts/uq/                            UQ 入口
 scripts/judging/                       Judge 入口
+scripts/human_alignment/               双 Judge 分歧的人类盲裁与正式标签生成
 scripts/evaluation/                    指标入口
 scripts/improvement/                   ERA 特征提取入口
 slurm/                                 集群正式作业入口
@@ -73,7 +74,10 @@ tests/                                 回归测试
 | HF replay 后 samples | `results/generation/<model>/samples/<dataset>.jsonl` |
 | UMPIRE hidden sidecar | `results/hidden/<model>/<dataset>/*.pt` |
 | UQ | `results/uq/<model>/<dataset>.jsonl` |
-| Judge（GPT-5.6-Terra） | `results/judging/<model>/<dataset>.jsonl` |
+| Judge（GPT-5.6-Terra 原始结果） | `results/judging_gpt_5_6_terra/<model>/<dataset>.jsonl` |
+| Judge（Gemini 原始结果） | `results/judging_gemini_3_7_flash/<model>/<dataset>.jsonl` |
+| 人类裁决工作区 | `results/human_alignment/` |
+| 正式对齐标签 | `results/judging/<model>/<dataset>.jsonl` |
 | 指标 | `results/metrics/<model>/<dataset>.json` |
 | ERA 分量 | `results/era_components/<model>/<dataset>.jsonl` |
 | 分析 | `results/analysis/` |
@@ -131,7 +135,9 @@ vLLM raw、HF replay、UQ、Judge 和 ERA 均以 `sample_id` 断点续跑。每�
 
 `scripts/uq/compute_uq.py` 只读取 HF replay 后的 greedy/samples：Perplexity 使用 greedy 最终答案的 HF log probability；Semantic Entropy 使用 samples 的最终答案与 mean log probability；UMPIRE 额外读取 sample 最终答案末 token 的末层 hidden sidecar。
 
-`scripts/judging/judge_responses.py` 只评价 greedy 主回答。正式 LLM Judge 为 `gpt-5.6-terra`；命令行与 Slurm 入口均以它为默认模型，同时保留 `--model` / `JUDGE_MODEL` 覆盖能力。服务地址和密钥优先读取 `OPENAI_BASE_URL`、`OPENAI_API_KEY`，也可放在不提交 Git 的项目根目录 `.ven` 中。Prompt 哈希和实际裁判模型保存在输出的 `run` metadata 中。
+`scripts/judging/judge_responses.py` 只评价 greedy 主回答。原始结果目录由 Judge 模型名自动确定，例如 `gpt-5.6-terra` 写入 `results/judging_gpt_5_6_terra/`、`gemini-3.7-flash` 写入 `results/judging_gemini_3_7_flash/`；入口会拒绝把原始 Judge 结果写入 `results/judging/`。服务地址和密钥优先读取 `OPENAI_BASE_URL`、`OPENAI_API_KEY`，也可放在不提交 Git 的项目根目录 `.ven` 中。Prompt 哈希和实际裁判模型保存在输出的 `run` metadata 中。
+
+GPT 与 Gemini 标签不一致的样本必须经过人类盲裁后才能成为正式标签。完整步骤见 [人类对齐流程](docs/人类对齐流程.md)。现有指标、LUH 和 ERA 脚本继续读取 `results/judging/`，该目录现在只表示完成对齐的正式结果。
 
 ERA 读取 HF replay 后的 greedy JSONL 及其精确 token sidecar，并通过 HF eager attention 计算浅层归因分量。正式 Slurm 入口默认读取 `results/analysis/luh/<model>_subset_ids.txt`，只对每个模型的 400 条低不确定性子集执行 attention forward：
 

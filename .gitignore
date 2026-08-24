@@ -15,14 +15,9 @@ configs/judges/openai.env.example
 
 # Heavy generated artifacts.
 logs/
-!logs/
-!logs/*/
-!logs/*/.gitkeep
 results/
 results*/
 slurm/
-!slurm/
-!slurm/common.sh
 GASP/cache/
 *.pt
 *.pth
@@ -39,24 +34,58 @@ build/
 .mypy_cache/
 .ruff_cache/
 
+# One-off local/cluster execution helpers.
+/unified_env_check.py
+/unified_env_gpu_smoke.sbatch
+/scripts/run_downstream_*.sh
+/scripts/evaluation/recompute_after_regen.sh
+/scripts/improvement/run_era_interactive_remaining.sh
+
 # LaTeX build artifacts under report/ (including nested chapters/build dirs).
+report/.codex_tmp/
+report/tmp/
+report/**/build/
+report/**/_build/
+report/**/.latexmk/
 report/**/*.aux
+report/**/*.acn
+report/**/*.acr
+report/**/*.alg
 report/**/*.bbl
 report/**/*.bcf
 report/**/*.blg
+report/**/*.cb
+report/**/*.cb2
 report/**/*.dvi
 report/**/*.fdb_latexmk
 report/**/*.fls
+report/**/*.fmt
+report/**/*.fot
+report/**/*.glg
+report/**/*.glo
+report/**/*.gls
+report/**/*.glsdefs
+report/**/*.idx
+report/**/*.ilg
+report/**/*.ind
+report/**/*.ist
+report/**/*.loa
 report/**/*.lof
 report/**/*.log
+report/**/*.lol
 report/**/*.lot
 report/**/*.nav
 report/**/*.out
 report/**/*.run.xml
 report/**/*.snm
+report/**/*.synctex
 report/**/*.synctex.gz
 report/**/*.toc
 report/**/*.vrb
+report/**/*.xdy
 report/**/*.xdv
 report/**/*.pdf
 report/**/_minted-*/
+
+# Local report figure backups; keep only the active source assets in Git.
+report/figures/*（old）.*

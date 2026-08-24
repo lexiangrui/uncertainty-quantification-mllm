@@ -19,7 +19,7 @@ export HF_HUB_DOWNLOAD_TIMEOUT=300
 export HF_HUB_ETAG_TIMEOUT=60
 
 download_metadata() {
-  HF_PYTHON=${HF_PYTHON:-/home/${USER}/.venvs/vlm-transformers/bin/python}
+  HF_PYTHON=${HF_PYTHON:-/home/${USER}/.venvs/MLLM-UQ/bin/python}
   HF_ENDPOINT="$ENDPOINT" HF_HUB_DISABLE_XET=1 "$HF_PYTHON" - "$MODEL_ID" "$MODEL_DIR" <<'PY'
 import sys
 from huggingface_hub import snapshot_download

@@ -1,4 +1,3 @@
-\clearpage
 \section{Experiment 1: UQ Evaluation Framework Design}
 \label{sec:experiment1_framework}
 
@@ -8,7 +7,7 @@
 \subsubsection{Evaluated Models and Format-Oriented LoRA Fine-Tuning}
 \label{subsubsec:models_lora}
 
-\textbf{Evaluated models and local deployment.} Experiment~1 evaluates three open-source multimodal large language models, as summarized in \Cref{tab:evaluated_models}: LLaVA-1.5-7B, Qwen2.5-VL-7B-Instruct, and InternVL3.5-8B-HF. They represent a classical vision-language baseline, a recent native multimodal architecture, and a third open-source architecture, respectively. Because all three models must expose per-token logits during generation and the final-layer hidden states required by UMPIRE, I deploy them locally rather than access them through APIs. Model weights are stored locally in Hugging Face Transformers format and loaded in offline mode for generation. Inference uses Transformers with FlashAttention-2.
+\textbf{Evaluated models and local deployment.} Experiment~1 evaluates three open-source multimodal large language models, as summarized in \Cref{tab:evaluated_models}: LLaVA-1.5-7B, Qwen2.5-VL-7B-Instruct, and InternVL3.5-8B. They represent a classical vision-language baseline, a recent native multimodal architecture, and a third open-source architecture, respectively. All models are deployed locally and offline. vLLM performs batched generation while preserving the exact generated token sequences; Hugging Face then replays those same tokens under teacher forcing to extract the probabilities and final-layer hidden states required for UQ.
 
 \begin{table}[H]
 \centering
@@ -25,23 +24,26 @@
 \addlinespace[3pt]
 \textbf{Qwen2.5-VL-7B-Instruct}\newline {\footnotesize\color{gray!75!black}\nolinkurl{Qwen/Qwen2.5-VL-7B-Instruct}} & $\sim$7B & Recent native multimodal architecture with dynamic resolution and strong OCR and visual reasoning capabilities & Recent open-source instruction-tuned model \\
 \addlinespace[3pt]
-\textbf{InternVL3.5-8B-HF}\newline {\footnotesize\color{gray!75!black}\nolinkurl{OpenGVLab/InternVL3_5-8B-HF}} & $\sim$8B & Native Hugging Face multimodal checkpoint & Third model architecture, included to broaden coverage \\
+\textbf{InternVL3.5-8B}\newline {\footnotesize\color{gray!75!black}\nolinkurl{OpenGVLab/InternVL3_5-8B}} & $\sim$8B & Multimodal architecture comprising a vision encoder, projection layer, and language model & Third model architecture, included to broaden coverage \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \textbf{Format-oriented LoRA fine-tuning.} Preliminary experiments show that all three models may omit tags, leave tags unclosed, place tags in the wrong order, or continue generating outside the XML structure under both greedy decoding and random sampling. Because the judge and the UQ methods must reliably separate visual evidence, reasoning, and the final answer, I train a separate LoRA adapter for each model solely to control response organization. The training data consist exclusively of XML-supervised examples constructed from VQAv2 train2014. A multimodal teacher model generates three components---visual evidence, reasoning, and a final answer---for real COCO images, which are then converted into a uniform single-line \texttt{<vision>/<reasoning>/<answer>} XML format. After manual spot checks, the data are fixed at 4,000 training examples and 1,000 validation examples. None of the three evaluation datasets is used for training, thereby preventing data leakage.
 
-All three models use the same training configuration, reported in \Cref{tab:lora_config}. LoRA updates only the attention projections \texttt{q\_proj} and \texttt{v\_proj} in the language-model component, while the vision encoder and multimodal alignment component remain frozen. The format fine-tuning therefore does not alter the models' visual perception or image-text alignment capabilities, which avoids confounding format adaptation with changes in hallucination rate or answer accuracy. If the vision component or all model parameters were fine-tuned directly, shifts in the response distribution caused by format adaptation would become entangled with changes in task capability, making it impossible to determine whether subsequent differences arose from the response protocol or from the model itself. Appendix~A.8 describes the comparison used to examine this freezing strategy, including variants that unfreeze the vision encoder or fine-tune all parameters. The validation losses of the three adapters are 0.765 for LLaVA, 0.693 for Qwen, and 0.633 for InternVL. Further details of data construction, training, and acceptance checks are provided in Appendix~A.7.
+All three models use the same training configuration, reported in \Cref{tab:lora_config}. LoRA updates only the attention projections \texttt{q\_proj} and \texttt{v\_proj} in the language-model component, while the vision encoder and multimodal alignment component remain frozen. The format fine-tuning therefore does not alter the models' visual perception or image-text alignment capabilities, which avoids confounding format adaptation with changes in hallucination rate or answer accuracy. Appendix~A.8 describes the comparison used to examine this freezing strategy, including variants that unfreeze the vision encoder or fine-tune all parameters. The validation losses of the three adapters are 0.765 for LLaVA, 0.693 for Qwen, and 0.633 for InternVL. Further details of data construction, training, and acceptance checks are provided in Appendix~A.7.
 
-\begin{table}[H]
+\begin{figure}[H]
 \centering
-\caption{Format-oriented LoRA configuration. All three models use the same data split, target response format, and hyperparameters.}
+\begin{minipage}[c]{0.6\linewidth}
+\vspace{0pt}
+\centering
+\captionof{table}{Format-oriented LoRA configuration. All three models use the same data split, target response format, and hyperparameters.}
 \label{tab:lora_config}
 \small
-\setlength{\tabcolsep}{5pt}
-\renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{0.94\linewidth}{@{}L{3.7cm}Y@{}}
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\linewidth}{@{}L{2.45cm}Y@{}}
 \toprule
 \textbf{Configuration} & \textbf{Value} \\
 \midrule
@@ -56,9 +58,17 @@ All three models use the same training configuration, reported in \Cref{tab:lora
 \textbf{Validation loss} & 0.765 (LLaVA) / 0.693 (Qwen) / 0.633 (InternVL) \\
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.38\linewidth}
+\vspace{0pt}
+\centering
+\includegraphics[width=\linewidth]{vilp_0_case1}
+\captionof{figure}{Example image for ViLP \texttt{vilp-0-case1}.}
+\label{fig:vilp_format_example}
+\end{minipage}
+\end{figure}
 
-\textbf{Example response.} Consider the response of InternVL3.5-8B-HF to a ViLP example, \texttt{vilp-0-case1}, whose correct answer is 4. The question illustrates the construction of ViLP: its initial prior statement, ``Modern drones typically have four propellers,'' agrees with the visual evidence. The model produces the following complete and well-formed single-line XML response. Each of the three tags occurs exactly once in the prescribed order, with no additional text outside the tags, allowing direct parsing by both the judge and the UQ pipeline.
+\textbf{Example response.}
 
 \begin{quote}
 \textbf{Question:} Modern drones typically have four propellers. How many propellers does the drone in the picture have?
@@ -68,13 +78,6 @@ All three models use the same training configuration, reported in \Cref{tab:lora
 <vision>The image shows a large drone hovering over a futuristic cityscape. The drone has a central body with four distinct propellers, each attached to a rotor arm extending outward.</vision><reasoning>The drone in the picture clearly has four propellers, which is the standard configuration for modern drones.</reasoning><answer>4</answer>
 \end{lstlisting}
 \end{quote}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.33\linewidth]{vilp_0_case1}
-\caption{Example image for ViLP \texttt{vilp-0-case1}.}
-\label{fig:vilp_format_example}
-\end{figure}
 
 \subsubsection{Evaluation Datasets}
 \label{subsubsec:evaluation_datasets}
@@ -99,7 +102,7 @@ MM-Vet & 218 & Single-image open-ended visual question answering across six core
 \end{tabularx}
 \end{table}
 
-The 900 ViLP instances are 900 evaluated QIA triplets formed from 300 question texts and three image-answer pairings per question, where QIA denotes Question--Image--Answer. The 1,129 HallusionBench instances combine the official image split (951) and non-image split (178); no image is supplied for non-image examples. The construction, question types, and evaluation focus of each dataset are detailed in Appendix~A.1.
+Further details of the three datasets are provided in Appendix~A.1.
 
 \subsubsection{Response Generation Protocol}
 \label{subsubsec:generation_protocol}
@@ -117,7 +120,7 @@ The response instruction, image, and question are placed in a single user messag
     \item \textbf{$K=10$ randomly sampled responses:} \texttt{do\_sample=true, temperature=1.0}. Each sampled response is allowed at most 50 rejection-resampling attempts to obtain valid XML and is used by Semantic Entropy and UMPIRE.
 \end{itemize}
 
-Semantic Entropy and UMPIRE share exactly the same sampled responses so that sampling variation does not confound their comparison. During generation, I record the per-token log probabilities of the final answer and the final-layer hidden states, the latter only for UMPIRE. Parsing failures are not silently repaired; instead, they are explicitly reported as experimental outcomes, as described in Appendix~A.5.
+Semantic Entropy and UMPIRE share exactly the same sampled responses so that sampling variation does not confound their comparison. During generation, I record the per-token log probabilities of the final answer and the final-layer hidden states used by UMPIRE. Samples with malformed XML tags are excluded during data cleaning; the resulting valid-sample counts are reported in Appendix~A.5.
 
 \subsubsection{Independent Correctness and Hallucination Labeling}
 \label{subsubsec:independent_labels}
@@ -129,26 +132,7 @@ Each greedy primary response is evaluated once by a multimodal LLM judge (\textt
     \item \textbf{Hallucination $H$:} determined solely by whether \texttt{<vision>} or \texttt{<reasoning>} contains content unsupported by the image, question, context, or verifiable facts. The judge assigns a score from 0 to 6; a response with \texttt{rating < 3} is labeled as hallucinated and is additionally assigned the type \texttt{vision\_hallucination} or \texttt{reasoning\_hallucination}, as applicable.
 \end{enumerate}
 
-The judge instructions and output format are provided in Appendix~A.6. Because the two labels apply to different parts of a response and are assigned independently, they permit the four combinations in \Cref{tab:correctness_hallucination_labels}. Subsequent UQ evaluation can therefore address error detection and hallucination detection as distinct targets.
-
-\begin{table}[H]
-\centering
-\caption{Four combinations of the correctness label $C$ and hallucination label $H$.}
-\label{tab:correctness_hallucination_labels}
-\small
-\setlength{\tabcolsep}{8pt}
-\renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{0.82\linewidth}{@{}C{1.2cm}C{1.2cm}Y@{}}
-\toprule
-$C$ & $H$ & Interpretation \\
-\midrule
-1 & 0 & The final answer is correct, and neither the visual observation nor the reasoning contains hallucination \\
-1 & 1 & The final answer is correct, but the visual observation or reasoning contains hallucination \\
-0 & 0 & The final answer is incorrect, but neither the visual observation nor the reasoning contains hallucination \\
-0 & 1 & The final answer is incorrect, and the visual observation or reasoning contains hallucination \\
-\bottomrule
-\end{tabularx}
-\end{table}
+The judge instructions and output format are provided in Appendix~A.6. Because the two labels apply to different parts of a response and are assigned independently, they permit all four combinations. Subsequent UQ evaluation can therefore address error detection and hallucination detection as distinct targets.
 
 \subsubsection{Three Baseline UQ Methods}
 \label{subsubsec:baseline_uq}
@@ -196,7 +180,7 @@ This expression decomposes into a semantic-volume term, $\frac{1}{2K}\log\det(\P
 \subsubsection{Evaluation Metrics}
 \label{subsubsec:evaluation_metrics}
 
-All metrics are computed independently within each model-dataset cell; raw scores are never compared across models or datasets. The metrics comprise label statistics, ranking performance, and blind-spot statistics, which respectively address the label distribution, the ability of a score to rank samples, and the amount of hallucination concealed in low-score regions.
+All metrics are computed independently within each model-dataset cell; raw scores are never compared across models or datasets.
 
 \textbf{Label statistics.} The overall levels of the correctness labels $C_i$ and hallucination labels $H_i$ are summarized by
 \[

@@ -9,7 +9,11 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.generation.replay_hf_artifacts import _load_sample_ids, replay_file
+from scripts.generation.replay_hf_artifacts import (
+    _load_sample_ids,
+    _replay_attention_implementation,
+    replay_file,
+)
 from src.models import load_replay_backend
 from src.models.runtime import replay_batch_size, visible_gpu_memory_gib
 
@@ -43,9 +47,7 @@ def main() -> None:
         args.model_family,
         args.model_path,
         adapter_path=args.adapter_path,
-        attn_implementation=(
-            "sdpa" if args.model_family == "internvl3_5_original" else "flash_attention_2"
-        ),
+        attn_implementation=_replay_attention_implementation(args.model_family),
     )
     raw_root = args.input_root or args.output_root / "vllm_raw"
     for dataset, source in _sources(args.data_root).items():
