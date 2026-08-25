@@ -16,7 +16,8 @@
 
 set -euo pipefail
 PROJECT_ROOT=${PROJECT_ROOT:-/home/lexiangrui/Uncertainty-Quantification-of-MLLM}
-PYTHON=${PYTHON:-/home/lexiangrui/.venvs/vlm-transformers/bin/python}
+source "$PROJECT_ROOT/slurm/common.sh"
+PYTHON=${PYTHON:-$HF_PYTHON}
 CONFIG=${CONFIG:-$PROJECT_ROOT/LoRA/configs/internvl3_5_original_lora.json}
 
 cd "$PROJECT_ROOT"

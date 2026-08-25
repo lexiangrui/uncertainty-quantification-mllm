@@ -92,7 +92,13 @@ tests/                                 回归测试
 
 ## 集群运行
 
-`slurm/common.sh` 提供可覆盖的公共路径。默认模型和数据根目录分别为 `/opt/$USER/models` 与 `/opt/$USER/datasets`，HF 环境为 `$HOME/.venvs/vlm-transformers/bin/python`；vLLM 环境默认是 `$HOME/.venvs/vllm-0.25.1/bin/python`。计算节点按离线模式运行，模型和数据需预先在登录节点准备完成。
+`slurm/common.sh` 提供可覆盖的公共路径。默认模型和数据根目录分别为 `/opt/$USER/models` 与 `/opt/$USER/datasets`。生成、HF replay、UQ、Judge、ERA 和 LoRA 统一使用 `$HOME/.venvs/MLLM-UQ/bin/python`；该环境同时包含 vLLM、PyTorch 与 Transformers。计算节点按离线模式运行，模型和数据需预先在登录节点准备完成。
+
+统一环境的已验证依赖快照保存在根目录 `requirements.txt`：
+
+```bash
+$HOME/.venvs/MLLM-UQ/bin/pip install -r requirements.txt
+```
 
 单模型正式 generation：
 

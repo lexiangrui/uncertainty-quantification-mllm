@@ -17,7 +17,6 @@ configs/judges/openai.env.example
 logs/
 results/
 results*/
-slurm/
 GASP/cache/
 *.pt
 *.pth

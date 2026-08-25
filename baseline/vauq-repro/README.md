@@ -102,10 +102,10 @@ Host repository-out
 
 ## 环境准备
 
-集群上已存在 venv `/home/lexiangrui/.venvs/vlm-transformers`（Python 3.11，torch 2.11+cu128，transformers 5.12）。如需补依赖：
+集群统一使用 venv `$HOME/.venvs/MLLM-UQ`。如需补依赖：
 
 ```bash
-/home/lexiangrui/.venvs/vlm-transformers/bin/pip install scipy scikit-learn
+$HOME/.venvs/MLLM-UQ/bin/pip install scipy scikit-learn
 ```
 
 本机从零装：
@@ -234,7 +234,7 @@ cd /home/lexiangrui/Uncertainty-Quantification-of-MLLM
 nohup env \
   HF_ENDPOINT=https://hf-mirror.com \
   HF_HOME=/opt/lexiangrui/hf_cache \
-  /home/lexiangrui/.venvs/vlm-transformers/bin/python -u \
+  $HOME/.venvs/MLLM-UQ/bin/python -u \
   baseline/vauq-repro/scripts/download_qwen36_27b.py \
   --output /opt/lexiangrui/models/Qwen3.6-27B \
   > logs/vauq/qwen36-download-login.log 2>&1 < /dev/null &

@@ -16,7 +16,7 @@ from src.llm_judge.closed_source import (
     build_closed_source_messages,
     parse_closed_source_response,
 )
-from src.llm_judge.runner import run_closed_source_judging
+from src.llm_judge.runner import _judge_one, run_closed_source_judging
 
 
 VALID_RESPONSE = json.dumps(
@@ -226,3 +226,34 @@ def test_runner_records_unseparated_input_without_api_call(monkeypatch, tmp_path
     assert client.responses.kwargs is None
     rows = [json.loads(line) for line in output.read_text().splitlines()]
     assert rows[1]["judge"]["valid"] is False
+
+
+def test_api_retry_does_not_sleep_after_final_failure(monkeypatch) -> None:
+    class FailingJudge:
+        def judge(self, **kwargs):
+            raise RuntimeError("offline")
+
+    sample = BenchmarkSample(
+        sample_id="sample",
+        group_id="group",
+        dataset="vilp",
+        split="test",
+        question="Question?",
+        references=("answer",),
+        image=None,
+    )
+    sleeps = []
+    monkeypatch.setattr("src.llm_judge.runner.time.sleep", sleeps.append)
+    result = _judge_one(
+        FailingJudge(),
+        sample,
+        {
+            "sections_valid": True,
+            "vision": "nothing visible",
+            "reasoning": "reasoning",
+            "answer": "answer",
+        },
+    )
+
+    assert result["status"] == "api_error"
+    assert sleeps == [15, 15]

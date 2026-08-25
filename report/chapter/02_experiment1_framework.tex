@@ -13,17 +13,16 @@
 \centering
 \caption{The three evaluated multimodal large language models.}
 \label{tab:evaluated_models}
-\small
+\datatablefont
 \setlength{\tabcolsep}{3.5pt}
 \renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\linewidth}{@{}L{3.6cm}C{0.85cm}Y Y@{}}
+\begin{tabularx}{\linewidth}{L{3.6cm}C{0.85cm}Y Y}
 \toprule
-\textbf{Model} & \textbf{Size} & \textbf{Architectural characteristics} & \textbf{Rationale for selection} \\
+\tableheadrow
+\thead{Model} & \thead{Size} & \thead{Architectural characteristics} & \thead{Rationale for selection} \\
 \midrule
 \textbf{LLaVA-1.5-7B}\newline {\footnotesize\color{gray!75!black}\nolinkurl{llava-hf/llava-1.5-7b-hf}} & $\sim$7B & Classical two-stage architecture comprising a CLIP vision encoder, a projection layer, and an LLM backbone & Classical open-source vision-language baseline \\
-\addlinespace[3pt]
-\textbf{Qwen2.5-VL-7B-Instruct}\newline {\footnotesize\color{gray!75!black}\nolinkurl{Qwen/Qwen2.5-VL-7B-Instruct}} & $\sim$7B & Recent native multimodal architecture with dynamic resolution and strong OCR and visual reasoning capabilities & Recent open-source instruction-tuned model \\
-\addlinespace[3pt]
+\tablestriperow \textbf{Qwen2.5-VL-7B-Instruct}\newline {\footnotesize\color{gray!75!black}\nolinkurl{Qwen/Qwen2.5-VL-7B-Instruct}} & $\sim$7B & Recent native multimodal architecture with dynamic resolution and strong OCR and visual reasoning capabilities & Recent open-source instruction-tuned model \\
 \textbf{InternVL3.5-8B}\newline {\footnotesize\color{gray!75!black}\nolinkurl{OpenGVLab/InternVL3_5-8B}} & $\sim$8B & Multimodal architecture comprising a vision encoder, projection layer, and language model & Third model architecture, included to broaden coverage \\
 \bottomrule
 \end{tabularx}
@@ -40,21 +39,17 @@ All three models use the same training configuration, reported in \Cref{tab:lora
 \centering
 \captionof{table}{Format-oriented LoRA configuration. All three models use the same data split, target response format, and hyperparameters.}
 \label{tab:lora_config}
-\small
+\datatablefont
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{\linewidth}{@{}L{2.45cm}Y@{}}
+\begin{tabularx}{\linewidth}{L{2.45cm}Y}
 \toprule
-\textbf{Configuration} & \textbf{Value} \\
+\tableheadrow \thead{Configuration} & \thead{Value} \\
 \midrule
 \textbf{Training data} & Constructed from VQAv2 train2014; 4,000 training and 1,000 validation examples \\
-\addlinespace[2pt]
-\textbf{LoRA rank / alpha / dropout} & 8 / 16 / 0.05 \\
-\addlinespace[2pt]
+\tablestriperow \textbf{LoRA rank / alpha / dropout} & 8 / 16 / 0.05 \\
 \textbf{Target modules} & Language-model \texttt{q\_proj} and \texttt{v\_proj} \\
-\addlinespace[2pt]
-\textbf{Learning rate / epochs} & $2\times10^{-4}$ / 1 \\
-\addlinespace[2pt]
+\tablestriperow \textbf{Learning rate / epochs} & $2\times10^{-4}$ / 1 \\
 \textbf{Validation loss} & 0.765 (LLaVA) / 0.693 (Qwen) / 0.633 (InternVL) \\
 \bottomrule
 \end{tabularx}
@@ -88,16 +83,16 @@ For all three datasets, I use the complete evaluation data released through Hugg
 \centering
 \caption{Overview of the evaluation datasets.}
 \label{tab:evaluation_datasets}
-\small
+\datatablefont
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{\linewidth}{@{}L{2.5cm}C{1.5cm}Y Y@{}}
+\begin{tabularx}{\linewidth}{L{2.7cm}C{1.7cm}Y Y}
 \toprule
-Dataset & Question instances & Data and task type & Primary evaluation focus \\
+\tableheadrow \thead{Dataset} & \thead{Question instances} & \thead{Data and task type} & \thead{Primary evaluation focus} \\
 \midrule
-ViLP & 900 & 300 questions $\times$ 3 question-image-answer (QIA) groups & Conflicts between language priors and factual or counter-prior visual evidence \\
-HallusionBench & 1,129 & 951 image-based questions and 178 non-image questions & Visual illusions, language priors, false premises, and image-text conflicts \\
-MM-Vet & 218 & Single-image open-ended visual question answering across six core capabilities & Visual factual errors and compound capability failures in open-ended responses \\
+\textbf{ViLP} & 900 & 300 questions $\times$ 3 question-image-answer (QIA) groups & Conflicts between language priors and factual or counter-prior visual evidence \\
+\tablestriperow \textbf{HallusionBench} & 1,129 & 951 image-based questions and 178 non-image questions & Visual illusions, language priors, false premises, and image-text conflicts \\
+\textbf{MM-Vet} & 218 & Single-image open-ended visual question answering across six core capabilities & Visual factual errors and compound capability failures in open-ended responses \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -203,3 +198,12 @@ where $N$ is the number of valid samples in the cell. Accuracy is the proportion
     \]
     A PRR of 0 is equivalent to random ranking, whereas a PRR of 1 attains oracle ranking. It therefore quantifies how effectively high-uncertainty rejection preserves reliable responses in a deployment setting.
 \end{itemize}
+
+The complete evaluation workflow is summarized in \Cref{fig:experiment1_evaluation_workflow}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{不确定性方法评估流程图}
+    \caption{Overall workflow of Experiment~1, covering data and model preparation, response generation and judging, uncertainty quantification, and performance evaluation.}
+    \label{fig:experiment1_evaluation_workflow}
+\end{figure}

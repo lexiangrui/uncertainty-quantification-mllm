@@ -95,20 +95,18 @@ Based on the above survey, I identify four interrelated issues in existing UQ re
 \centering
 \caption{Four common issues in existing UQ research on predicting low-uncertainty hallucination.}
 \label{tab:gaps}
-\small
+\datatablefont
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\linewidth}{@{}L{2.6cm}Y Y@{}}
+\begin{tabularx}{\linewidth}{L{2.6cm}Y Y}
 \toprule
-\textbf{Gap} & \textbf{Common practice in existing research} & \textbf{Impact on low-uncertainty hallucination} \\
+\tableheadrow
+\thead{Gap} & \thead{Common practice in existing research} & \thead{Impact on low-uncertainty hallucination} \\
 \midrule
 \textbf{Mechanism assumption} & High generation probability or multi-sample consistency is interpreted as reliability & When the same hallucination is stably reproduced, methods such as PPL and Semantic Entropy may simultaneously give low uncertainty \\
-\addlinespace[2pt]
-\textbf{Evaluation target} & The correctness of the final answer is used as the hallucination or risk label & It cannot distinguish wrong answers without hallucination from correct answers that contain hallucination, and the effectiveness of UQ may be replaced by the error rate \\
-\addlinespace[2pt]
+\tablestriperow \textbf{Evaluation target} & The correctness of the final answer is used as the hallucination or risk label & It cannot distinguish wrong answers without hallucination from correct answers that contain hallucination, and the effectiveness of UQ may be replaced by the error rate \\
 \textbf{Measurement object} & Only the final answer is scored in terms of probability or semantic dispersion & Unsupported content introduced in the visual observation or reasoning may not be reflected in the UQ score of the short final answer \\
-\addlinespace[2pt]
-\textbf{Perturbation validity} & Image blurring and text rewriting are treated as semantically equivalent perturbations & Perturbations may destroy task information or introduce prompt sensitivity, so that a high score reflects artificial information degradation rather than the original hallucination risk \\
+\tablestriperow \textbf{Perturbation validity} & Image blurring and text rewriting are treated as semantically equivalent perturbations & Perturbations may destroy task information or introduce prompt sensitivity, so that a high score reflects artificial information degradation rather than the original hallucination risk \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -125,7 +123,7 @@ Based on the above survey, I formulate the following core research question:
 \textbf{RQ: How can uncertainty quantification methods identify and predict low-uncertainty hallucination in multimodal large language models?}
 \end{quote}
 
-The low-uncertainty hallucination studied in this report is not a new type of hallucination but a class of samples that existing UQ methods may miss: the response contains content unsupported by the image, the question, the context, or the facts, while the generation probability, sampling consistency, or internal semantic representation score of the method still exhibits low uncertainty. Answering this question requires identifying hallucinated samples that PPL, Semantic Entropy, and UMPIRE jointly place in the low-uncertainty region, namely the consensus LUH missed by all three baselines, and then designing a new uncertainty quantification method based on the common characteristics of these samples and the common failure modes of the three methods. To compute discriminative metrics, I configure 200 positive samples and an equal number of low-uncertainty non-hallucinated negative samples for each model, so that the comparison is confined to the same low-uncertainty region. The report therefore consists of two consecutive experiments.
+The low-uncertainty hallucination studied in this report is not a new type of hallucination but a class of samples that existing UQ methods may miss: the response contains content unsupported by the image, the question, the context, or the facts, while its generation probability, sampling consistency, or internal semantic representation score still indicates low uncertainty. Answering this question first requires characterizing the hallucinated samples assigned low uncertainty by PPL, Semantic Entropy, and UMPIRE, and then identifying the shared failure mechanisms of the three methods. For controlled evaluation, I construct a balanced difficult subset for each model with 200 LUH positives and 200 non-hallucinated negatives explicitly matched in the percentile space of the three UQ scores. The report therefore consists of two consecutive experiments.
 
 \subsection{Research Method and Experimental Pipeline}
 \label{subsec:pipeline}
@@ -137,7 +135,7 @@ To address the research question, I design a consecutive two-stage research pipe
 \begin{itemize}[leftmargin=1.5em]
     \item I use format-oriented LoRA to standardize three open-source MLLMs with distinct architectures---LLaVA-1.5, Qwen2.5-VL, and InternVL3.5---to produce a three-part XML response. A multimodal LLM judge independently labels answer correctness $C$ and hallucination $H$ in the same call.
     \item On three benchmarks (ViLP, HallusionBench, and MM-Vet; 2,247 instances in total), I evaluate Perplexity (PPL), Semantic Entropy (SE), and UMPIRE, thereby quantifying the systematic failure of conventional methods on low-uncertainty hallucination (LUH).
-    \item For each model, I extract 200 LUH positives jointly missed by the three baselines and 200 score-structure-matched non-hallucinated negatives. This produces a balanced 400-sample difficult subset on which fixed-direction baseline AUROC ranges from 0.417 to 0.502, corresponding to random performance or mild reverse ordering.
+    \item For each model, I extract 200 LUH positives and match them without replacement to 200 non-hallucinated negatives in the percentile space of the three UQ scores. This produces a balanced 400-sample difficult subset on which fixed-direction baseline AUROC ranges from 0.402 to 0.502, corresponding to random performance or mild reverse ordering.
 \end{itemize}
 
 \item \textbf{Experiment~2: ERA early-rationale-attribution method design and validation (Sections~4--5).}
@@ -151,6 +149,6 @@ To address the research question, I design a consecutive two-stage research pipe
 \begin{figure}[H]
     \centering
     \includegraphics[width=\linewidth]{研究路线图}
-    \caption{Overall research pipeline. Experiment~1 generates and independently labels responses, evaluates three baseline UQ methods, and extracts the consensus LUH subset; Experiment~2 develops and validates the new method on the fixed subset.}
+    \caption{Overall research pipeline. Experiment~1 generates and independently labels responses, evaluates three baseline UQ methods, and constructs a score-matched LUH difficult subset; Experiment~2 develops and validates the new method on the fixed subset.}
     \label{fig:overall_research_pipeline}
 \end{figure}

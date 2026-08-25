@@ -1,0 +1,19 @@
+# Unified MLLM-UQ environment snapshot verified on the MiliLab cluster.
+accelerate==1.14.0
+datasets==5.0.1
+huggingface-hub==1.28.0
+numpy==2.3.5
+openai==3.3.1
+pandas==3.0.5
+peft==0.20.0
+Pillow==12.3.0
+pyarrow==25.0.1
+pytest==9.1.1
+scikit-learn==1.9.0
+scipy==1.18.0
+timm==1.0.28
+torch==2.13.0
+torchvision==0.28.0
+tqdm==4.70.0
+transformers==5.15.1
+vllm==0.27.0

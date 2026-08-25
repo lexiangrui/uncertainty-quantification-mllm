@@ -16,7 +16,6 @@ trap 'echo "SCRIPT FAILED at line $LINENO (exit $?)" >&2' ERR
 source "${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}/slurm/common.sh"
 
 MODEL=${MODEL:?MODEL must be llava|qwen|internvl}
-VLLM_PYTHON=${VLLM_PYTHON:-/home/${USER}/.venvs/vllm-0.25.1/bin/python}
 cd "$PROJECT_ROOT"
 mkdir -p logs/generation
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
@@ -35,7 +34,7 @@ mkdir -p "$OUTPUT_ROOT"
 exec 9>"$OUTPUT_ROOT/.hybrid.lock"
 flock 9
 
-"$VLLM_PYTHON" scripts/generation/run_vllm_pipeline.py \
+"$HF_PYTHON" scripts/generation/run_vllm_pipeline.py \
   --model-family "$FAM" --model-path "$MP" --adapter-path "$AD" \
   --data-root "$DATA_ROOT" --output-root "$OUTPUT_ROOT"
 

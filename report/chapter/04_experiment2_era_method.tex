@@ -43,18 +43,18 @@ To characterize the information sources of the final answer, ERA partitions the 
 \centering
 \caption{Five semantic regions used by ERA.}
 \label{tab:era_regions}
-\small
+\datatablefont
 \setlength{\tabcolsep}{5pt}
 \renewcommand{\arraystretch}{1.18}
-\begin{tabularx}{0.94\linewidth}{@{}L{2.5cm}C{1.4cm}Y L{3.1cm}@{}}
+\begin{tabularx}{\linewidth}{L{2.5cm}C{1.4cm}Y L{3.1cm}}
 \toprule
-\textbf{Region} & \textbf{Symbol} & \textbf{Content} & \textbf{Source type} \\
+\tableheadrow \thead{Region} & \thead{Symbol} & \thead{Content} & \thead{Source type} \\
 \midrule
-Image evidence & $I$ & Visual tokens corresponding to the input image & External evidence \\
-Question prompt & $Q$ & System prompt, user question, and other prompt-text tokens & External evidence \\
-Visual description & $V$ & Content within \texttt{<vision>...\allowbreak</vision>} & Self-generated context \\
-Reasoning process & $R$ & Content within \texttt{<reasoning>...\allowbreak</reasoning>} & Self-generated context \\
-Final answer & $A$ & Content within \texttt{<answer>...\allowbreak</answer>} & Decision under analysis \\
+\textbf{Image evidence} & $I$ & Visual tokens corresponding to the input image & External evidence \\
+\tablestriperow \textbf{Question prompt} & $Q$ & System prompt, user question, and other prompt-text tokens & External evidence \\
+\textbf{Visual description} & $V$ & Content within \texttt{<vision>...\allowbreak</vision>} & Self-generated context \\
+\tablestriperow \textbf{Reasoning process} & $R$ & Content within \texttt{<reasoning>...\allowbreak</reasoning>} & Self-generated context \\
+\tableaccentrow \textbf{Final answer} & $A$ & Content within \texttt{<answer>...\allowbreak</answer>} & Decision under analysis \\
 \bottomrule
 \end{tabularx}
 \end{table}

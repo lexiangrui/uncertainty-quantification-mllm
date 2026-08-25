@@ -6,6 +6,10 @@ PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SLURM_DIR/.." && pwd)}"
 MODEL_ROOT="${MODEL_ROOT:-/opt/${USER:?}/models}"
 DATA_ROOT="${DATA_ROOT:-/opt/${USER:?}/datasets}"
 HF_PYTHON="${HF_PYTHON:-$HOME/.venvs/MLLM-UQ/bin/python}"
+if [[ ! -x "$HF_PYTHON" ]]; then
+  echo "MLLM-UQ Python is missing or not executable: $HF_PYTHON" >&2
+  return 1 2>/dev/null || exit 1
+fi
 
 # torch/FlashAttention JIT compilation may include <Python.h>.  The compute
 # nodes provide the Python 3.12 runtime but not the matching system dev package;

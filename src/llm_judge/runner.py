@@ -57,7 +57,7 @@ def _judge_one(judge, sample, greedy: dict) -> dict:
         return dict(_INVALID_FORMAT_VALUE)
     result = None
     api_error: Exception | None = None
-    for _attempt in range(_API_MAX_RETRIES):
+    for attempt in range(_API_MAX_RETRIES):
         try:
             result = judge.judge(
                 dataset=sample.dataset,
@@ -75,7 +75,8 @@ def _judge_one(judge, sample, greedy: dict) -> dict:
             break
         except Exception as error:  # noqa: BLE001 — retry any API/transport error
             api_error = error
-            time.sleep(_API_RETRY_BACKOFF_SECONDS)
+            if attempt + 1 < _API_MAX_RETRIES:
+                time.sleep(_API_RETRY_BACKOFF_SECONDS)
     raw = result.raw_response if result is not None else getattr(api_error, "raw_response", None)
     if result is not None:
         return {"status": "ok", "valid": True, "error": None, **result.to_dict()}
