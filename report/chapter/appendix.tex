@@ -1,223 +1,17 @@
-\section{Experiment 1: Detailed Materials}
-\label{sec:appendix}
+\section{Supplementary Notes and Ablation Studies}
+\label{sec:appendix_a}
 
 \subsection{Dataset Details}
+\label{subsec:appendix_datasets}
 
-\textbf{ViLP.} The Hugging Face release contains 300 distinct questions, each paired with three images and answers: one prior-consistent answer and two test answers that require joint use of textual and visual evidence. Expanding all three pairings yields 900 QIA instances. Each QIA is evaluated independently, while grouped statistics and bootstrap resampling cluster by the original question identifier to avoid treating the three related instances as independent. The benchmark creates direct conflicts between language priors and visual evidence, as illustrated by Case~1 in \Cref{subsec:representative_cases}.
+\textbf{ViLP} \citep{luo2025probing}. The Hugging Face release contains 300 distinct questions, each paired with three images and answers: one prior-consistent answer and two test answers that require joint use of textual and visual evidence. Expanding all three pairings yields 900 QIA instances. Each QIA is evaluated independently, while grouped statistics and bootstrap resampling cluster by the original question identifier to avoid treating the three related instances as independent. The benchmark creates direct conflicts between language priors and visual evidence, as illustrated by Case~1 in \Cref{subsec:representative_cases}.
 
-\textbf{HallusionBench.} HallusionBench contains 1,129 instances: 951 in the \texttt{image} split and 178 in the \texttt{non\_image} split. It covers Visual Dependent and Visual Supplement settings and includes figures, charts, maps, tables, OCR, illusions, mathematics, and video frames. Both splits are used in the full evaluation; instances with \texttt{visual\_input=0} receive no image and are excluded only when constructing the ERA difficult subsets, which require visual tokens.
+\textbf{HallusionBench} \citep{guan2024hallusionbench}. HallusionBench contains 1,129 instances: 951 in the \texttt{image} split and 178 in the \texttt{non\_image} split. It covers Visual Dependent and Visual Supplement settings and includes figures, charts, maps, tables, OCR, illusions, mathematics, and video frames. Both splits are used in the full evaluation; instances with \texttt{visual\_input=0} receive no image and are excluded only when constructing the ERA difficult subsets, which require visual tokens.
 
-\textbf{MM-Vet.} The \texttt{test} split contains 218 open-ended visual questions covering recognition, OCR, knowledge, spatial awareness, language generation, mathematics, and combinations such as OCR+math. Reference answers may be words, numbers, lists, short sentences, or descriptions. Correctness is judged semantically from the content inside \texttt{<answer>}.
-
-\subsection{Detailed Correctness and Hallucination Statistics}
-
-\begin{table}[H]
-\centering
-\caption{Joint distribution of correctness and hallucination for each model. Parentheses show percentages among valid responses for that model.}
-\label{tab:appendix_joint_labels}
-\datatablefont
-\setlength{\tabcolsep}{3.5pt}
-\begin{tabular}{lrrrrr}
-\toprule
-\tableheadrow \thead{Model} & \thead{$C=1,H=0$} & \thead{$C=1,H=1$} & \thead{$C=0,H=0$} & \thead{$C=0,H=1$} & \thead{Total} \\
-\midrule
-LLaVA & 624 (28.2\%) & 466 (21.1\%) & 86 (3.9\%) & 1,034 (46.8\%) & 2,210 \\
-\tablestriperow Qwen & 1,189 (53.7\%) & 240 (10.8\%) & 232 (10.5\%) & 554 (25.0\%) & 2,215 \\
-InternVL & 1,249 (55.7\%) & 226 (10.1\%) & 272 (12.1\%) & 495 (22.1\%) & 2,242 \\
-\midrule
-\tableaccentrow \textbf{Overall} & \textbf{3,062 (45.9\%)} & \textbf{932 (14.0\%)} & \textbf{590 (8.8\%)} & \textbf{2,083 (31.2\%)} & \textbf{6,667} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[H]
-\centering
-\caption{Hallucination rate conditional on correct and incorrect final answers.}
-\label{tab:appendix_conditional_h}
-\datatablefont
-\begin{tabular}{lcc}
-\toprule
-\tableheadrow \thead{Model} & \thead{$\Pr(H=1\mid C=1)$} & \thead{$\Pr(H=1\mid C=0)$} \\
-\midrule
-LLaVA & 42.8\% & 92.3\% \\
-\tablestriperow Qwen & 16.8\% & 70.5\% \\
-InternVL & 15.3\% & 64.5\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[H]
-\centering
-\caption{Composition of hallucination types. Parentheses show percentages among hallucinated responses for that model.}
-\label{tab:appendix_h_types}
-\datatablefont
-\setlength{\tabcolsep}{5pt}
-\begin{tabular}{lrrrr}
-\toprule
-\tableheadrow \thead{Model} & \thead{Visual only} & \thead{Reasoning only} & \thead{Both} & \thead{Total hallucinations} \\
-\midrule
-LLaVA & 267 (17.8\%) & 183 (12.2\%) & 1,050 (70.0\%) & 1,500 \\
-\tablestriperow Qwen & 147 (18.5\%) & 225 (28.3\%) & 422 (53.1\%) & 794 \\
-InternVL & 158 (21.9\%) & 169 (23.4\%) & 394 (54.6\%) & 721 \\
-\midrule
-\tableaccentrow \textbf{Overall} & \textbf{572 (19.0\%)} & \textbf{577 (19.1\%)} & \textbf{1,866 (61.9\%)} & \textbf{3,015} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Detailed Error-Detection AUROC}
-
-\begin{table}[H]
-\centering
-\caption{Error-detection AUROC for $E=1-C$, with 95\% bootstrap confidence intervals.}
-\label{tab:appendix_error_auroc}
-\datatablefont
-\setlength{\tabcolsep}{3.2pt}
-\begin{tabular}{lccc}
-\toprule
-\tableheadrow \thead{Model--dataset} & \thead{PPL} & \thead{SE} & \thead{UMPIRE} \\
-\midrule
-LLaVA / ViLP & 0.575 (0.540, 0.611) & \best{0.655} (0.622, 0.690) & 0.609 (0.573, 0.645) \\
-LLaVA / HallusionBench & 0.567 (0.538, 0.595) & 0.553 (0.519, 0.586) & \best{0.579} (0.547, 0.612) \\
-LLaVA / MM-Vet & 0.758 (0.671, 0.834) & \best{0.808} (0.727, 0.875) & 0.786 (0.696, 0.861) \\
-\midrule
-\tablestriperow Qwen / ViLP & 0.612 (0.578, 0.649) & \best{0.717} (0.680, 0.750) & 0.653 (0.617, 0.687) \\
-\tablestriperow Qwen / HallusionBench & 0.643 (0.607, 0.677) & \best{0.653} (0.615, 0.693) & 0.629 (0.589, 0.668) \\
-\tablestriperow Qwen / MM-Vet & 0.717 (0.650, 0.785) & \best{0.816} (0.759, 0.870) & 0.769 (0.704, 0.831) \\
-\midrule
-InternVL / ViLP & 0.622 (0.591, 0.657) & \best{0.719} (0.686, 0.752) & 0.640 (0.608, 0.675) \\
-InternVL / HallusionBench & 0.708 (0.674, 0.741) & \best{0.746} (0.713, 0.777) & 0.674 (0.635, 0.712) \\
-InternVL / MM-Vet & 0.724 (0.654, 0.791) & \best{0.847} (0.790, 0.899) & 0.828 (0.765, 0.886) \\
-\midrule
-\tableaccentrow \textbf{Nine-cell mean} & \textbf{0.658} & \best{0.724} & \textbf{0.685} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Detailed Hallucination-Detection AUROC}
-
-\begin{table}[H]
-\centering
-\caption{Hallucination-detection AUROC for $H=1$, with 95\% bootstrap confidence intervals.}
-\label{tab:appendix_h_auroc}
-\datatablefont
-\setlength{\tabcolsep}{3.2pt}
-\begin{tabular}{lccc}
-\toprule
-\tableheadrow \thead{Model--dataset} & \thead{PPL} & \thead{SE} & \thead{UMPIRE} \\
-\midrule
-LLaVA / ViLP & 0.541 (0.504, 0.580) & \best{0.605} (0.569, 0.640) & 0.570 (0.531, 0.609) \\
-LLaVA / HallusionBench & \best{0.607} (0.565, 0.646) & 0.568 (0.518, 0.620) & 0.588 (0.541, 0.633) \\
-LLaVA / MM-Vet & 0.567 (0.475, 0.651) & \best{0.697} (0.618, 0.769) & 0.679 (0.592, 0.758) \\
-\midrule
-\tablestriperow Qwen / ViLP & 0.501 (0.458, 0.544) & \best{0.609} (0.565, 0.647) & 0.546 (0.501, 0.594) \\
-\tablestriperow Qwen / HallusionBench & 0.558 (0.511, 0.602) & \best{0.639} (0.602, 0.680) & 0.613 (0.569, 0.658) \\
-\tablestriperow Qwen / MM-Vet & 0.536 (0.455, 0.621) & \best{0.659} (0.567, 0.740) & 0.576 (0.489, 0.664) \\
-\midrule
-InternVL / ViLP & 0.533 (0.492, 0.575) & \best{0.657} (0.617, 0.696) & 0.563 (0.525, 0.603) \\
-InternVL / HallusionBench & 0.640 (0.595, 0.685) & \best{0.686} (0.647, 0.722) & 0.661 (0.616, 0.701) \\
-InternVL / MM-Vet & 0.632 (0.544, 0.710) & \best{0.779} (0.706, 0.845) & 0.720 (0.645, 0.779) \\
-\midrule
-\tableaccentrow \textbf{Nine-cell mean} & \textbf{0.568} & \best{0.655} & \textbf{0.613} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsubsection{Detailed Gap Between Hallucination and Error Detection}
-
-\begin{table}[H]
-\centering
-\caption{Paired $\operatorname{AUROC}(H)-\operatorname{AUROC}(E)$ differences with 95\% bootstrap confidence intervals.}
-\label{tab:appendix_target_gap}
-\datatablefont
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{lccc}
-\toprule
-\tableheadrow \thead{Model--dataset} & \thead{PPL} & \thead{SE} & \thead{UMPIRE} \\
-\midrule
-LLaVA / ViLP & $-0.033$ ($-0.066$, 0.003) & $-0.050$ ($-0.083$, $-0.020$) & $-0.039$ ($-0.073$, $-0.005$) \\
-LLaVA / HallusionBench & 0.040 ($-0.004$, 0.085) & 0.015 ($-0.027$, 0.059) & 0.009 ($-0.033$, 0.052) \\
-LLaVA / MM-Vet & $-0.191$ ($-0.279$, $-0.107$) & $-0.111$ ($-0.186$, $-0.035$) & $-0.106$ ($-0.186$, $-0.030$) \\
-\midrule
-Qwen / ViLP & $-0.112$ ($-0.149$, $-0.072$) & $-0.109$ ($-0.145$, $-0.072$) & $-0.107$ ($-0.143$, $-0.071$) \\
-Qwen / HallusionBench & $-0.085$ ($-0.124$, $-0.043$) & $-0.013$ ($-0.045$, 0.019) & $-0.015$ ($-0.049$, 0.015) \\
-Qwen / MM-Vet & $-0.181$ ($-0.263$, $-0.100$) & $-0.157$ ($-0.238$, $-0.074$) & $-0.193$ ($-0.276$, $-0.106$) \\
-\midrule
-InternVL / ViLP & $-0.089$ ($-0.130$, $-0.047$) & $-0.062$ ($-0.101$, $-0.023$) & $-0.077$ ($-0.113$, $-0.041$) \\
-InternVL / HallusionBench & $-0.067$ ($-0.104$, $-0.031$) & $-0.060$ ($-0.093$, $-0.027$) & $-0.013$ ($-0.051$, 0.022) \\
-InternVL / MM-Vet & $-0.092$ ($-0.162$, $-0.020$) & $-0.068$ ($-0.144$, 0.004) & $-0.108$ ($-0.179$, $-0.043$) \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsubsection{Detailed Difficult-Subset Construction Results}
-
-\begin{table}[H]
-\centering
-\caption{Positive/negative percentile alignment and matching distance for the three UQ methods.}
-\label{tab:appendix_subset_alignment}
-\datatablefont
-\setlength{\tabcolsep}{3.4pt}
-\begin{tabular}{lccccc}
-\toprule
-\tableheadrow \thead{Model} & \thead{PPL percentile} & \thead{SE percentile} & \thead{UMPIRE percentile} & \thead{Median distance} & \thead{90th percentile} \\
-\midrule
-LLaVA & 0.168 / 0.215 & 0.171 / 0.195 & 0.133 / 0.171 & 0.082 & 0.175 \\
-Qwen & 0.242 / 0.249 & 0.306 / 0.310 & 0.219 / 0.230 & \best{0.020} & 0.091 \\
-InternVL & 0.304 / 0.310 & 0.357 / 0.358 & 0.343 / 0.345 & 0.029 & \best{0.084} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[H]
-\centering
-\caption{Candidate pools and difficult-subset composition. Subset columns report positive/negative values, with 200 samples in each class.}
-\label{tab:appendix_subset_composition}
-\datatablefont
-\setlength{\tabcolsep}{2.2pt}
-\begin{tabular}{lcccccc}
-\toprule
-\tableheadrow \thead{Model} & \thead{\shortstack{Pool total /\\ H / non-H}} & \thead{ViLP} & \thead{HallusionBench} & \thead{MM-Vet} & \thead{Accuracy} & \thead{\shortstack{Positive type: visual /\\ reasoning / both}} \\
-\midrule
-LLaVA & 2,036 / 1,389 / 647 & 49 / 109 & 145 / 73 & 6 / 18 & 0.410 / 0.980 & 41 / 7 / 152 \\
-Qwen & 2,037 / 708 / 1,329 & 37 / 82 & 152 / 104 & 11 / 14 & 0.440 / 0.960 & 49 / 7 / 144 \\
-InternVL & 2,064 / 636 / 1,428 & 49 / 64 & 148 / 113 & 3 / 23 & 0.475 / 0.895 & 61 / 5 / 134 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-All positives are hallucinated, and no negative has a hallucination rating at or below 2. Dual visual-and-reasoning hallucination dominates the positive class, while the score percentiles remain closely aligned between positives and negatives.
-
-\subsection{Data Exclusion Record}
-
-\begin{table}[H]
-\centering
-\caption{Generation, valid-evaluation, and exclusion counts. All exclusions are due to XML parsing failure.}
-\label{tab:appendix_exclusions}
-\datatablefont
-\setlength{\tabcolsep}{5pt}
-\begin{tabular}{llrrr}
-\toprule
-\tableheadrow \thead{Model} & \thead{Dataset} & \thead{Generated} & \thead{Evaluated} & \thead{Excluded} \\
-\midrule
-\multirow{3}{*}{LLaVA} & ViLP & 900 & 886 & 14 \\
-& HallusionBench & 1,129 & 1,108 & 21 \\
-& MM-Vet & 218 & 216 & 2 \\
-\midrule
-\multirow{3}{*}{Qwen} & ViLP & 900 & 898 & 2 \\
-& HallusionBench & 1,129 & 1,099 & \best{30} \\
-& MM-Vet & 218 & 218 & 0 \\
-\midrule
-\multirow{3}{*}{InternVL} & ViLP & 900 & 900 & 0 \\
-& HallusionBench & 1,129 & 1,126 & 3 \\
-& MM-Vet & 218 & 216 & 2 \\
-\midrule
-\textbf{Total} & & \textbf{6,741} & \textbf{6,667} & \textbf{74} \\
-\bottomrule
-\end{tabular}
-\end{table}
+\textbf{MM-Vet} \citep{yu2024mmvet}. The \texttt{test} split contains 218 open-ended visual questions covering recognition, OCR, knowledge, spatial awareness, language generation, mathematics, and combinations such as OCR+math. Reference answers may be words, numbers, lists, short sentences, or descriptions. Correctness is judged semantically from the content inside \texttt{<answer>}.
 
 \subsection{Prompt Templates}
+\label{subsec:appendix_prompts}
 
 \subsubsection{Response Instruction (\texttt{xml-lora-zero-shot-v1})}
 
@@ -300,16 +94,447 @@ Format example:
 }
 \end{lstlisting}
 
-\subsection{Format-Oriented LoRA Details}
+\subsection{Format-Oriented LoRA Fine-Tuning}
+\label{subsec:appendix_lora}
 
-\textbf{Data construction.} Training data come only from the official VQAv2 train2014 split. Samples are filtered for high answer agreement, nonempty concise answers, and coverage of different question types. A multimodal teacher (\texttt{qwen3.7-plus}) receives the real COCO image, VQAv2 question, human-majority answer, and a small set of manually written examples, and generates the visual evidence, concise reasoning, and final answer required for the task. The visual section contains only relevant visible evidence, the reasoning section connects that evidence to the answer without adding unsupported facts, and the final answer agrees with the human-majority response. Invalid, incomplete, inconsistent, or metadata-leaking examples are removed. After manual spot checks, the final split contains 4,000 training and 1,000 validation examples; none of the three evaluation datasets enters training.
+The format data are constructed from the official VQAv2 train2014 questions, human answers, and corresponding COCO images. Candidate questions require strong annotator agreement and are balanced across question types, with at most one question retained per image. The final 5,000 distinct image--question pairs are split with seed~42 into 4,000 training and 1,000 validation examples, with no image or question overlap. Qwen3.7-Plus generates task-relevant visual evidence and concise reasoning from the real image, question, and majority answer. Valid examples are wrapped as a single-line \texttt{<vision>/<reasoning>/<answer>} target.
 
-\textbf{Training configuration.} All models use the same data split and hyperparameters. The vision encoder and multimodal alignment component remain frozen. LoRA with rank 8, alpha 16, and dropout 0.05 updates only language-model \texttt{q\_proj} and \texttt{v\_proj}; the learning rate is $2\times10^{-4}$, training lasts one epoch, and gradient accumulation is 16. Loss is applied only to the target response.
+Each model has a separate LoRA adapter but shares the same data split, target format, and core optimization settings. LoRA is applied only to \texttt{q\_proj} and \texttt{v\_proj} in the language-model attention layers; the vision encoder, multimodal projector, and all remaining base parameters are frozen. Loss is computed only on the response. LLaVA and Qwen use a maximum sequence length of 1,024, while InternVL uses 4,096 to accommodate its native input representation.
 
-\textbf{Acceptance checks.} On the same 200 held-out format-test examples, each adapter is checked for complete XML validity, tag order, duplicated tags, text outside XML, final-answer accuracy, and manually sampled visual-description consistency. The validation losses are 0.765 for LLaVA, 0.693 for Qwen, and 0.633 for InternVL.
+\begin{table}[tbp]
+\centering
+\caption{Format-oriented LoRA configuration and validation results.}
+\label{tab:appendix_lora_config}
+\datatablefont
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
+\toprule
+\thead{Configuration} & \thead{LLaVA-1.5-7B} & \thead{Qwen2.5-VL-7B} & \thead{InternVL3.5-8B} \\
+\midrule
+Training / validation samples & 4,000 / 1,000 & 4,000 / 1,000 & 4,000 / 1,000 \\
+LoRA rank / alpha / dropout & 8 / 16 / 0.05 & 8 / 16 / 0.05 & 8 / 16 / 0.05 \\
+Target modules & \texttt{q\_proj}, \texttt{v\_proj} & \texttt{q\_proj}, \texttt{v\_proj} & \texttt{q\_proj}, \texttt{v\_proj} \\
+Learning rate / epochs & $2\times10^{-4}$ / 1 & $2\times10^{-4}$ / 1 & $2\times10^{-4}$ / 1 \\
+Effective batch size & 16 & 16 & 16 \\
+Maximum sequence length & 1,024 & 1,024 & 4,096 \\
+Final validation loss & 0.7647 & 0.6935 & 0.6573 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\textbf{Version boundary.} Formal experiments fix the complete base-model-plus-LoRA version. The greedy responses and judge labels are frozen artifacts, whereas the sampled responses, hidden-state sidecars, and all three UQ scores follow the final $K=10$ protocol with the same model and adapter versions.
+The formal experiment fixes the adapter obtained after one epoch and does not use ViLP, HallusionBench, or MM-Vet for checkpoint selection. Its effect on task behavior is assessed by the paired ablation below.
 
-\subsection{Planned Freezing-Strategy Comparison}
+\subsection{XML Format-Adaptation Ablation}
+\label{subsec:appendix_xml_ablation}
 
-To test whether freezing the vision encoder and multimodal alignment component isolates format adaptation from changes in hallucination rate and accuracy, the planned comparison applies the current frozen-vision LoRA configuration and an unfrozen-vision or full-parameter alternative to the same question list. The comparison will report format compliance, hallucination rate, and accuracy. This experiment has not yet been completed; results and conclusions will be added after execution.
+This ablation begins with 500 question instances sampled without replacement from the common pool for which all three XML-LoRA models produce complete XML. The set contains 204 ViLP, 243 HallusionBench, and 53 MM-Vet instances. The XML-LoRA condition reuses the greedy responses and Gemini-3.7-Flash labels from the main experiment. The native condition loads no adapter and uses a prompt requesting Visual Observation, Reasoning, and Final Answer; its complete raw response is judged by the same Gemini model and prompt.
+
+Only instances for which the native response actually contains all three requested sections enter the content comparison. This leaves 217 paired samples for LLaVA, 473 for Qwen, and 500 for InternVL. Differences are defined as XML-LoRA minus native. Confidence intervals use 1,000 group-bootstrap replicates and $p$ values use exact McNemar tests.
+
+\begin{table}[tbp]
+\centering
+\caption{Paired comparison of XML-LoRA and native-prompt responses. Parentheses report 95\% bootstrap confidence intervals for the difference.}
+\label{tab:appendix_xml_ablation}
+\datatablefont
+\setlength{\tabcolsep}{5pt}
+\textbf{(a) Accuracy}\\[3pt]
+\begin{tabular}{lrrrrr}
+\toprule
+\thead{Model} & \thead{$n$} & \thead{XML-LoRA} & \thead{Native} & \thead{Difference (95\% CI)} & \thead{$p$} \\
+\midrule
+LLaVA & 217 & 46.1\% & 44.2\% & +1.8 ($-4.1$, +8.3) & 0.672 \\
+Qwen & 473 & 66.4\% & 67.7\% & $-1.3$ ($-4.8$, +2.4) & 0.576 \\
+InternVL & 500 & 68.4\% & 73.8\% & \best{$-5.4$ ($-9.5$, $-1.8$)} & 0.008 \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{(b) Hallucination rate}\\[3pt]
+\begin{tabular}{lrrrrr}
+\toprule
+\thead{Model} & \thead{$n$} & \thead{XML-LoRA} & \thead{Native} & \thead{Difference (95\% CI)} & \thead{$p$} \\
+\midrule
+LLaVA & 217 & 65.0\% & 51.2\% & \best{+13.8 (+6.3, +21.0)} & $<0.001$ \\
+Qwen & 473 & 28.3\% & 27.9\% & +0.4 ($-3.4$, +4.5) & 0.919 \\
+InternVL & 500 & 29.6\% & 22.4\% & \best{+7.2 (+3.2, +11.4)} & $<0.001$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Among native responses that follow the three-part instruction, the accuracy difference is not significant for LLaVA or Qwen, whereas InternVL is 5.4 percentage points lower under XML-LoRA. Qwen shows no significant hallucination-rate difference; LLaVA and InternVL are 13.8 and 7.2 points higher under XML-LoRA. These differences cannot be attributed to LoRA parameters alone because adapter use and response organization change together, and the analysis is conditional on native format compliance rather than all 500 candidates.
+
+\subsection{Decoder-Layer Ablation}
+\label{subsec:appendix_layer_ablation}
+
+\Cref{tab:appendix_layer_ablation} compares single shallow layers, shallow-layer averages, middle and final layers, and all-layer averages. Values are reported with 95\% group-bootstrap confidence intervals.
+
+\begin{table}[tbp]
+\centering
+\caption{ERA performance under different decoder-layer selections. Bold marks the best result within each model and metric.}
+\label{tab:appendix_layer_ablation}
+\datatablefont
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llrrrr}
+\toprule
+\thead{Model} & \thead{Layer selection} & \thead{Indices} & \thead{AUROC (95\% CI)} & \thead{AUPRC (95\% CI)} & \thead{PRR (95\% CI)} \\
+\midrule
+\multirow{7}{*}{LLaVA}
+& Layer 0 & 0 & \best{0.715 (0.654, 0.769)} & \best{0.722 (0.644, 0.789)} & \best{0.487 (0.365, 0.596)} \\
+& Layer 1 & 1 & 0.699 (0.632, 0.753) & 0.714 (0.631, 0.782) & 0.451 (0.311, 0.570) \\
+& Layers 0--1 & 0, 1 & 0.708 (0.643, 0.762) & 0.719 (0.638, 0.788) & 0.473 (0.340, 0.585) \\
+& Layers 0--3 & 0--3 & 0.707 (0.644, 0.761) & 0.718 (0.635, 0.785) & 0.471 (0.338, 0.583) \\
+& Middle 2 & 15, 16 & 0.550 (0.491, 0.608) & 0.545 (0.472, 0.627) & 0.153 (0.015, 0.293) \\
+& Final 2 & 30, 31 & 0.676 (0.609, 0.730) & 0.667 (0.584, 0.742) & 0.393 (0.250, 0.509) \\
+& All layers & 0--31 & 0.640 (0.572, 0.702) & 0.650 (0.561, 0.730) & 0.307 (0.161, 0.440) \\
+\midrule
+\multirow{7}{*}{Qwen}
+& Layer 0 & 0 & 0.616 (0.554, 0.672) & \best{0.615 (0.530, 0.697)} & 0.268 (0.117, 0.391) \\
+& Layer 1 & 1 & 0.616 (0.558, 0.671) & 0.599 (0.521, 0.679) & \best{0.301 (0.164, 0.423)} \\
+& Layers 0--1 & 0, 1 & \best{0.618 (0.558, 0.673)} & 0.610 (0.528, 0.691) & 0.290 (0.150, 0.413) \\
+& Layers 0--3 & 0--3 & 0.610 (0.551, 0.667) & 0.599 (0.517, 0.680) & 0.276 (0.138, 0.401) \\
+& Middle 2 & 13, 14 & 0.473 (0.409, 0.537) & 0.495 (0.424, 0.576) & $-0.138$ ($-0.284$, 0.005) \\
+& Final 2 & 26, 27 & 0.538 (0.471, 0.599) & 0.536 (0.459, 0.621) & 0.026 ($-0.132$, 0.184) \\
+& All layers & 0--27 & 0.569 (0.506, 0.629) & 0.555 (0.475, 0.641) & 0.186 (0.034, 0.329) \\
+\midrule
+\multirow{7}{*}{InternVL}
+& Layer 0 & 0 & 0.586 (0.530, 0.645) & 0.585 (0.515, 0.677) & \best{0.196 (0.062, 0.328)} \\
+& Layer 1 & 1 & \best{0.595 (0.539, 0.653)} & \best{0.610 (0.537, 0.700)} & 0.172 (0.027, 0.317) \\
+& Layers 0--1 & 0, 1 & 0.591 (0.535, 0.649) & 0.602 (0.531, 0.692) & 0.187 (0.049, 0.320) \\
+& Layers 0--3 & 0--3 & 0.573 (0.519, 0.633) & 0.584 (0.514, 0.674) & 0.157 (0.012, 0.295) \\
+& Middle 2 & 17, 18 & 0.456 (0.395, 0.513) & 0.483 (0.417, 0.563) & $-0.127$ ($-0.266$, 0.021) \\
+& Final 2 & 34, 35 & 0.543 (0.484, 0.600) & 0.533 (0.463, 0.618) & 0.061 ($-0.095$, 0.200) \\
+& All layers & 0--35 & 0.503 (0.446, 0.562) & 0.498 (0.435, 0.574) & $-0.013$ ($-0.156$, 0.129) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Shallow layers are consistently more discriminative than middle layers or all-layer averages. For cross-model stability, the main experiment fixes the mean of Layers~0--1 rather than selecting a different layer for each model.
+
+\subsection{Vision/Reasoning Attribution-Component Ablation}
+\label{subsec:appendix_component_ablation}
+
+\begin{table}[tbp]
+\centering
+\caption{Vision/Reasoning attribution-component ablation. All variants use Layers~0--1; bold marks the best result within each model and metric.}
+\label{tab:appendix_component_ablation}
+\datatablefont
+\setlength{\tabcolsep}{3.3pt}
+\begin{tabular}{llrrr}
+\toprule
+\thead{Model} & \thead{Attribution component} & \thead{AUROC (95\% CI)} & \thead{AUPRC (95\% CI)} & \thead{PRR (95\% CI)} \\
+\midrule
+\multirow{3}{*}{LLaVA}
+& Vision + Reasoning & 0.708 (0.643, 0.762) & 0.719 (0.638, 0.788) & \best{0.473 (0.340, 0.585)} \\
+& Vision only & \best{0.713 (0.655, 0.763)} & \best{0.719 (0.646, 0.786)} & 0.458 (0.325, 0.577) \\
+& Reasoning only & 0.655 (0.588, 0.717) & 0.675 (0.587, 0.756) & 0.344 (0.202, 0.482) \\
+\midrule
+\multirow{3}{*}{Qwen}
+& Vision + Reasoning & 0.618 (0.558, 0.673) & 0.610 (0.528, 0.691) & 0.290 (0.150, 0.413) \\
+& Vision only & 0.582 (0.521, 0.643) & 0.581 (0.500, 0.667) & 0.153 ($-0.012$, 0.316) \\
+& Reasoning only & \best{0.621 (0.560, 0.677)} & \best{0.616 (0.531, 0.699)} & \best{0.299 (0.160, 0.423)} \\
+\midrule
+\multirow{3}{*}{InternVL}
+& Vision + Reasoning & \best{0.591 (0.535, 0.649)} & \best{0.602 (0.531, 0.692)} & \best{0.187 (0.049, 0.320)} \\
+& Vision only & 0.565 (0.511, 0.621) & 0.569 (0.499, 0.647) & 0.141 ($-0.007$, 0.282) \\
+& Reasoning only & 0.588 (0.531, 0.650) & 0.596 (0.526, 0.687) & 0.177 (0.036, 0.316) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The strongest single component varies by model: LLaVA favors Vision, Qwen slightly favors Reasoning, and InternVL performs best with the combined score. Vision + Reasoning is therefore retained as the unified ERA definition because it is the most stable choice across architectures.
+
+\subsection{Correctness-Stratified ERA Ablation}
+\label{subsec:appendix_correctness_ablation}
+
+The LUH positives and non-hallucinated negatives in each difficult subset have different answer-accuracy profiles. To test whether ERA merely exploits this difference, the original 400 samples per model are held fixed and ERA is evaluated separately among correct answers ($C=1$) and incorrect answers ($C=0$), with hallucination as the positive class. \Cref{tab:appendix_correctness_ablation} reports class counts and 95\% confidence intervals from 1,000 group-bootstrap replicates.
+
+\begin{table}[H]
+\centering
+\caption{ERA hallucination-detection performance stratified by final-answer correctness. $C$ denotes correctness; H and non-H denote hallucinated and non-hallucinated samples.}
+\label{tab:appendix_correctness_ablation}
+\datatablefont
+\setlength{\tabcolsep}{2.7pt}
+\begin{tabular}{llrrrrr}
+\toprule
+\thead{Model} & \thead{$C$} & \thead{$n$} & \thead{H / non-H} & \thead{AUROC (95\% CI)} & \thead{AUPRC (95\% CI)} & \thead{PRR (95\% CI)} \\
+\midrule
+\multirow{2}{*}{LLaVA}
+& 1 & 278 & 82 / 196 & 0.717 (0.645, 0.783) & 0.551 (0.444, 0.659) & 0.558 (0.424, 0.672) \\
+& 0 & 122 & 118 / 4 & 0.642 (0.522, 0.757) & 0.985 (0.967, 0.996) & 0.012 ($-0.076$, 0.121) \\
+\midrule
+\multirow{2}{*}{Qwen}
+& 1 & 280 & 88 / 192 & 0.700 (0.623, 0.771) & 0.507 (0.394, 0.634) & 0.503 (0.337, 0.642) \\
+& 0 & 120 & 112 / 8 & 0.528 (0.330, 0.728) & 0.943 (0.881, 0.987) & 0.011 ($-0.186$, 0.264) \\
+\midrule
+\multirow{2}{*}{InternVL}
+& 1 & 274 & 95 / 179 & 0.693 (0.621, 0.758) & 0.545 (0.445, 0.659) & 0.446 (0.269, 0.596) \\
+& 0 & 126 & 105 / 21 & 0.511 (0.376, 0.646) & 0.849 (0.767, 0.925) & 0.039 ($-0.200$, 0.279) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Within correct answers, ERA retains AUROCs of 0.717, 0.700, and 0.693, with all lower confidence bounds above 0.5. ERA therefore distinguishes correct answers that contain hallucinated reasoning from correct non-hallucinated answers, rather than merely reproducing answer correctness. Within incorrect answers, LLaVA retains some separation, whereas Qwen and InternVL are close to random ranking. This stratum contains only 4, 8, and 21 non-hallucinated samples, respectively, so its intervals are wide. Its high AUPRC values largely reflect the very high hallucination prevalence and should not be compared directly with AUPRC in the correct-answer stratum.
+
+\section{Detailed Experimental Results}
+\label{sec:appendix_b}
+
+\subsection{Detailed Correctness and Hallucination Statistics}
+\label{subsec:appendix_label_stats}
+
+\begin{table}[H]
+\centering
+\caption{Joint distribution of correctness and hallucination for each model. Parentheses show percentages among valid responses for that model.}
+\label{tab:appendix_joint_labels}
+\datatablefont
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lrrrrr}
+\toprule
+\tableheadrow \thead{Model} & \thead{$C=1,H=0$} & \thead{$C=1,H=1$} & \thead{$C=0,H=0$} & \thead{$C=0,H=1$} & \thead{Total} \\
+\midrule
+LLaVA & 624 (28.2\%) & 466 (21.1\%) & 86 (3.9\%) & 1,034 (46.8\%) & 2,210 \\
+\tablestriperow Qwen & 1,189 (53.7\%) & 240 (10.8\%) & 232 (10.5\%) & 554 (25.0\%) & 2,215 \\
+InternVL & 1,249 (55.7\%) & 226 (10.1\%) & 272 (12.1\%) & 495 (22.1\%) & 2,242 \\
+\midrule
+\tableaccentrow \textbf{Overall} & \textbf{3,062 (45.9\%)} & \textbf{932 (14.0\%)} & \textbf{590 (8.8\%)} & \textbf{2,083 (31.2\%)} & \textbf{6,667} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Hallucination rate conditional on correct and incorrect final answers.}
+\label{tab:appendix_conditional_h}
+\datatablefont
+\begin{tabular}{lcc}
+\toprule
+\tableheadrow \thead{Model} & \thead{$\Pr(H=1\mid C=1)$} & \thead{$\Pr(H=1\mid C=0)$} \\
+\midrule
+LLaVA & 42.8\% & 92.3\% \\
+\tablestriperow Qwen & 16.8\% & 70.5\% \\
+InternVL & 15.3\% & 64.5\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Composition of hallucination types. Parentheses show percentages among hallucinated responses for that model.}
+\label{tab:appendix_h_types}
+\datatablefont
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrrrr}
+\toprule
+\tableheadrow \thead{Model} & \thead{Visual only} & \thead{Reasoning only} & \thead{Both} & \thead{Total hallucinations} \\
+\midrule
+LLaVA & 267 (17.8\%) & 183 (12.2\%) & 1,050 (70.0\%) & 1,500 \\
+\tablestriperow Qwen & 147 (18.5\%) & 225 (28.3\%) & 422 (53.1\%) & 794 \\
+InternVL & 158 (21.9\%) & 169 (23.4\%) & 394 (54.6\%) & 721 \\
+\midrule
+\tableaccentrow \textbf{Overall} & \textbf{572 (19.0\%)} & \textbf{577 (19.1\%)} & \textbf{1,866 (61.9\%)} & \textbf{3,015} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Detailed Error-Detection AUROC}
+\label{subsec:appendix_error_auroc}
+
+\begin{table}[H]
+\centering
+\caption{Error-detection AUROC for $E=1-C$, with 95\% bootstrap confidence intervals.}
+\label{tab:appendix_error_auroc}
+\datatablefont
+\setlength{\tabcolsep}{3.2pt}
+\begin{tabular}{lccc}
+\toprule
+\tableheadrow \thead{Model--dataset} & \thead{PPL} & \thead{SE} & \thead{UMPIRE} \\
+\midrule
+LLaVA / ViLP & 0.575 (0.540, 0.611) & \best{0.655} (0.622, 0.690) & 0.609 (0.573, 0.645) \\
+LLaVA / HallusionBench & 0.567 (0.538, 0.595) & 0.553 (0.519, 0.586) & \best{0.579} (0.547, 0.612) \\
+LLaVA / MM-Vet & 0.758 (0.671, 0.834) & \best{0.808} (0.727, 0.875) & 0.786 (0.696, 0.861) \\
+\midrule
+\tablestriperow Qwen / ViLP & 0.612 (0.578, 0.649) & \best{0.717} (0.680, 0.750) & 0.653 (0.617, 0.687) \\
+\tablestriperow Qwen / HallusionBench & 0.643 (0.607, 0.677) & \best{0.653} (0.615, 0.693) & 0.629 (0.589, 0.668) \\
+\tablestriperow Qwen / MM-Vet & 0.717 (0.650, 0.785) & \best{0.816} (0.759, 0.870) & 0.769 (0.704, 0.831) \\
+\midrule
+InternVL / ViLP & 0.622 (0.591, 0.657) & \best{0.719} (0.686, 0.752) & 0.640 (0.608, 0.675) \\
+InternVL / HallusionBench & 0.708 (0.674, 0.741) & \best{0.746} (0.713, 0.777) & 0.674 (0.635, 0.712) \\
+InternVL / MM-Vet & 0.724 (0.654, 0.791) & \best{0.847} (0.790, 0.899) & 0.828 (0.765, 0.886) \\
+\midrule
+\tableaccentrow \textbf{Nine-cell mean} & \textbf{0.658} & \best{0.724} & \textbf{0.685} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Detailed Hallucination-Detection AUROC}
+\label{subsec:appendix_h_auroc}
+
+\begin{table}[H]
+\centering
+\caption{Hallucination-detection AUROC for $H=1$, with 95\% bootstrap confidence intervals.}
+\label{tab:appendix_h_auroc}
+\datatablefont
+\setlength{\tabcolsep}{3.2pt}
+\begin{tabular}{lccc}
+\toprule
+\tableheadrow \thead{Model--dataset} & \thead{PPL} & \thead{SE} & \thead{UMPIRE} \\
+\midrule
+LLaVA / ViLP & 0.541 (0.504, 0.580) & \best{0.605} (0.569, 0.640) & 0.570 (0.531, 0.609) \\
+LLaVA / HallusionBench & \best{0.607} (0.565, 0.646) & 0.568 (0.518, 0.620) & 0.588 (0.541, 0.633) \\
+LLaVA / MM-Vet & 0.567 (0.475, 0.651) & \best{0.697} (0.618, 0.769) & 0.679 (0.592, 0.758) \\
+\midrule
+\tablestriperow Qwen / ViLP & 0.501 (0.458, 0.544) & \best{0.609} (0.565, 0.647) & 0.546 (0.501, 0.594) \\
+\tablestriperow Qwen / HallusionBench & 0.558 (0.511, 0.602) & \best{0.639} (0.602, 0.680) & 0.613 (0.569, 0.658) \\
+\tablestriperow Qwen / MM-Vet & 0.536 (0.455, 0.621) & \best{0.659} (0.567, 0.740) & 0.576 (0.489, 0.664) \\
+\midrule
+InternVL / ViLP & 0.533 (0.492, 0.575) & \best{0.657} (0.617, 0.696) & 0.563 (0.525, 0.603) \\
+InternVL / HallusionBench & 0.640 (0.595, 0.685) & \best{0.686} (0.647, 0.722) & 0.661 (0.616, 0.701) \\
+InternVL / MM-Vet & 0.632 (0.544, 0.710) & \best{0.779} (0.706, 0.845) & 0.720 (0.645, 0.779) \\
+\midrule
+\tableaccentrow \textbf{Nine-cell mean} & \textbf{0.568} & \best{0.655} & \textbf{0.613} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Detailed Gap Between Hallucination and Error Detection}
+\label{subsubsec:appendix_target_gap}
+
+\begin{table}[H]
+\centering
+\caption{Paired $\operatorname{AUROC}(H)-\operatorname{AUROC}(E)$ differences with 95\% bootstrap confidence intervals.}
+\label{tab:appendix_target_gap}
+\datatablefont
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lccc}
+\toprule
+\tableheadrow \thead{Model--dataset} & \thead{PPL} & \thead{SE} & \thead{UMPIRE} \\
+\midrule
+LLaVA / ViLP & $-0.033$ ($-0.066$, 0.003) & $-0.050$ ($-0.083$, $-0.020$) & $-0.039$ ($-0.073$, $-0.005$) \\
+LLaVA / HallusionBench & 0.040 ($-0.004$, 0.085) & 0.015 ($-0.027$, 0.059) & 0.009 ($-0.033$, 0.052) \\
+LLaVA / MM-Vet & $-0.191$ ($-0.279$, $-0.107$) & $-0.111$ ($-0.186$, $-0.035$) & $-0.106$ ($-0.186$, $-0.030$) \\
+\midrule
+Qwen / ViLP & $-0.112$ ($-0.149$, $-0.072$) & $-0.109$ ($-0.145$, $-0.072$) & $-0.107$ ($-0.143$, $-0.071$) \\
+Qwen / HallusionBench & $-0.085$ ($-0.124$, $-0.043$) & $-0.013$ ($-0.045$, 0.019) & $-0.015$ ($-0.049$, 0.015) \\
+Qwen / MM-Vet & $-0.181$ ($-0.263$, $-0.100$) & $-0.157$ ($-0.238$, $-0.074$) & $-0.193$ ($-0.276$, $-0.106$) \\
+\midrule
+InternVL / ViLP & $-0.089$ ($-0.130$, $-0.047$) & $-0.062$ ($-0.101$, $-0.023$) & $-0.077$ ($-0.113$, $-0.041$) \\
+InternVL / HallusionBench & $-0.067$ ($-0.104$, $-0.031$) & $-0.060$ ($-0.093$, $-0.027$) & $-0.013$ ($-0.051$, 0.022) \\
+InternVL / MM-Vet & $-0.092$ ($-0.162$, $-0.020$) & $-0.068$ ($-0.144$, 0.004) & $-0.108$ ($-0.179$, $-0.043$) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Detailed Difficult-Subset Construction Results}
+\label{subsubsec:appendix_subset_details}
+
+\begin{table}[H]
+\centering
+\caption{Positive/negative percentile alignment and matching distance for the three UQ methods.}
+\label{tab:appendix_subset_alignment}
+\datatablefont
+\setlength{\tabcolsep}{3.4pt}
+\begin{tabular}{lccccc}
+\toprule
+\tableheadrow \thead{Model} & \thead{PPL percentile} & \thead{SE percentile} & \thead{UMPIRE percentile} & \thead{Median distance} & \thead{90th percentile} \\
+\midrule
+LLaVA & 0.168 / 0.215 & 0.171 / 0.195 & 0.133 / 0.171 & 0.082 & 0.175 \\
+Qwen & 0.242 / 0.249 & 0.306 / 0.310 & 0.219 / 0.230 & \best{0.020} & 0.091 \\
+InternVL & 0.304 / 0.310 & 0.357 / 0.358 & 0.343 / 0.345 & 0.029 & \best{0.084} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Candidate pools and difficult-subset composition. Subset columns report positive/negative values, with 200 samples in each class.}
+\label{tab:appendix_subset_composition}
+\datatablefont
+\setlength{\tabcolsep}{2.2pt}
+\begin{tabular}{lcccccc}
+\toprule
+\tableheadrow \thead{Model} & \thead{\shortstack{Pool total /\\ H / non-H}} & \thead{ViLP} & \thead{HallusionBench} & \thead{MM-Vet} & \thead{Accuracy} & \thead{\shortstack{Positive type: visual /\\ reasoning / both}} \\
+\midrule
+LLaVA & 2,036 / 1,389 / 647 & 49 / 109 & 145 / 73 & 6 / 18 & 0.410 / 0.980 & 41 / 7 / 152 \\
+Qwen & 2,037 / 708 / 1,329 & 37 / 82 & 152 / 104 & 11 / 14 & 0.440 / 0.960 & 49 / 7 / 144 \\
+InternVL & 2,064 / 636 / 1,428 & 49 / 64 & 148 / 113 & 3 / 23 & 0.475 / 0.895 & 61 / 5 / 134 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All positives are hallucinated, and no negative has a hallucination rating at or below 2. Dual visual-and-reasoning hallucination dominates the positive class, while the score percentiles remain closely aligned between positives and negatives.
+
+\subsection{Data Exclusion Record}
+\label{subsec:appendix_exclusions}
+
+\begin{table}[H]
+\centering
+\caption{Generation, valid-evaluation, and exclusion counts. All exclusions are due to XML parsing failure.}
+\label{tab:appendix_exclusions}
+\datatablefont
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{llrrr}
+\toprule
+\tableheadrow \thead{Model} & \thead{Dataset} & \thead{Generated} & \thead{Evaluated} & \thead{Excluded} \\
+\midrule
+\multirow{3}{*}{LLaVA} & ViLP & 900 & 886 & 14 \\
+& HallusionBench & 1,129 & 1,108 & 21 \\
+& MM-Vet & 218 & 216 & 2 \\
+\midrule
+\multirow{3}{*}{Qwen} & ViLP & 900 & 898 & 2 \\
+& HallusionBench & 1,129 & 1,099 & \best{30} \\
+& MM-Vet & 218 & 218 & 0 \\
+\midrule
+\multirow{3}{*}{InternVL} & ViLP & 900 & 900 & 0 \\
+& HallusionBench & 1,129 & 1,126 & 3 \\
+& MM-Vet & 218 & 216 & 2 \\
+\midrule
+\textbf{Total} & & \textbf{6,741} & \textbf{6,667} & \textbf{74} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Dual-Judge Agreement and Human Adjudication}
+\label{subsec:appendix_judge_reliability}
+
+Agreement is computed from the original GPT-5.6-Terra and Gemini-3.7-Flash labels before human adjudication, restricted to the 6,667 greedy responses for which both judges returned valid labels and which entered the formal evaluation. \Cref{tab:appendix_judge_agreement} reports raw field-level agreement and Cohen's $\kappa$.
+
+\begin{table}[H]
+\centering
+\caption{Field-level agreement and Cohen's $\kappa$ between the two LLM judges.}
+\label{tab:appendix_judge_agreement}
+\datatablefont
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrrrrr}
+\toprule
+\thead{Model} & \thead{$n$} & \multicolumn{2}{c}{\thead{Correctness}} & \multicolumn{2}{c}{\thead{Hallucination}} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+& & \thead{Agreement} & \thead{$\kappa$} & \thead{Agreement} & \thead{$\kappa$} \\
+\midrule
+LLaVA & 2,210 & 98.69\% & 0.974 & 86.74\% & 0.713 \\
+Qwen & 2,215 & 97.20\% & 0.939 & 85.87\% & 0.676 \\
+InternVL & 2,242 & 96.92\% & 0.930 & 86.98\% & 0.697 \\
+\midrule
+\textbf{Overall} & \textbf{6,667} & \textbf{97.60\%} & \textbf{0.950} & \textbf{86.53\%} & \textbf{0.725} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Conflicting fields sent to blinded human adjudication and the number of unique adjudicated samples.}
+\label{tab:appendix_human_adjudication}
+\datatablefont
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrrrr}
+\toprule
+\thead{Model} & \thead{Correctness fields} & \thead{Hallucination fields} & \thead{Both fields} & \thead{Unique samples} \\
+\midrule
+LLaVA & 29 & 293 & 8 & 314 \\
+Qwen & 62 & 313 & 17 & 358 \\
+InternVL & 69 & 292 & 20 & 341 \\
+\midrule
+\textbf{Overall} & \textbf{160} & \textbf{898} & \textbf{45} & \textbf{1,013} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Correctness agreement exceeds 96.9\% for every model, with $\kappa>0.93$. Hallucination agreement is approximately 86\%, with $\kappa$ ranging from 0.676 to 0.713, indicating that hallucination judgments are more subjective than final-answer correctness judgments. Counting fields yields 1,058 human decisions; because 45 samples contain conflicts in both fields, 1,013 unique samples enter the blinded interface.

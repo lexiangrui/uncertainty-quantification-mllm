@@ -1,0 +1,5 @@
+model,correctness_fields,hallucination_fields,both_fields,unique_samples
+llava,29,293,8,314
+qwen,62,313,17,358
+internvl,69,292,20,341
+overall,160,898,45,1013

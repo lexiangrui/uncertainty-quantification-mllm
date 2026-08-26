@@ -366,7 +366,6 @@ def finalize_aligned_results(
     models: tuple[str, ...] = MODELS,
     datasets: tuple[str, ...] = DATASETS,
     human_adjudicator: str = "lexiangrui",
-    trusted_gpt_models: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     if output_dir.exists():
         raise FileExistsError(f"official output already exists: {output_dir}")
@@ -418,13 +417,8 @@ def finalize_aligned_results(
                     if (correct_disagrees or hallucination_disagrees) and queue_row is None:
                         raise ValueError(f"new disagreement not present in workspace: {key}")
                     annotation = annotations.get(key, {})
-                    use_trusted_gpt = model in trusted_gpt_models
-                    if use_trusted_gpt:
-                        correct = gpt["judge"]["correct"]
-                        hallucination = gpt["judge"]["hallucination"]
-                    else:
-                        correct = annotation["correct"] if correct_disagrees else gpt["judge"]["correct"]
-                        hallucination = annotation["hallucination"] if hallucination_disagrees else gpt["judge"]["hallucination"]
+                    correct = annotation["correct"] if correct_disagrees else gpt["judge"]["correct"]
+                    hallucination = annotation["hallucination"] if hallucination_disagrees else gpt["judge"]["hallucination"]
                     auxiliary = _select_auxiliary_judge(gpt, gemini, hallucination)
                     auxiliary_source = "gpt" if auxiliary is gpt["judge"] else "gemini"
                     judge = dict(auxiliary)
@@ -436,16 +430,12 @@ def finalize_aligned_results(
                         elif not hallucination:
                             judge["hallucination_types"] = []
                     correct_source = (
-                        {"kind": "human_policy", "model": gpt_run.get("judge_model")}
-                        if correct_disagrees and use_trusted_gpt
-                        else {"kind": "human", "model": None}
+                        {"kind": "human", "model": None}
                         if correct_disagrees
                         else {"kind": "judge_consensus", "model": None}
                     )
                     hallucination_source = (
-                        {"kind": "human_policy", "model": gpt_run.get("judge_model")}
-                        if hallucination_disagrees and use_trusted_gpt
-                        else {"kind": "human", "model": None}
+                        {"kind": "human", "model": None}
                         if hallucination_disagrees
                         else {"kind": "judge_consensus", "model": None}
                     )
@@ -467,7 +457,6 @@ def finalize_aligned_results(
                     "protocol": "human-aligned-dual-judge-v1",
                     "judge_models": [gpt_run.get("judge_model"), gemini_run.get("judge_model")],
                     "human_adjudicator": human_adjudicator,
-                    "trusted_gpt_models": list(trusted_gpt_models),
                     "raw_judge_inputs": [str(gpt_path.resolve()), str(gemini_path.resolve())],
                     "raw_judge_sha256": [_sha256(gpt_path), _sha256(gemini_path)],
                     "annotations_sha256": _sha256(workspace / "annotations.json"),

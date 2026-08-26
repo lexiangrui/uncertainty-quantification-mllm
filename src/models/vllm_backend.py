@@ -164,8 +164,8 @@ class VLLMMultimodalBackend(GenerationBackend):
                 max_tokens=max_new_tokens,
                 n=1,
                 logprobs=1,
-                stop=["</answer>"],
-                include_stop_str_in_output=True,
+                stop=list(request.prompt.stop) or None,
+                include_stop_str_in_output=bool(request.prompt.stop),
                 seed=request.seed,
             )
             for request in requests

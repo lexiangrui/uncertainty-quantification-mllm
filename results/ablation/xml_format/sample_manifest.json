@@ -1,0 +1,2540 @@
+{
+  "protocol": "xml-format-ablation-v2",
+  "sampling_frame": "pooled question instances from ViLP, HallusionBench, and MM-Vet with complete XML outputs for every tested model",
+  "eligibility_rule": "sections_valid=true for LLaVA, Qwen, and InternVL XML outputs",
+  "sampling_method": "simple random sampling without replacement",
+  "shared_across_models_and_conditions": true,
+  "seed": 42,
+  "sample_size": 500,
+  "pre_filter_candidate_count": 2247,
+  "candidate_count": 2173,
+  "excluded_incomplete_xml_count": 74,
+  "xml_complete_counts": {
+    "vilp": {
+      "llava": 886,
+      "qwen": 898,
+      "internvl": 900,
+      "shared_complete": 884
+    },
+    "hallusionbench": {
+      "llava": 1108,
+      "qwen": 1099,
+      "internvl": 1126,
+      "shared_complete": 1075
+    },
+    "mmvet": {
+      "llava": 216,
+      "qwen": 218,
+      "internvl": 216,
+      "shared_complete": 214
+    }
+  },
+  "dataset_counts": {
+    "vilp": 204,
+    "hallusionbench": 243,
+    "mmvet": 53
+  },
+  "sample_set_sha256": "ad112765e2c5ca6816bbe76eb427438b96f51fbeb01dbbc0a320a6529e549581",
+  "samples": [
+    {
+      "sample_id": "hallusionbench-image-VD-figure-11-0-0",
+      "group_id": "hallusionbench-image-VD-figure-11",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-11-1-1",
+      "group_id": "hallusionbench-image-VD-figure-11",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-13-0-1",
+      "group_id": "hallusionbench-image-VD-figure-13",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-15-1-1",
+      "group_id": "hallusionbench-image-VD-figure-15",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-17-1-1",
+      "group_id": "hallusionbench-image-VD-figure-17",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-18-0-0",
+      "group_id": "hallusionbench-image-VD-figure-18",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-18-1-1",
+      "group_id": "hallusionbench-image-VD-figure-18",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-19-0-0",
+      "group_id": "hallusionbench-image-VD-figure-19",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-19-1-0",
+      "group_id": "hallusionbench-image-VD-figure-19",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-19-1-1",
+      "group_id": "hallusionbench-image-VD-figure-19",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-3-1-0",
+      "group_id": "hallusionbench-image-VD-figure-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-4-0-1",
+      "group_id": "hallusionbench-image-VD-figure-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-6-0-0",
+      "group_id": "hallusionbench-image-VD-figure-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-6-1-0",
+      "group_id": "hallusionbench-image-VD-figure-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-6-1-1",
+      "group_id": "hallusionbench-image-VD-figure-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-8-1-1",
+      "group_id": "hallusionbench-image-VD-figure-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-figure-9-0-0",
+      "group_id": "hallusionbench-image-VD-figure-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-0-0-1",
+      "group_id": "hallusionbench-image-VD-illusion-0",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-1-1-2",
+      "group_id": "hallusionbench-image-VD-illusion-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-10-0-1",
+      "group_id": "hallusionbench-image-VD-illusion-10",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-14-0-1",
+      "group_id": "hallusionbench-image-VD-illusion-14",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-14-1-0",
+      "group_id": "hallusionbench-image-VD-illusion-14",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-15-1-1",
+      "group_id": "hallusionbench-image-VD-illusion-15",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-18-0-1",
+      "group_id": "hallusionbench-image-VD-illusion-18",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-19-0-3",
+      "group_id": "hallusionbench-image-VD-illusion-19",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-2-0-2",
+      "group_id": "hallusionbench-image-VD-illusion-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-2-1-2",
+      "group_id": "hallusionbench-image-VD-illusion-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-20-1-0",
+      "group_id": "hallusionbench-image-VD-illusion-20",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-21-1-0",
+      "group_id": "hallusionbench-image-VD-illusion-21",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-23-1-0",
+      "group_id": "hallusionbench-image-VD-illusion-23",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-23-1-1",
+      "group_id": "hallusionbench-image-VD-illusion-23",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-24-1-0",
+      "group_id": "hallusionbench-image-VD-illusion-24",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-24-1-1",
+      "group_id": "hallusionbench-image-VD-illusion-24",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-25-0-0",
+      "group_id": "hallusionbench-image-VD-illusion-25",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-25-1-0",
+      "group_id": "hallusionbench-image-VD-illusion-25",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-26-1-0",
+      "group_id": "hallusionbench-image-VD-illusion-26",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-27-0-0",
+      "group_id": "hallusionbench-image-VD-illusion-27",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-28-0-0",
+      "group_id": "hallusionbench-image-VD-illusion-28",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-28-1-1",
+      "group_id": "hallusionbench-image-VD-illusion-28",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-28-1-2",
+      "group_id": "hallusionbench-image-VD-illusion-28",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-29-0-1",
+      "group_id": "hallusionbench-image-VD-illusion-29",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-3-1-1",
+      "group_id": "hallusionbench-image-VD-illusion-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-30-0-0",
+      "group_id": "hallusionbench-image-VD-illusion-30",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-4-0-0",
+      "group_id": "hallusionbench-image-VD-illusion-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-5-1-1",
+      "group_id": "hallusionbench-image-VD-illusion-5",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-8-0-1",
+      "group_id": "hallusionbench-image-VD-illusion-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-8-0-2",
+      "group_id": "hallusionbench-image-VD-illusion-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-8-1-0",
+      "group_id": "hallusionbench-image-VD-illusion-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-illusion-9-0-1",
+      "group_id": "hallusionbench-image-VD-illusion-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-0-0-2",
+      "group_id": "hallusionbench-image-VD-math-0",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-0-1-0",
+      "group_id": "hallusionbench-image-VD-math-0",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-1-0-2",
+      "group_id": "hallusionbench-image-VD-math-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-1-1-2",
+      "group_id": "hallusionbench-image-VD-math-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-10-0-1",
+      "group_id": "hallusionbench-image-VD-math-10",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-11-0-0",
+      "group_id": "hallusionbench-image-VD-math-11",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-12-0-0",
+      "group_id": "hallusionbench-image-VD-math-12",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-12-1-0",
+      "group_id": "hallusionbench-image-VD-math-12",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-12-1-2",
+      "group_id": "hallusionbench-image-VD-math-12",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-13-0-1",
+      "group_id": "hallusionbench-image-VD-math-13",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-13-1-2",
+      "group_id": "hallusionbench-image-VD-math-13",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-14-0-1",
+      "group_id": "hallusionbench-image-VD-math-14",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-15-0-2",
+      "group_id": "hallusionbench-image-VD-math-15",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-15-1-0",
+      "group_id": "hallusionbench-image-VD-math-15",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-16-1-1",
+      "group_id": "hallusionbench-image-VD-math-16",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-16-1-2",
+      "group_id": "hallusionbench-image-VD-math-16",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-17-0-0",
+      "group_id": "hallusionbench-image-VD-math-17",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-17-0-1",
+      "group_id": "hallusionbench-image-VD-math-17",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-17-0-2",
+      "group_id": "hallusionbench-image-VD-math-17",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-17-1-2",
+      "group_id": "hallusionbench-image-VD-math-17",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-2-0-0",
+      "group_id": "hallusionbench-image-VD-math-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-3-1-2",
+      "group_id": "hallusionbench-image-VD-math-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-4-1-0",
+      "group_id": "hallusionbench-image-VD-math-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-4-1-1",
+      "group_id": "hallusionbench-image-VD-math-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-6-0-0",
+      "group_id": "hallusionbench-image-VD-math-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-6-0-2",
+      "group_id": "hallusionbench-image-VD-math-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-7-0-2",
+      "group_id": "hallusionbench-image-VD-math-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-7-1-0",
+      "group_id": "hallusionbench-image-VD-math-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-math-9-1-2",
+      "group_id": "hallusionbench-image-VD-math-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-0-1-0",
+      "group_id": "hallusionbench-image-VD-ocr-0",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-1-0-0",
+      "group_id": "hallusionbench-image-VD-ocr-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-1-0-1",
+      "group_id": "hallusionbench-image-VD-ocr-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-1-1-1",
+      "group_id": "hallusionbench-image-VD-ocr-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-11-1-0",
+      "group_id": "hallusionbench-image-VD-ocr-11",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-13-1-1",
+      "group_id": "hallusionbench-image-VD-ocr-13",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-14-0-0",
+      "group_id": "hallusionbench-image-VD-ocr-14",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-15-1-1",
+      "group_id": "hallusionbench-image-VD-ocr-15",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-16-0-0",
+      "group_id": "hallusionbench-image-VD-ocr-16",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-16-1-0",
+      "group_id": "hallusionbench-image-VD-ocr-16",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-17-1-1",
+      "group_id": "hallusionbench-image-VD-ocr-17",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-20-0-0",
+      "group_id": "hallusionbench-image-VD-ocr-20",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-3-0-0",
+      "group_id": "hallusionbench-image-VD-ocr-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-3-0-1",
+      "group_id": "hallusionbench-image-VD-ocr-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-3-0-2",
+      "group_id": "hallusionbench-image-VD-ocr-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-4-0-1",
+      "group_id": "hallusionbench-image-VD-ocr-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-6-1-0",
+      "group_id": "hallusionbench-image-VD-ocr-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-6-1-1",
+      "group_id": "hallusionbench-image-VD-ocr-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-ocr-9-1-1",
+      "group_id": "hallusionbench-image-VD-ocr-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-1-0-2",
+      "group_id": "hallusionbench-image-VD-video-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-1-1-0",
+      "group_id": "hallusionbench-image-VD-video-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-12-1-1",
+      "group_id": "hallusionbench-image-VD-video-12",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-14-0-2",
+      "group_id": "hallusionbench-image-VD-video-14",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-15-0-0",
+      "group_id": "hallusionbench-image-VD-video-15",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-16-1-0",
+      "group_id": "hallusionbench-image-VD-video-16",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-18-0-2",
+      "group_id": "hallusionbench-image-VD-video-18",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-18-0-3",
+      "group_id": "hallusionbench-image-VD-video-18",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-18-2-0",
+      "group_id": "hallusionbench-image-VD-video-18",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-19-0-2",
+      "group_id": "hallusionbench-image-VD-video-19",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-19-2-1",
+      "group_id": "hallusionbench-image-VD-video-19",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-2-0-0",
+      "group_id": "hallusionbench-image-VD-video-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-2-0-1",
+      "group_id": "hallusionbench-image-VD-video-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-2-1-2",
+      "group_id": "hallusionbench-image-VD-video-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-3-0-2",
+      "group_id": "hallusionbench-image-VD-video-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-3-2-2",
+      "group_id": "hallusionbench-image-VD-video-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-4-0-1",
+      "group_id": "hallusionbench-image-VD-video-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-4-0-2",
+      "group_id": "hallusionbench-image-VD-video-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-4-1-0",
+      "group_id": "hallusionbench-image-VD-video-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-5-0-0",
+      "group_id": "hallusionbench-image-VD-video-5",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-6-1-0",
+      "group_id": "hallusionbench-image-VD-video-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-6-1-2",
+      "group_id": "hallusionbench-image-VD-video-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-6-1-3",
+      "group_id": "hallusionbench-image-VD-video-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-7-0-0",
+      "group_id": "hallusionbench-image-VD-video-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-8-0-1",
+      "group_id": "hallusionbench-image-VD-video-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-8-0-2",
+      "group_id": "hallusionbench-image-VD-video-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VD-video-9-1-1",
+      "group_id": "hallusionbench-image-VD-video-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-0-1-2",
+      "group_id": "hallusionbench-image-VS-chart-0",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-1-1-3",
+      "group_id": "hallusionbench-image-VS-chart-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-10-1-1",
+      "group_id": "hallusionbench-image-VS-chart-10",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-10-2-2",
+      "group_id": "hallusionbench-image-VS-chart-10",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-11-1-1",
+      "group_id": "hallusionbench-image-VS-chart-11",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-12-1-0",
+      "group_id": "hallusionbench-image-VS-chart-12",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-12-1-1",
+      "group_id": "hallusionbench-image-VS-chart-12",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-12-2-2",
+      "group_id": "hallusionbench-image-VS-chart-12",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-13-2-1",
+      "group_id": "hallusionbench-image-VS-chart-13",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-14-1-0",
+      "group_id": "hallusionbench-image-VS-chart-14",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-15-2-0",
+      "group_id": "hallusionbench-image-VS-chart-15",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-17-1-1",
+      "group_id": "hallusionbench-image-VS-chart-17",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-17-2-1",
+      "group_id": "hallusionbench-image-VS-chart-17",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-19-1-1",
+      "group_id": "hallusionbench-image-VS-chart-19",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-2-1-2",
+      "group_id": "hallusionbench-image-VS-chart-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-2-1-3",
+      "group_id": "hallusionbench-image-VS-chart-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-2-1-7",
+      "group_id": "hallusionbench-image-VS-chart-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-20-2-0",
+      "group_id": "hallusionbench-image-VS-chart-20",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-20-2-1",
+      "group_id": "hallusionbench-image-VS-chart-20",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-3-1-0",
+      "group_id": "hallusionbench-image-VS-chart-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-3-1-1",
+      "group_id": "hallusionbench-image-VS-chart-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-3-1-2",
+      "group_id": "hallusionbench-image-VS-chart-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-3-1-3",
+      "group_id": "hallusionbench-image-VS-chart-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-3-2-1",
+      "group_id": "hallusionbench-image-VS-chart-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-3-2-2",
+      "group_id": "hallusionbench-image-VS-chart-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-4-1-1",
+      "group_id": "hallusionbench-image-VS-chart-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-4-1-2",
+      "group_id": "hallusionbench-image-VS-chart-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-5-1-2",
+      "group_id": "hallusionbench-image-VS-chart-5",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-6-2-3",
+      "group_id": "hallusionbench-image-VS-chart-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-7-2-3",
+      "group_id": "hallusionbench-image-VS-chart-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-8-1-1",
+      "group_id": "hallusionbench-image-VS-chart-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-9-2-0",
+      "group_id": "hallusionbench-image-VS-chart-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-9-2-1",
+      "group_id": "hallusionbench-image-VS-chart-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-chart-9-2-2",
+      "group_id": "hallusionbench-image-VS-chart-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-map-2-1-1",
+      "group_id": "hallusionbench-image-VS-map-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-map-3-2-0",
+      "group_id": "hallusionbench-image-VS-map-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-map-4-1-1",
+      "group_id": "hallusionbench-image-VS-map-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-map-4-2-1",
+      "group_id": "hallusionbench-image-VS-map-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-map-5-1-2",
+      "group_id": "hallusionbench-image-VS-map-5",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-map-6-2-0",
+      "group_id": "hallusionbench-image-VS-map-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-map-8-1-0",
+      "group_id": "hallusionbench-image-VS-map-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-map-8-1-1",
+      "group_id": "hallusionbench-image-VS-map-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-map-8-2-1",
+      "group_id": "hallusionbench-image-VS-map-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-map-9-2-1",
+      "group_id": "hallusionbench-image-VS-map-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-ocr-1-1-0",
+      "group_id": "hallusionbench-image-VS-ocr-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-ocr-10-1-1",
+      "group_id": "hallusionbench-image-VS-ocr-10",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-ocr-11-1-1",
+      "group_id": "hallusionbench-image-VS-ocr-11",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-ocr-11-2-1",
+      "group_id": "hallusionbench-image-VS-ocr-11",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-ocr-12-1-1",
+      "group_id": "hallusionbench-image-VS-ocr-12",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-ocr-12-2-0",
+      "group_id": "hallusionbench-image-VS-ocr-12",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-ocr-12-2-1",
+      "group_id": "hallusionbench-image-VS-ocr-12",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-ocr-5-2-0",
+      "group_id": "hallusionbench-image-VS-ocr-5",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-ocr-7-2-1",
+      "group_id": "hallusionbench-image-VS-ocr-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-ocr-8-2-0",
+      "group_id": "hallusionbench-image-VS-ocr-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-ocr-9-1-0",
+      "group_id": "hallusionbench-image-VS-ocr-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-0-1-1",
+      "group_id": "hallusionbench-image-VS-table-0",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-1-2-0",
+      "group_id": "hallusionbench-image-VS-table-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-1-2-2",
+      "group_id": "hallusionbench-image-VS-table-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-10-1-3",
+      "group_id": "hallusionbench-image-VS-table-10",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-10-2-1",
+      "group_id": "hallusionbench-image-VS-table-10",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-2-1-1",
+      "group_id": "hallusionbench-image-VS-table-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-2-2-0",
+      "group_id": "hallusionbench-image-VS-table-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-2-3-2",
+      "group_id": "hallusionbench-image-VS-table-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-3-2-0",
+      "group_id": "hallusionbench-image-VS-table-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-4-1-0",
+      "group_id": "hallusionbench-image-VS-table-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-4-3-2",
+      "group_id": "hallusionbench-image-VS-table-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-5-1-0",
+      "group_id": "hallusionbench-image-VS-table-5",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-6-1-0",
+      "group_id": "hallusionbench-image-VS-table-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-6-1-1",
+      "group_id": "hallusionbench-image-VS-table-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-6-1-2",
+      "group_id": "hallusionbench-image-VS-table-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-6-3-1",
+      "group_id": "hallusionbench-image-VS-table-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-7-1-2",
+      "group_id": "hallusionbench-image-VS-table-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-7-1-3",
+      "group_id": "hallusionbench-image-VS-table-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-7-2-0",
+      "group_id": "hallusionbench-image-VS-table-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-7-2-2",
+      "group_id": "hallusionbench-image-VS-table-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-7-2-4",
+      "group_id": "hallusionbench-image-VS-table-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-7-3-5",
+      "group_id": "hallusionbench-image-VS-table-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-8-2-0",
+      "group_id": "hallusionbench-image-VS-table-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-8-2-5",
+      "group_id": "hallusionbench-image-VS-table-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-9-1-1",
+      "group_id": "hallusionbench-image-VS-table-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-image-VS-table-9-1-2",
+      "group_id": "hallusionbench-image-VS-table-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-0-0-1",
+      "group_id": "hallusionbench-non_image-VS-chart-0",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-0-0-3",
+      "group_id": "hallusionbench-non_image-VS-chart-0",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-1-0-5",
+      "group_id": "hallusionbench-non_image-VS-chart-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-10-0-1",
+      "group_id": "hallusionbench-non_image-VS-chart-10",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-12-0-1",
+      "group_id": "hallusionbench-non_image-VS-chart-12",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-14-0-0",
+      "group_id": "hallusionbench-non_image-VS-chart-14",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-14-0-2",
+      "group_id": "hallusionbench-non_image-VS-chart-14",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-15-0-1",
+      "group_id": "hallusionbench-non_image-VS-chart-15",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-16-0-0",
+      "group_id": "hallusionbench-non_image-VS-chart-16",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-16-0-1",
+      "group_id": "hallusionbench-non_image-VS-chart-16",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-2-0-3",
+      "group_id": "hallusionbench-non_image-VS-chart-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-20-0-0",
+      "group_id": "hallusionbench-non_image-VS-chart-20",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-20-0-1",
+      "group_id": "hallusionbench-non_image-VS-chart-20",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-3-0-1",
+      "group_id": "hallusionbench-non_image-VS-chart-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-3-0-2",
+      "group_id": "hallusionbench-non_image-VS-chart-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-5-0-0",
+      "group_id": "hallusionbench-non_image-VS-chart-5",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-chart-5-0-3",
+      "group_id": "hallusionbench-non_image-VS-chart-5",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-map-3-0-1",
+      "group_id": "hallusionbench-non_image-VS-map-3",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-map-4-0-2",
+      "group_id": "hallusionbench-non_image-VS-map-4",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-map-6-0-1",
+      "group_id": "hallusionbench-non_image-VS-map-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-map-8-0-0",
+      "group_id": "hallusionbench-non_image-VS-map-8",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-ocr-1-0-0",
+      "group_id": "hallusionbench-non_image-VS-ocr-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-ocr-12-0-1",
+      "group_id": "hallusionbench-non_image-VS-ocr-12",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-ocr-2-0-0",
+      "group_id": "hallusionbench-non_image-VS-ocr-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-ocr-2-0-2",
+      "group_id": "hallusionbench-non_image-VS-ocr-2",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-ocr-6-0-1",
+      "group_id": "hallusionbench-non_image-VS-ocr-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-table-0-0-2",
+      "group_id": "hallusionbench-non_image-VS-table-0",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-table-1-0-0",
+      "group_id": "hallusionbench-non_image-VS-table-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-table-1-0-2",
+      "group_id": "hallusionbench-non_image-VS-table-1",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-table-10-0-0",
+      "group_id": "hallusionbench-non_image-VS-table-10",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-table-10-0-2",
+      "group_id": "hallusionbench-non_image-VS-table-10",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-table-10-0-3",
+      "group_id": "hallusionbench-non_image-VS-table-10",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-table-6-0-2",
+      "group_id": "hallusionbench-non_image-VS-table-6",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-table-7-0-0",
+      "group_id": "hallusionbench-non_image-VS-table-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-table-7-0-2",
+      "group_id": "hallusionbench-non_image-VS-table-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-table-7-0-4",
+      "group_id": "hallusionbench-non_image-VS-table-7",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-table-9-0-1",
+      "group_id": "hallusionbench-non_image-VS-table-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "hallusionbench-non_image-VS-table-9-0-2",
+      "group_id": "hallusionbench-non_image-VS-table-9",
+      "dataset": "hallusionbench"
+    },
+    {
+      "sample_id": "mmvet-v1_1",
+      "group_id": "mmvet-v1_1",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_101",
+      "group_id": "mmvet-v1_101",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_104",
+      "group_id": "mmvet-v1_104",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_112",
+      "group_id": "mmvet-v1_112",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_114",
+      "group_id": "mmvet-v1_114",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_116",
+      "group_id": "mmvet-v1_116",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_118",
+      "group_id": "mmvet-v1_118",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_121",
+      "group_id": "mmvet-v1_121",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_125",
+      "group_id": "mmvet-v1_125",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_127",
+      "group_id": "mmvet-v1_127",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_130",
+      "group_id": "mmvet-v1_130",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_137",
+      "group_id": "mmvet-v1_137",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_14",
+      "group_id": "mmvet-v1_14",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_144",
+      "group_id": "mmvet-v1_144",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_146",
+      "group_id": "mmvet-v1_146",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_150",
+      "group_id": "mmvet-v1_150",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_153",
+      "group_id": "mmvet-v1_153",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_161",
+      "group_id": "mmvet-v1_161",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_163",
+      "group_id": "mmvet-v1_163",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_165",
+      "group_id": "mmvet-v1_165",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_182",
+      "group_id": "mmvet-v1_182",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_187",
+      "group_id": "mmvet-v1_187",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_189",
+      "group_id": "mmvet-v1_189",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_19",
+      "group_id": "mmvet-v1_19",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_196",
+      "group_id": "mmvet-v1_196",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_197",
+      "group_id": "mmvet-v1_197",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_198",
+      "group_id": "mmvet-v1_198",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_201",
+      "group_id": "mmvet-v1_201",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_208",
+      "group_id": "mmvet-v1_208",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_211",
+      "group_id": "mmvet-v1_211",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_212",
+      "group_id": "mmvet-v1_212",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_214",
+      "group_id": "mmvet-v1_214",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_217",
+      "group_id": "mmvet-v1_217",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_24",
+      "group_id": "mmvet-v1_24",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_26",
+      "group_id": "mmvet-v1_26",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_27",
+      "group_id": "mmvet-v1_27",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_34",
+      "group_id": "mmvet-v1_34",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_35",
+      "group_id": "mmvet-v1_35",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_41",
+      "group_id": "mmvet-v1_41",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_46",
+      "group_id": "mmvet-v1_46",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_52",
+      "group_id": "mmvet-v1_52",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_54",
+      "group_id": "mmvet-v1_54",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_59",
+      "group_id": "mmvet-v1_59",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_66",
+      "group_id": "mmvet-v1_66",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_70",
+      "group_id": "mmvet-v1_70",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_79",
+      "group_id": "mmvet-v1_79",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_82",
+      "group_id": "mmvet-v1_82",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_85",
+      "group_id": "mmvet-v1_85",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_86",
+      "group_id": "mmvet-v1_86",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_88",
+      "group_id": "mmvet-v1_88",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_9",
+      "group_id": "mmvet-v1_9",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_95",
+      "group_id": "mmvet-v1_95",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "mmvet-v1_98",
+      "group_id": "mmvet-v1_98",
+      "dataset": "mmvet"
+    },
+    {
+      "sample_id": "vilp-1-case1",
+      "group_id": "vilp-1",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-1-case2",
+      "group_id": "vilp-1",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-10-case2",
+      "group_id": "vilp-10",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-100-case3",
+      "group_id": "vilp-100",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-102-case3",
+      "group_id": "vilp-102",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-103-case1",
+      "group_id": "vilp-103",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-104-case1",
+      "group_id": "vilp-104",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-104-case2",
+      "group_id": "vilp-104",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-104-case3",
+      "group_id": "vilp-104",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-105-case1",
+      "group_id": "vilp-105",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-107-case3",
+      "group_id": "vilp-107",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-109-case2",
+      "group_id": "vilp-109",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-109-case3",
+      "group_id": "vilp-109",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-111-case1",
+      "group_id": "vilp-111",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-113-case2",
+      "group_id": "vilp-113",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-116-case3",
+      "group_id": "vilp-116",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-117-case1",
+      "group_id": "vilp-117",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-117-case2",
+      "group_id": "vilp-117",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-12-case2",
+      "group_id": "vilp-12",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-121-case3",
+      "group_id": "vilp-121",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-123-case1",
+      "group_id": "vilp-123",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-124-case2",
+      "group_id": "vilp-124",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-127-case3",
+      "group_id": "vilp-127",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-128-case2",
+      "group_id": "vilp-128",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-129-case1",
+      "group_id": "vilp-129",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-129-case3",
+      "group_id": "vilp-129",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-130-case3",
+      "group_id": "vilp-130",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-132-case2",
+      "group_id": "vilp-132",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-136-case1",
+      "group_id": "vilp-136",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-136-case2",
+      "group_id": "vilp-136",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-137-case3",
+      "group_id": "vilp-137",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-139-case1",
+      "group_id": "vilp-139",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-14-case1",
+      "group_id": "vilp-14",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-14-case3",
+      "group_id": "vilp-14",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-142-case1",
+      "group_id": "vilp-142",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-142-case2",
+      "group_id": "vilp-142",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-143-case3",
+      "group_id": "vilp-143",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-145-case2",
+      "group_id": "vilp-145",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-145-case3",
+      "group_id": "vilp-145",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-147-case3",
+      "group_id": "vilp-147",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-148-case1",
+      "group_id": "vilp-148",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-150-case1",
+      "group_id": "vilp-150",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-151-case1",
+      "group_id": "vilp-151",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-151-case2",
+      "group_id": "vilp-151",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-154-case3",
+      "group_id": "vilp-154",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-157-case3",
+      "group_id": "vilp-157",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-158-case2",
+      "group_id": "vilp-158",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-160-case1",
+      "group_id": "vilp-160",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-160-case2",
+      "group_id": "vilp-160",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-162-case3",
+      "group_id": "vilp-162",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-164-case3",
+      "group_id": "vilp-164",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-165-case2",
+      "group_id": "vilp-165",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-166-case3",
+      "group_id": "vilp-166",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-168-case2",
+      "group_id": "vilp-168",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-17-case2",
+      "group_id": "vilp-17",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-170-case3",
+      "group_id": "vilp-170",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-171-case3",
+      "group_id": "vilp-171",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-172-case2",
+      "group_id": "vilp-172",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-172-case3",
+      "group_id": "vilp-172",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-174-case1",
+      "group_id": "vilp-174",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-174-case3",
+      "group_id": "vilp-174",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-177-case3",
+      "group_id": "vilp-177",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-178-case3",
+      "group_id": "vilp-178",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-18-case2",
+      "group_id": "vilp-18",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-183-case2",
+      "group_id": "vilp-183",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-184-case2",
+      "group_id": "vilp-184",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-185-case1",
+      "group_id": "vilp-185",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-186-case3",
+      "group_id": "vilp-186",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-188-case1",
+      "group_id": "vilp-188",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-188-case2",
+      "group_id": "vilp-188",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-191-case2",
+      "group_id": "vilp-191",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-193-case2",
+      "group_id": "vilp-193",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-196-case1",
+      "group_id": "vilp-196",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-199-case2",
+      "group_id": "vilp-199",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-200-case1",
+      "group_id": "vilp-200",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-204-case1",
+      "group_id": "vilp-204",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-206-case1",
+      "group_id": "vilp-206",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-207-case3",
+      "group_id": "vilp-207",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-210-case2",
+      "group_id": "vilp-210",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-211-case1",
+      "group_id": "vilp-211",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-211-case2",
+      "group_id": "vilp-211",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-213-case3",
+      "group_id": "vilp-213",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-214-case1",
+      "group_id": "vilp-214",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-215-case3",
+      "group_id": "vilp-215",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-217-case3",
+      "group_id": "vilp-217",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-218-case3",
+      "group_id": "vilp-218",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-220-case2",
+      "group_id": "vilp-220",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-222-case2",
+      "group_id": "vilp-222",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-224-case1",
+      "group_id": "vilp-224",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-225-case2",
+      "group_id": "vilp-225",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-227-case2",
+      "group_id": "vilp-227",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-228-case1",
+      "group_id": "vilp-228",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-229-case3",
+      "group_id": "vilp-229",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-233-case2",
+      "group_id": "vilp-233",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-238-case2",
+      "group_id": "vilp-238",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-240-case1",
+      "group_id": "vilp-240",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-240-case2",
+      "group_id": "vilp-240",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-240-case3",
+      "group_id": "vilp-240",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-241-case2",
+      "group_id": "vilp-241",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-243-case1",
+      "group_id": "vilp-243",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-245-case1",
+      "group_id": "vilp-245",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-245-case2",
+      "group_id": "vilp-245",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-246-case3",
+      "group_id": "vilp-246",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-248-case2",
+      "group_id": "vilp-248",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-249-case3",
+      "group_id": "vilp-249",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-25-case1",
+      "group_id": "vilp-25",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-25-case3",
+      "group_id": "vilp-25",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-250-case3",
+      "group_id": "vilp-250",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-252-case1",
+      "group_id": "vilp-252",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-253-case1",
+      "group_id": "vilp-253",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-254-case3",
+      "group_id": "vilp-254",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-255-case1",
+      "group_id": "vilp-255",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-255-case3",
+      "group_id": "vilp-255",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-256-case3",
+      "group_id": "vilp-256",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-258-case1",
+      "group_id": "vilp-258",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-258-case3",
+      "group_id": "vilp-258",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-259-case2",
+      "group_id": "vilp-259",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-26-case2",
+      "group_id": "vilp-26",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-26-case3",
+      "group_id": "vilp-26",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-260-case2",
+      "group_id": "vilp-260",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-260-case3",
+      "group_id": "vilp-260",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-263-case1",
+      "group_id": "vilp-263",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-263-case3",
+      "group_id": "vilp-263",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-266-case2",
+      "group_id": "vilp-266",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-268-case1",
+      "group_id": "vilp-268",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-268-case3",
+      "group_id": "vilp-268",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-270-case2",
+      "group_id": "vilp-270",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-272-case1",
+      "group_id": "vilp-272",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-272-case3",
+      "group_id": "vilp-272",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-273-case2",
+      "group_id": "vilp-273",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-274-case1",
+      "group_id": "vilp-274",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-275-case3",
+      "group_id": "vilp-275",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-276-case3",
+      "group_id": "vilp-276",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-277-case1",
+      "group_id": "vilp-277",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-279-case2",
+      "group_id": "vilp-279",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-280-case1",
+      "group_id": "vilp-280",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-280-case3",
+      "group_id": "vilp-280",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-282-case1",
+      "group_id": "vilp-282",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-289-case3",
+      "group_id": "vilp-289",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-291-case1",
+      "group_id": "vilp-291",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-293-case1",
+      "group_id": "vilp-293",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-294-case1",
+      "group_id": "vilp-294",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-294-case3",
+      "group_id": "vilp-294",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-295-case3",
+      "group_id": "vilp-295",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-296-case3",
+      "group_id": "vilp-296",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-297-case3",
+      "group_id": "vilp-297",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-298-case3",
+      "group_id": "vilp-298",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-30-case3",
+      "group_id": "vilp-30",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-32-case1",
+      "group_id": "vilp-32",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-35-case1",
+      "group_id": "vilp-35",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-37-case1",
+      "group_id": "vilp-37",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-38-case1",
+      "group_id": "vilp-38",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-4-case1",
+      "group_id": "vilp-4",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-40-case2",
+      "group_id": "vilp-40",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-44-case3",
+      "group_id": "vilp-44",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-46-case2",
+      "group_id": "vilp-46",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-47-case1",
+      "group_id": "vilp-47",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-47-case2",
+      "group_id": "vilp-47",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-49-case1",
+      "group_id": "vilp-49",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-50-case1",
+      "group_id": "vilp-50",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-50-case2",
+      "group_id": "vilp-50",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-52-case1",
+      "group_id": "vilp-52",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-52-case2",
+      "group_id": "vilp-52",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-54-case2",
+      "group_id": "vilp-54",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-54-case3",
+      "group_id": "vilp-54",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-55-case1",
+      "group_id": "vilp-55",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-55-case3",
+      "group_id": "vilp-55",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-58-case2",
+      "group_id": "vilp-58",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-59-case1",
+      "group_id": "vilp-59",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-59-case3",
+      "group_id": "vilp-59",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-62-case1",
+      "group_id": "vilp-62",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-63-case3",
+      "group_id": "vilp-63",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-64-case1",
+      "group_id": "vilp-64",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-64-case2",
+      "group_id": "vilp-64",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-67-case2",
+      "group_id": "vilp-67",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-67-case3",
+      "group_id": "vilp-67",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-68-case2",
+      "group_id": "vilp-68",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-69-case1",
+      "group_id": "vilp-69",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-73-case2",
+      "group_id": "vilp-73",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-75-case3",
+      "group_id": "vilp-75",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-77-case2",
+      "group_id": "vilp-77",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-79-case2",
+      "group_id": "vilp-79",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-80-case3",
+      "group_id": "vilp-80",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-81-case2",
+      "group_id": "vilp-81",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-83-case1",
+      "group_id": "vilp-83",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-83-case2",
+      "group_id": "vilp-83",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-84-case1",
+      "group_id": "vilp-84",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-84-case3",
+      "group_id": "vilp-84",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-85-case2",
+      "group_id": "vilp-85",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-86-case2",
+      "group_id": "vilp-86",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-86-case3",
+      "group_id": "vilp-86",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-87-case1",
+      "group_id": "vilp-87",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-88-case1",
+      "group_id": "vilp-88",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-88-case2",
+      "group_id": "vilp-88",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-89-case1",
+      "group_id": "vilp-89",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-90-case2",
+      "group_id": "vilp-90",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-93-case2",
+      "group_id": "vilp-93",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-94-case3",
+      "group_id": "vilp-94",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-95-case1",
+      "group_id": "vilp-95",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-96-case2",
+      "group_id": "vilp-96",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-97-case2",
+      "group_id": "vilp-97",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-98-case1",
+      "group_id": "vilp-98",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-99-case2",
+      "group_id": "vilp-99",
+      "dataset": "vilp"
+    },
+    {
+      "sample_id": "vilp-99-case3",
+      "group_id": "vilp-99",
+      "dataset": "vilp"
+    }
+  ]
+}

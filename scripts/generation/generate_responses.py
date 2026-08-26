@@ -25,7 +25,11 @@ def parse_args() -> argparse.Namespace:
         choices=("llava_1_5", "qwen2_5_vl", "internvl3_5", "internvl3_5_original"),
     )
     parser.add_argument("--model-path", required=True, type=Path)
-    parser.add_argument("--adapter-path", required=True, type=Path)
+    parser.add_argument(
+        "--adapter-path",
+        type=Path,
+        help="Optional LoRA adapter. Omit for the native base-model condition.",
+    )
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--max-new-tokens", type=int, default=512)
     parser.add_argument("--num-samples", type=int, default=10)
@@ -46,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--prompt-style",
-        choices=("xml_lora",),
+        choices=("xml_lora", "native_three_part"),
         default="xml_lora",
     )
     parser.add_argument("--max-num-seqs", type=int, default=8)

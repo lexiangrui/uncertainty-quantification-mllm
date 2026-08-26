@@ -14,6 +14,7 @@ configs/judges/openai.env.example
 *token*
 
 # Heavy generated artifacts.
+/tmp/
 logs/
 results/
 results*/
@@ -25,6 +26,38 @@ GASP/cache/
 *.pkl
 *.parquet
 *.arrow
+
+# Curated, lightweight formal-result summaries kept for reproducibility.
+!results/
+results/*
+!results/README.md
+!results/metrics/
+results/metrics/*
+!results/metrics/*/
+!results/metrics/*/*.json
+!results/generation/
+results/generation/**
+!results/generation/**/
+!results/generation/**/*.jsonl
+!results/judging/
+results/judging/*
+!results/judging/*/
+!results/judging/*/*.jsonl
+!results/analysis/
+!results/analysis/**
+!results/human_alignment/
+results/human_alignment/*
+!results/human_alignment/finalization_manifest.json
+!results/ablation/
+results/ablation/*
+!results/ablation/xml_format/
+results/ablation/xml_format/*
+!results/ablation/xml_format/sample_manifest.json
+!results/ablation/xml_format/analysis/
+results/ablation/xml_format/analysis/*
+!results/ablation/xml_format/analysis/manifest.json
+!results/ablation/xml_format/analysis/paired_performance.csv
+!results/ablation/xml_format/analysis/结果.md
 
 # Python/build caches.
 dist/

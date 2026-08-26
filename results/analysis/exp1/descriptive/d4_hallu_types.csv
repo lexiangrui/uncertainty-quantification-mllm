@@ -1,0 +1,11 @@
+scope,n_hallu,vision_hallucination,reasoning_hallucination,both,none_listed,vision_any,reasoning_any
+llava/vilp,467,85,72,310,0,395,382
+llava/hallusionbench,881,140,91,650,0,790,741
+llava/mmvet,152,42,20,90,0,132,110
+qwen/vilp,215,35,95,85,0,120,180
+qwen/hallusionbench,514,97,109,308,0,405,417
+qwen/mmvet,65,15,21,29,0,44,50
+internvl/vilp,229,40,80,109,0,149,189
+internvl/hallusionbench,435,105,62,268,0,373,330
+internvl/mmvet,57,13,27,17,0,30,44
+all/all,3015,572,577,1866,0,2438,2443

@@ -8,7 +8,7 @@
 
 \subsubsection{Accuracy and Hallucination Rate}
 
-The three models produced 6,741 responses in total, of which 6,667 satisfied the XML requirements and entered the formal evaluation, yielding a validity rate of 98.9\%. Cell-level exclusions are reported in Appendix~A.5. This high validity rate indicates that format adaptation reliably supports the subsequent correctness, hallucination, and uncertainty analyses. LLaVA has the lowest overall accuracy (0.493) and the highest hallucination rate (0.679), whereas Qwen and InternVL achieve higher accuracy with substantially lower hallucination rates of 0.358 and 0.322, respectively; InternVL has the strongest overall performance.
+The three models produced 6,741 responses in total, of which 6,667 satisfied the XML requirements and entered the formal evaluation, yielding a validity rate of 98.9\%. Cell-level exclusions are reported in Appendix~\ref{subsec:appendix_exclusions}. This high validity rate indicates that format adaptation reliably supports the subsequent correctness, hallucination, and uncertainty analyses. LLaVA has the lowest overall accuracy (0.493) and the highest hallucination rate (0.679), whereas Qwen and InternVL achieve higher accuracy with substantially lower hallucination rates of 0.358 and 0.322, respectively; InternVL has the strongest overall performance.
 
 \begin{table}[H]
 \centering
@@ -53,7 +53,7 @@ HallusionBench places the strongest demands on hallucination control. For exampl
 \label{fig:label_joint}
 \end{figure}
 
-As shown in \Cref{fig:label_joint}, correctness and hallucination are distinct evaluation targets. Among the 6,667 valid responses, 14.0\% are correct but hallucinated and 8.8\% are incorrect without hallucination. Replacing $H$ with the error label $E=1-C$ would therefore mismatch 1,522 samples (22.8\%). Moreover, 30.9\% of all hallucinated responses still have correct final answers, while 22.1\% of all incorrect responses contain no hallucination. Complete counts and conditional proportions are provided in Appendix~A.2. The absolute $\phi$ coefficients in the nine model--dataset cells range only from 0.46 to 0.65, confirming that the labels are moderately to strongly associated but remain far from equivalent.
+As shown in \Cref{fig:label_joint}, correctness and hallucination are distinct evaluation targets. Among the 6,667 valid responses, 14.0\% are correct but hallucinated and 8.8\% are incorrect without hallucination. Replacing $H$ with the error label $E=1-C$ would therefore mismatch 1,522 samples (22.8\%). Moreover, 30.9\% of all hallucinated responses still have correct final answers, while 22.1\% of all incorrect responses contain no hallucination. Complete counts and conditional proportions are provided in Appendix~\ref{subsec:appendix_label_stats}. The absolute $\phi$ coefficients in the nine model--dataset cells range only from 0.46 to 0.65, confirming that the labels are moderately to strongly associated but remain far from equivalent.
 
 \begin{figure}[H]
 \centering
@@ -76,7 +76,7 @@ Across all hallucinated responses, 61.9\% contain both visual and reasoning hall
 \label{fig:error_detection}
 \end{figure}
 
-As shown in \Cref{fig:error_detection}, Semantic Entropy achieves the best AUROC in eight of the nine model--dataset cells and has a nine-cell mean of 0.724. UMPIRE is best only for LLaVA/HallusionBench, while PPL is not best in any cell. The mean ranks of SE, UMPIRE, and PPL are 1.22, 2.11, and 2.67, respectively. The model-wise macro-average SE AUROC is also consistently highest (0.672, 0.729, and 0.771 for LLaVA, Qwen, and InternVL), while all three methods generally perform better on MM-Vet than on ViLP and HallusionBench. Full cell-level AUROC values and confidence intervals are reported in Appendix~A.3.
+As shown in \Cref{fig:error_detection}, Semantic Entropy achieves the best AUROC in eight of the nine model--dataset cells and has a nine-cell mean of 0.724. UMPIRE is best only for LLaVA/HallusionBench, while PPL is not best in any cell. The mean ranks of SE, UMPIRE, and PPL are 1.22, 2.11, and 2.67, respectively. The model-wise macro-average SE AUROC is also consistently highest (0.672, 0.729, and 0.771 for LLaVA, Qwen, and InternVL), while all three methods generally perform better on MM-Vet than on ViLP and HallusionBench. Full cell-level AUROC values and confidence intervals are reported in Appendix~\ref{subsec:appendix_error_auroc}.
 
 \subsubsection{Hallucination Detection}
 
@@ -87,7 +87,7 @@ As shown in \Cref{fig:error_detection}, Semantic Entropy achieves the best AUROC
 \label{fig:hallucination_detection}
 \end{figure}
 
-Changing the target from error to hallucination weakens all three methods (\Cref{fig:hallucination_detection}). The nine-cell mean AUROC decreases from 0.658, 0.724, and 0.685 for error detection to 0.568, 0.655, and 0.613 for PPL, SE, and UMPIRE, respectively. SE remains best in eight cells, but its absolute performance is lower than for error detection. Four PPL confidence intervals and one UMPIRE confidence interval cover random performance at 0.5, whereas none of the nine SE intervals does. The model-wise macro-average SE AUROC is 0.623, 0.636, and 0.707 for LLaVA, Qwen, and InternVL, all below the corresponding error-detection results. These results indicate that semantic dispersion across samples is more effective at capturing answer instability than factual hallucination in visual observation and reasoning. Full results are reported in Appendix~A.4.
+Changing the target from error to hallucination weakens all three methods (\Cref{fig:hallucination_detection}). The nine-cell mean AUROC decreases from 0.658, 0.724, and 0.685 for error detection to 0.568, 0.655, and 0.613 for PPL, SE, and UMPIRE, respectively. SE remains best in eight cells, but its absolute performance is lower than for error detection. Four PPL confidence intervals and one UMPIRE confidence interval cover random performance at 0.5, whereas none of the nine SE intervals does. The model-wise macro-average SE AUROC is 0.623, 0.636, and 0.707 for LLaVA, Qwen, and InternVL, all below the corresponding error-detection results. These results indicate that semantic dispersion across samples is more effective at capturing answer instability than factual hallucination in visual observation and reasoning. Full results are reported in Appendix~\ref{subsec:appendix_h_auroc}.
 
 \subsubsection{Detection-Target Gap}
 
@@ -110,7 +110,7 @@ InternVL & $-0.083$ & $-0.063$ & $-0.066$ \\
 \end{tabular}
 \end{table}
 
-All nine model--method means in \Cref{tab:target_gap} are negative, with an overall mean of $-0.077$. Qwen exhibits the largest decrease for all three methods, whereas LLaVA has the smallest. Complete cell-level paired differences and 95\% bootstrap confidence intervals are provided in Appendix~A.4.1. When the analysis is restricted to incorrect answers and asks whether an incorrect response is also hallucinated, the nine-cell mean AUROC is only 0.400 for PPL, 0.494 for SE, and 0.423 for UMPIRE; 22 of 27 combinations lie below 0.5, with a minimum of 0.307 for UMPIRE on LLaVA/HallusionBench. Independent hallucination labels therefore cannot be replaced by answer-error labels even within the error subset.
+All nine model--method means in \Cref{tab:target_gap} are negative, with an overall mean of $-0.077$. Qwen exhibits the largest decrease for all three methods, whereas LLaVA has the smallest. Complete cell-level paired differences and 95\% bootstrap confidence intervals are provided in Appendix~\ref{subsubsec:appendix_target_gap}. When the analysis is restricted to incorrect answers and asks whether an incorrect response is also hallucinated, the nine-cell mean AUROC is only 0.400 for PPL, 0.494 for SE, and 0.423 for UMPIRE; 22 of 27 combinations lie below 0.5, with a minimum of 0.307 for UMPIRE on LLaVA/HallusionBench. Independent hallucination labels therefore cannot be replaced by answer-error labels even within the error subset.
 
 \subsection{Low-Uncertainty Hallucination Blind Spot}
 \label{subsec:luh_blind_spot}
@@ -175,7 +175,13 @@ Low-uncertainty hallucination is therefore not a single random failure but a sys
 
 The following cases illustrate three mechanisms: a language prior overriding visual evidence, a visual readout error, and a correct final answer accompanied by a hallucinated intermediate observation.
 
-\begin{table}[!tbp]
+% Uniform separation between case cards and surrounding text regardless of float placement.
+\begingroup
+\setlength{\intextsep}{12pt plus2pt minus2pt}
+\setlength{\textfloatsep}{12pt plus2pt minus2pt}
+\setlength{\floatsep}{12pt plus2pt minus2pt}
+
+\begin{table}[htbp]
 \centering
 \refstepcounter{table}\label{tab:luh_case1}
 \begin{casecard}
@@ -191,23 +197,20 @@ The following cases illustrate three mechanisms: a language prior overriding vis
 \end{minipage}
 
 \medskip
-\begin{minipage}[t]{0.34\linewidth}
+\begin{minipage}[t]{0.3\linewidth}
 \vspace{0pt}\centering
-\includegraphics[width=\linewidth]{vilp_55_case2}
-\par\smallskip
+\includegraphics[width=0.9\linewidth]{vilp_55_case2}
 {\footnotesize ViLP row 55, case 2}
 \end{minipage}\hfill
-\begin{minipage}[t]{0.62\linewidth}
+\begin{minipage}[t]{0.65\linewidth}
 \vspace{0pt}\footnotesize\raggedright\comicfont
+\textbf{Response:}
 \textbf{\texttt{<vision>}} The image shows a large animal with a \colorbox{yellow!28}{\strut long tail}, large paws, and a distinctive coat pattern leaping into the air. Its body is horizontal, with extended legs, a raised head, a distinctive muzzle, and large eyes. \textbf{\texttt{</vision>}}
-
-\medskip
 \textbf{\texttt{<reasoning>}} The animal in the image is a \colorbox{orange!22}{\strut kangaroo}, a native Australian mammal known for jumping. \textbf{\texttt{</reasoning>}}
-
-\medskip
 \textbf{\texttt{<answer>}} kangaroo \textbf{\texttt{</answer>}}
 
 \medskip
+
 \textbf{Judge:} Rating 1; \texttt{vision\_hallucination} + \texttt{reasoning\_hallucination}. The response mistakes a koala-like animal for a kangaroo and invents a long tail.
 \end{minipage}
 
@@ -216,7 +219,7 @@ The following cases illustrate three mechanisms: a language prior overriding vis
 \end{casecard}
 \end{table}
 
-\begin{table}[!tbp]
+\begin{table}[htbp]
 \centering
 \phantomsection\label{tab:luh_case2}
 \begin{casecard}
@@ -232,20 +235,17 @@ The following cases illustrate three mechanisms: a language prior overriding vis
 \end{minipage}
 
 \medskip
-\begin{minipage}[t]{0.34\linewidth}
+\begin{minipage}[t]{0.3\linewidth}
 \vspace{0pt}\centering
-\includegraphics[width=\linewidth]{mmvet_v1_16}
+\includegraphics[width=0.9\linewidth]{mmvet_v1_16}
 \par\smallskip
-{\footnotesize MM-Vet \texttt{v1\_16}; OCR and mathematics}
+{\footnotesize MM-Vet \texttt{v1\_16}}
 \end{minipage}\hfill
-\begin{minipage}[t]{0.62\linewidth}
+\begin{minipage}[t]{0.65\linewidth}
 \vspace{0pt}\footnotesize\raggedright\comicfont
+\textbf{Response:}
 \textbf{\texttt{<vision>}} The gas-pump display shows ``This Sale.'' Below it, 62.85 is presented as the price, and the gallons dispensed are read as 4.620. \textbf{\texttt{</vision>}}
-
-\medskip
 \textbf{\texttt{<reasoning>}} The gasoline price is explicitly displayed as \colorbox{orange!22}{\strut 62.85}. \textbf{\texttt{</reasoning>}}
-
-\medskip
 \textbf{\texttt{<answer>}} 62.85 \textbf{\texttt{</answer>}}
 
 \medskip
@@ -257,7 +257,7 @@ The following cases illustrate three mechanisms: a language prior overriding vis
 \end{casecard}
 \end{table}
 
-\begin{table}[!tbp]
+\begin{table}[htbp]
 \centering
 \phantomsection\label{tab:luh_case3}
 \begin{casecard}
@@ -273,20 +273,17 @@ The following cases illustrate three mechanisms: a language prior overriding vis
 \end{minipage}
 
 \medskip
-\begin{minipage}[t]{0.38\linewidth}
+\begin{minipage}[t]{0.35\linewidth}
 \vspace{0pt}\centering
 \includegraphics[width=\linewidth]{hb_chart_6_1_3}
 \par\smallskip
 {\footnotesize VS/chart, set 6, figure 1, question 3}
 \end{minipage}\hfill
-\begin{minipage}[t]{0.58\linewidth}
+\begin{minipage}[t]{0.6\linewidth}
 \vspace{0pt}\footnotesize\raggedright\comicfont
+\textbf{Response:}
 \textbf{\texttt{<vision>}} The chart shows Apple's revenue share by region from 2012 to 2022. The Japan region is \colorbox{yellow!28}{\strut consistently the smallest} throughout the entire period. \textbf{\texttt{</vision>}}
-
-\medskip
 \textbf{\texttt{<reasoning>}} Since Japan is the smallest and never exceeds 10\% of total revenue, Apple did not derive the majority of its revenue from Japan. \textbf{\texttt{</reasoning>}}
-
-\medskip
 \textbf{\texttt{<answer>}} no \textbf{\texttt{</answer>}}
 
 \medskip
@@ -299,6 +296,7 @@ The following cases illustrate three mechanisms: a language prior overriding vis
 \end{table}
 
 \FloatBarrier
+\endgroup
 
 Together, the cases show that checking only the final answer is insufficient for determining whether the whole response is supported by visual evidence. The attribution analysis above explains why the baselines can assign low uncertainty: high token probability for short or numeric answers lowers PPL, stable repetition of an erroneous conclusion lowers SE, and agreement between internal representations and generation probabilities prevents UMPIRE from identifying content that lacks visual support.
 
@@ -317,7 +315,7 @@ The difficult subset constructs positive and negative samples that receive simil
 \item Verify labels, image inputs, and sample counts, yielding 200 LUH positives and 200 matched non-hallucinated negatives per model.
 \end{enumerate}
 
-Candidate-pool sizes, score alignment, matching distances, and final subset composition are reported in Appendix~A.4.2.
+Candidate-pool sizes, score alignment, matching distances, and final subset composition are reported in Appendix~\ref{subsubsec:appendix_subset_details}.
 
 \subsubsection{Baseline Performance}
 

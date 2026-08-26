@@ -1,0 +1,8 @@
+{
+  "protocol": "xml-format-ablation-analysis-v3",
+  "judge_model": "gemini-3.7-flash",
+  "sample_set_sha256": "ad112765e2c5ca6816bbe76eb427438b96f51fbeb01dbbc0a320a6529e549581",
+  "pairing_filter": "native_prompt greedy.sections_valid=true and both judge labels valid",
+  "bootstrap_samples": 1000,
+  "bootstrap_seed": 0
+}

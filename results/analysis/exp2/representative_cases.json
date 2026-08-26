@@ -1,0 +1,81 @@
+[
+  {
+    "case_type": "baseline_miss_era_success",
+    "model": "llava",
+    "dataset": "hallusionbench",
+    "sample_id": "hallusionbench-image-VD-math-11-1-1",
+    "paired_negative_id": "vilp-160-case2",
+    "question": "If AM=BM=CM, then is M the circumcenter of triangle ABC? Please answer yes or no.",
+    "references": [
+      "Yes",
+      "M is the circumcenter of triangle ABC."
+    ],
+    "vision": "The image shows a triangle with the letters A, M, and F on its sides. The letters A, M, and F are arranged in a row along the base of the triangle, and the letters B, C, and D are arranged in a row along the height of the triangle. The letters F and M are positioned at the bottom corners of the triangle, and the letters A and B are positioned at the top corners. The letters C and D are positioned in the middle of the triangle.",
+    "reasoning": "The letters A, B, C, and D are arranged in a row along the height of the triangle, and the letters F and M are arranged in a row along the base. The letters F and M are at the bottom corners, and the letters A and B are at the top corners. The letters C and D are in the middle of the triangle. Since the letters A, B, C, and D are arranged in a row along the height, and the letters F and M are arranged in a row along the base, the letters F and M must be at the circumcenter of the triangle. Therefore, the answer is yes.",
+    "answer": "yes",
+    "judge_hallucination": true,
+    "judge_rating": 1,
+    "hallucination_types": [
+      "vision_hallucination",
+      "reasoning_hallucination"
+    ],
+    "ppl": 1.0007498690239995,
+    "se": -0.0,
+    "umpire": -44.83859036099354,
+    "era": 0.5864302325299326,
+    "baseline_mean_percentile": 0.28875,
+    "era_percentile": 0.9975,
+    "era_pair_margin": 0.33910447770870417
+  },
+  {
+    "case_type": "normal_low_uncertainty",
+    "model": "llava",
+    "dataset": "vilp",
+    "sample_id": "vilp-103-case1",
+    "paired_negative_id": null,
+    "question": "Floors are cleaned using a broom. Which item in the image is used for sweeping or mopping?",
+    "references": [
+      "Broom"
+    ],
+    "vision": "A man is sweeping a broom across a wooden floor.",
+    "reasoning": "The object being used for sweeping is a broom.",
+    "answer": "broom",
+    "judge_hallucination": false,
+    "judge_rating": 6,
+    "hallucination_types": [],
+    "ppl": 1.0001430613797642,
+    "se": -0.0,
+    "umpire": -43.98439658289784,
+    "era": 0.2165790729040153,
+    "baseline_mean_percentile": 0.15666666666666665,
+    "era_percentile": 0.0025,
+    "era_pair_margin": null
+  },
+  {
+    "case_type": "era_failure",
+    "model": "qwen",
+    "dataset": "vilp",
+    "sample_id": "vilp-17-case2",
+    "paired_negative_id": "hallusionbench-image-VD-math-5-0-2",
+    "question": "Spiders usually have 8 legs. How many legs does the spider in the image have?",
+    "references": [
+      "10"
+    ],
+    "vision": "The image shows a large, detailed spider with eight pairs of legs.",
+    "reasoning": "Counting the legs reveals a total of 16 legs.",
+    "answer": "16",
+    "judge_hallucination": true,
+    "judge_rating": 1,
+    "hallucination_types": [
+      "vision_hallucination",
+      "reasoning_hallucination"
+    ],
+    "ppl": 1.0005971783621113,
+    "se": 0.6401915227740255,
+    "umpire": -44.9469820845253,
+    "era": 0.5490968768688671,
+    "baseline_mean_percentile": 0.61,
+    "era_percentile": 0.025,
+    "era_pair_margin": -0.24716620882658602
+  }
+]

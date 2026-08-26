@@ -19,7 +19,7 @@ from src.models import (
 from src.utils import completed_sample_ids, write_sample_json_line
 
 from .parser import answer_character_span, parse_structured_response
-from .prompt import XML_LORA_PROMPT_SHA256, build_prompt, get_prompt_spec
+from .prompt import build_prompt, get_prompt_spec
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -451,7 +451,9 @@ def run_generation(
         "model_id": backend.model_id,
         "model_path": str(model_path.resolve()),
         "model_runtime": runtime_config,
-        "prompt_sha256": XML_LORA_PROMPT_SHA256,
+        "prompt_style": prompt_style,
+        "response_format": prompt_spec.response_format,
+        "prompt_sha256": prompt_spec.prompt_sha256,
         "greedy": {"do_sample": False, "temperature": 0.0, "retry": False},
         "sampling": {
             "do_sample": True,

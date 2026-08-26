@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import pytest
 
 from scripts.analysis.exp2_era_results import (
     attention_features,
+    correctness_stratified_ablation,
     holm_adjust,
     percentile_interval,
     two_sided_bootstrap_p,
@@ -65,3 +67,27 @@ def test_bootstrap_helpers_are_two_sided_and_percentile_based() -> None:
 
     assert percentile_interval(values, confidence=0.5) == pytest.approx((-1.25, 1.25))
     assert two_sided_bootstrap_p(values) == pytest.approx(1.0)
+
+
+def test_correctness_stratified_ablation_splits_each_answer_class(
+    tmp_path: Path,
+) -> None:
+    records = [
+        {"label": 1, "correct": True, "U_ERA": 0.9, "group_id": "a"},
+        {"label": 0, "correct": True, "U_ERA": 0.1, "group_id": "b"},
+        {"label": 1, "correct": False, "U_ERA": 0.8, "group_id": "c"},
+        {"label": 0, "correct": False, "U_ERA": 0.2, "group_id": "d"},
+    ]
+
+    rows = correctness_stratified_ablation(
+        {"synthetic": records}, n_bootstrap=20, out_dir=tmp_path
+    )
+
+    assert [(row["stratum"], row["n"]) for row in rows] == [
+        ("correct", 2),
+        ("incorrect", 2),
+    ]
+    assert all(row["n_hallucination"] == 1 for row in rows)
+    assert all(row["n_non_hallucination"] == 1 for row in rows)
+    assert all(row["auroc"] == pytest.approx(1.0) for row in rows)
+    assert (tmp_path / "correctness_stratified_ablation.csv").exists()

@@ -2,3 +2,229 @@
 \section{Experiment 2: Experimental Results and Comparative Analysis}
 \label{sec:experiment2_results}
 \markboth{\thesection\quad Experiment 2: Results}{}
+
+\subsection{ERA Hallucination-Detection Performance}
+\label{subsec:era_performance}
+
+ERA is evaluated on the low-uncertainty difficult subsets constructed in \Cref{subsec:luh_subset}. Each model-specific subset contains 200 LUH positives and 200 non-hallucinated negatives matched on the distributions of the three baseline UQ scores. ERA uses the mean attribution score from decoder Layers~0--1 and is compared with PPL, SE, and UMPIRE on exactly the same samples. \Cref{tab:era_performance} reports AUROC, AUPRC, and PRR together with the improvement of ERA over the strongest baseline for each metric.
+
+\begin{table}[tbp]
+\centering
+\caption{Hallucination-detection performance on the low-uncertainty difficult subsets and the improvement of ERA over the strongest baseline. Each model has 400 samples; bold marks the best score in each row.}
+\label{tab:era_performance}
+\datatablefont
+\setlength{\tabcolsep}{3.1pt}
+\begin{tabular}{llrrrrlrr}
+\toprule
+\thead{Model} & \thead{Metric} & \thead{PPL} & \thead{SE} & \thead{UMPIRE} & \thead{ERA} & \thead{Best baseline} & \thead{Abs. gain} & \thead{Rel. gain} \\
+\midrule
+\multirow{3}{*}{LLaVA} & AUROC & 0.402 & 0.476 & 0.413 & \best{0.708} & SE & +0.232 & +48.7\% \\
+& AUPRC & 0.435 & 0.464 & 0.437 & \best{0.719} & SE & +0.255 & +54.9\% \\
+& PRR & $-0.228$ & $-0.035$ & $-0.141$ & \best{0.473} & SE & +0.509 & --- \\
+\midrule
+\multirow{3}{*}{Qwen} & AUROC & 0.485 & 0.499 & 0.477 & \best{0.618} & SE & +0.119 & +23.9\% \\
+& AUPRC & 0.499 & 0.496 & 0.489 & \best{0.610} & PPL & +0.112 & +22.4\% \\
+& PRR & $-0.054$ & $-0.001$ & $-0.042$ & \best{0.290} & SE & +0.291 & --- \\
+\midrule
+\multirow{3}{*}{InternVL} & AUROC & 0.489 & 0.498 & 0.502 & \best{0.591} & UMPIRE & +0.088 & +17.6\% \\
+& AUPRC & 0.498 & 0.500 & 0.502 & \best{0.602} & UMPIRE & +0.100 & +20.0\% \\
+& PRR & $-0.025$ & $-0.002$ & 0.003 & \best{0.187} & UMPIRE & +0.184 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+ERA outperforms the strongest baseline for every model and metric. On LLaVA, AUROC increases from 0.476 to 0.708 and AUPRC from 0.464 to 0.719. The corresponding ERA results are 0.618 and 0.610 for Qwen, and 0.591 and 0.602 for InternVL. Relative to the strongest baseline, the absolute AUROC gains are 0.232, 0.119, and 0.088, while the AUPRC gains are 0.255, 0.112, and 0.100.
+
+PRR gives the same conclusion. The baseline PRR values are near zero or negative, whereas ERA reaches 0.473, 0.290, and 0.187, corresponding to absolute gains of 0.509, 0.291, and 0.184. Relative PRR gains are omitted because ratios with a near-zero or negative denominator are unstable. Thus, even after the conventional UQ distributions have been explicitly matched, early information-source structure restores useful ranking information for LUH detection.
+
+Three supporting ablations are reported in the appendix. Appendix~\ref{subsec:appendix_layer_ablation} examines decoder-layer selection, Appendix~\ref{subsec:appendix_component_ablation} separates the Vision and Reasoning attribution components, and Appendix~\ref{subsec:appendix_correctness_ablation} evaluates ERA separately within correct and incorrect answers to control for their different class composition. The XML-format adaptation comparison is reported before them in Appendix~\ref{subsec:appendix_xml_ablation}.
+
+\subsection{Discriminative Ability of ERA Scores}
+\label{subsec:era_discrimination}
+
+\Cref{fig:era_score_distribution} compares the ERA score distributions of LUH and matched non-hallucinated samples, while \Cref{tab:era_distribution} combines distributional location and threshold-free discrimination. Because network architecture and attention scale differ across models, the primary comparison is between classes within the same model rather than through a universal cross-model threshold.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=0.92\linewidth]{fig_5_2_era_score_distribution}
+\caption{ERA score distributions for LUH and matched non-hallucinated samples. Violin width represents kernel density; the inner box shows the interquartile range, the center line marks the median, and whiskers extend to the most distant observation within 1.5 interquartile ranges. Each class contains $n=200$ samples per model.}
+\label{fig:era_score_distribution}
+\end{figure}
+
+\begin{table}[tbp]
+\centering
+\caption{ERA distributional differences and cross-model consistency. Each class contains $n=200$ samples; confidence intervals are omitted in the main text.}
+\label{tab:era_distribution}
+\datatablefont
+\setlength{\tabcolsep}{4.4pt}
+\begin{tabular}{lccrrr}
+\toprule
+\thead{Model} & \thead{LUH median (Q1--Q3)} & \thead{Non-H median (Q1--Q3)} & \thead{Median gap} & \thead{AUROC} & \thead{Cliff's $\delta$} \\
+\midrule
+LLaVA & 0.3746 (0.3260--0.4227) & 0.3324 (0.2772--0.3618) & +0.0422 & \best{0.708} & \best{0.416} \\
+Qwen & 0.7105 (0.6630--0.7541) & 0.6756 (0.6292--0.7308) & +0.0350 & 0.618 & 0.236 \\
+InternVL & 0.6529 (0.6102--0.6855) & 0.6343 (0.6032--0.6661) & +0.0186 & 0.591 & 0.181 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For all three models, the LUH distribution shifts toward higher ERA scores, consistent with the definition that stronger dependence on self-generated reasoning indicates greater uncertainty. The shift is largest for LLaVA, whose median rises from 0.3324 to 0.3746. Qwen and InternVL show smaller median gaps of 0.0350 and 0.0186 and correspondingly greater overlap.
+
+The AUROC and Cliff's $\delta$ values provide threshold-free cross-model comparisons. All three effect sizes are positive and all AUROCs exceed 0.5, following the same LLaVA--Qwen--InternVL ordering as \Cref{tab:era_performance}. The common direction across three architectures shows that ERA is not driven by one model, although the degree of separation remains model dependent.
+
+This difference is consistent with the LUH-scale analysis in \Cref{subsec:luh_blind_spot}. At the stricter $\alpha=0.25$ threshold, LLaVA contains 206--292 LUH responses across the three UQ methods, whereas InternVL contains only 45--120; at $\alpha=0.50$, the corresponding ranges are 595--680 and 193--324. Qwen lies between them. The overall hallucination rates likewise decrease from 0.679 for LLaVA to 0.358 for Qwen and 0.322 for InternVL. Because lower-hallucination models expose fewer hallucination failure modes for ERA to identify, ERA produces its largest shift and gain on LLaVA and a more limited improvement on InternVL.
+
+\subsection{Representative Case Analysis}
+\label{subsec:era_cases}
+
+The following cases illustrate a baseline miss recovered by ERA, a normal low-uncertainty response, and an ERA failure. Percentiles are computed within the corresponding 400-sample model-specific difficult subset; a larger percentile means that the method regards the response as more uncertain.
+
+% Uniform separation between case cards and surrounding text regardless of float placement.
+\begingroup
+\setlength{\intextsep}{12pt plus2pt minus2pt}
+\setlength{\textfloatsep}{12pt plus2pt minus2pt}
+\setlength{\floatsep}{12pt plus2pt minus2pt}
+
+\begin{table}[htbp]
+\centering
+\phantomsection\label{tab:era_case1}
+\begin{casecard}
+\begin{minipage}[t]{0.66\linewidth}
+\textbf{Case \thetable(a): Baseline miss, ERA success}\par\smallskip
+{\comicfont\textbf{Q:} If $AM=BM=CM$, then is $M$ the circumcenter of triangle $ABC$? Please answer yes or no.}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.30\linewidth}
+\raggedleft\small
+\textbf{Model:} LLaVA\\
+\textbf{Dataset:} HallusionBench\\
+\textbf{Ground truth:} Yes
+\end{minipage}
+\medskip
+
+\begin{minipage}[t]{0.3\linewidth}
+\vspace{0pt}\centering
+\includegraphics[width=\linewidth]{exp2_case1_hallusionbench_math}
+\par\smallskip
+{\footnotesize VD/math, set 11, figure 1, question 1}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.65\linewidth}
+\vspace{0pt}\raggedright
+{\scriptsize\comicfont
+\textbf{Response:}
+\textbf{\texttt{<vision>}} The image shows a triangle with the letters A, M, and F on its sides. \ldots{} The letters F and M are positioned at the bottom corners of the triangle, and the letters A and B are positioned at the top corners. \ldots{} \textbf{\texttt{</vision>}}
+\textbf{\texttt{<reasoning>}} \ldots{} the letters F and M must be at the circumcenter of the triangle. Therefore, the answer is yes. \textbf{\texttt{</reasoning>}}
+\textbf{\texttt{<answer>}} yes \textbf{\texttt{</answer>}}
+}
+
+\smallskip
+{\footnotesize
+\textbf{Judge label:} Rating~1; \texttt{vision\_hallucination} + \texttt{reasoning\_hallucination}.
+
+\smallskip
+\textbf{UQ scores:} PPL 1.000750 ; SE 0 ; UMPIRE $-44.838590$ . ERA 0.586430 .
+}
+\end{minipage}
+\medskip
+
+\textbf{Analysis.} The baselines do not rank the response as highly uncertain, whereas the answer relies more strongly on the erroneous self-generated description and rationale than on the image and question. ERA therefore places the sample near the top of the risk ranking.
+\end{casecard}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\phantomsection\label{tab:era_case2}
+\begin{casecard}
+\begin{minipage}[t]{0.66\linewidth}
+\textbf{Case \thetable(b): Normal low-uncertainty response}\par\smallskip
+{\comicfont\textbf{Q:} Floors are cleaned using a broom. Which item in the image is used for sweeping or mopping?}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.30\linewidth}
+\raggedleft\small
+\textbf{Model:} LLaVA\\
+\textbf{Dataset:} ViLP\\
+\textbf{Ground truth:} Broom
+\end{minipage}
+\medskip
+
+\begin{minipage}[t]{0.3\linewidth}
+\vspace{0pt}\centering
+\includegraphics[width=0.8\linewidth]{exp2_case2_vilp_broom}
+\par\smallskip
+{\footnotesize ViLP row 103, case 1}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.65\linewidth}
+\vspace{0pt}\raggedright
+{\footnotesize\comicfont
+\textbf{Response:}
+\textbf{\texttt{<vision>}} A man is sweeping a broom across a wooden floor. \textbf{\texttt{</vision>}}
+\textbf{\texttt{<reasoning>}} The object being used for sweeping is a broom. \textbf{\texttt{</reasoning>}}
+\textbf{\texttt{<answer>}} broom \textbf{\texttt{</answer>}}
+}
+
+\smallskip
+{\footnotesize
+\textbf{Judge label:} Rating~6; no hallucination.
+
+\smallskip
+\textbf{UQ scores:} PPL 1.000143 ; SE 0 ; UMPIRE $-43.984397$ . ERA 0.216579 .
+}
+\end{minipage}
+\medskip
+
+\textbf{Analysis.} The image supplies direct evidence and the response introduces no unsupported claim. The answer depends much more on external evidence than on self-generated context, so ERA and all three baselines correctly remain low.
+\end{casecard}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\phantomsection\label{tab:era_case3}
+\begin{casecard}
+\begin{minipage}[t]{0.66\linewidth}
+\textbf{Case \thetable(c): ERA failure}\par\smallskip
+{\comicfont\textbf{Q:} Spiders usually have 8 legs. How many legs does the spider in the image have?}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.30\linewidth}
+\raggedleft\small
+\textbf{Model:} Qwen\\
+\textbf{Dataset:} ViLP\\
+\textbf{Ground truth:} 10
+\end{minipage}
+\medskip
+
+\begin{minipage}[t]{0.3\linewidth}
+\vspace{0pt}\centering
+\includegraphics[width=0.9\linewidth]{exp2_case3_vilp_spider}
+\par\smallskip
+{\footnotesize ViLP row 17, case 2}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.65\linewidth}
+\vspace{0pt}\raggedright
+{\footnotesize\comicfont
+\textbf{Response:}
+\textbf{\texttt{<vision>}} The image shows a large, detailed spider with eight pairs of legs. \textbf{\texttt{</vision>}}
+\textbf{\texttt{<reasoning>}} Counting the legs reveals a total of 16 legs. \textbf{\texttt{</reasoning>}}
+\textbf{\texttt{<answer>}} 16 \textbf{\texttt{</answer>}}
+}
+
+\smallskip
+{\footnotesize
+\textbf{Judge label:} Rating~1; \texttt{vision\_hallucination} + \texttt{reasoning\_hallucination}.
+
+\smallskip
+\textbf{UQ scores:} PPL 1.000597 (58.00th percentile); SE 0.640192 (96.25th); UMPIRE $-44.946982$ (28.75th). ERA 0.549097 (2.50th), with external/internal attribution 0.3394/0.4143.
+}
+\end{minipage}
+\medskip
+
+\textbf{Analysis.} The error occurs during fine-grained visual counting. The answer still attends to the image and question, so its information-source ratio does not become unusually high and ERA misses the hallucination; SE succeeds because the sampled answers are semantically inconsistent.
+\end{casecard}
+\end{table}
+
+\FloatBarrier
+\endgroup
+
+Taken together, the cases show that ERA is most effective when an answer depends excessively on the model's internal visual description and reasoning, while normal low-uncertainty responses retain stronger attribution to external evidence. ERA can still fail when the model attends to the image but reads local visual content incorrectly. It therefore complements probability, sampling-consistency, and internal-representation baselines with information about evidence source, but does not directly verify whether the attended visual evidence has been interpreted correctly.
+
+\subsection{Summary}
+
+Experiment~2 demonstrates that ERA recovers useful discrimination on difficult subsets where PPL, SE, and UMPIRE have been deliberately matched to near-random performance. The score shifts in the same direction across all three model architectures, although the gain is largest for the model with the highest hallucination rate and smallest for the model with the lowest rate. The case analysis further clarifies both the advantage and the boundary of the method: early evidence-source attribution detects overreliance on self-generated reasoning, but not every local visual misreading.

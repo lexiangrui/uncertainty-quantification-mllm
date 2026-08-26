@@ -148,6 +148,35 @@ def _build_responses_input(
     return JUDGE_SYSTEM_PROMPT, blocks
 
 
+def _build_raw_responses_input(
+    *,
+    dataset: str,
+    question: str,
+    references: list[str],
+    raw_response: str,
+    image: Image.Image | None,
+) -> tuple[str, list[dict[str, Any]]]:
+    payload = {
+        "dataset": dataset,
+        "question": question,
+        "accepted_reference_answers": references,
+        "candidate_response": raw_response,
+    }
+    blocks: list[dict[str, Any]] = []
+    if image is not None:
+        blocks.append({"type": "input_image", "image_url": _image_data_url(image)})
+    blocks.append(
+        {
+            "type": "input_text",
+            "text": (
+                json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+                + "\n\nReturn the requested json object only."
+            ),
+        }
+    )
+    return JUDGE_SYSTEM_PROMPT, blocks
+
+
 class JudgeResponseError(ValueError):
     """Invalid judge output, retaining the raw response for audit logging."""
 
@@ -247,6 +276,13 @@ class ClosedSourceJudge:
 
     def judge(self, **message_inputs: Any) -> JudgeResult:
         system_prompt, user_content = _build_responses_input(**message_inputs)
+        return self._request(system_prompt, user_content)
+
+    def judge_raw(self, **message_inputs: Any) -> JudgeResult:
+        system_prompt, user_content = _build_raw_responses_input(**message_inputs)
+        return self._request(system_prompt, user_content)
+
+    def _request(self, system_prompt: str, user_content: list[dict[str, Any]]) -> JudgeResult:
         response = self.client.responses.create(
             model=self.model,
             instructions=system_prompt,

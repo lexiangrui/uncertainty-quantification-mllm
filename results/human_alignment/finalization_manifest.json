@@ -1,0 +1,60 @@
+{
+  "created_at": "2026-08-24T07:10:13.351718+00:00",
+  "output": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/judging",
+  "files": [
+    {
+      "model": "llava",
+      "dataset": "vilp",
+      "samples": 886,
+      "adjudicated": 147
+    },
+    {
+      "model": "llava",
+      "dataset": "hallusionbench",
+      "samples": 1108,
+      "adjudicated": 136
+    },
+    {
+      "model": "llava",
+      "dataset": "mmvet",
+      "samples": 216,
+      "adjudicated": 31
+    },
+    {
+      "model": "qwen",
+      "dataset": "vilp",
+      "samples": 898,
+      "adjudicated": 143
+    },
+    {
+      "model": "qwen",
+      "dataset": "hallusionbench",
+      "samples": 1099,
+      "adjudicated": 168
+    },
+    {
+      "model": "qwen",
+      "dataset": "mmvet",
+      "samples": 218,
+      "adjudicated": 47
+    },
+    {
+      "model": "internvl",
+      "dataset": "vilp",
+      "samples": 900,
+      "adjudicated": 151
+    },
+    {
+      "model": "internvl",
+      "dataset": "hallusionbench",
+      "samples": 1126,
+      "adjudicated": 152
+    },
+    {
+      "model": "internvl",
+      "dataset": "mmvet",
+      "samples": 216,
+      "adjudicated": 38
+    }
+  ]
+}

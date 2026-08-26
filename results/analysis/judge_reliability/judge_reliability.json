@@ -1,0 +1,123 @@
+{
+  "n_samples": 6667,
+  "agreement": [
+    {
+      "model": "llava",
+      "field": "correct",
+      "n": 2210,
+      "agreements": 2181,
+      "disagreements": 29,
+      "agreement_rate": 0.9868778280542987,
+      "cohens_kappa": 0.9737539794929674,
+      "gpt_positive_rate": 0.48823529411764705,
+      "gemini_positive_rate": 0.4986425339366516
+    },
+    {
+      "model": "llava",
+      "field": "hallucination",
+      "n": 2210,
+      "agreements": 1917,
+      "disagreements": 293,
+      "agreement_rate": 0.867420814479638,
+      "cohens_kappa": 0.7129251724807526,
+      "gpt_positive_rate": 0.6660633484162896,
+      "gemini_positive_rate": 0.6149321266968326
+    },
+    {
+      "model": "qwen",
+      "field": "correct",
+      "n": 2215,
+      "agreements": 2153,
+      "disagreements": 62,
+      "agreement_rate": 0.9720090293453725,
+      "cohens_kappa": 0.9385460110619865,
+      "gpt_positive_rate": 0.6379232505643341,
+      "gemini_positive_rate": 0.6613995485327314
+    },
+    {
+      "model": "qwen",
+      "field": "hallucination",
+      "n": 2215,
+      "agreements": 1902,
+      "disagreements": 313,
+      "agreement_rate": 0.8586907449209932,
+      "cohens_kappa": 0.6763441989659558,
+      "gpt_positive_rate": 0.33182844243792325,
+      "gemini_positive_rate": 0.3115124153498871
+    },
+    {
+      "model": "internvl",
+      "field": "correct",
+      "n": 2242,
+      "agreements": 2173,
+      "disagreements": 69,
+      "agreement_rate": 0.9692239072256913,
+      "cohens_kappa": 0.9303881484628045,
+      "gpt_positive_rate": 0.6578947368421053,
+      "gemini_positive_rate": 0.6833184656556646
+    },
+    {
+      "model": "internvl",
+      "field": "hallucination",
+      "n": 2242,
+      "agreements": 1950,
+      "disagreements": 292,
+      "agreement_rate": 0.8697591436217663,
+      "cohens_kappa": 0.6968701873701778,
+      "gpt_positive_rate": 0.3215878679750223,
+      "gemini_positive_rate": 0.3028545941123996
+    },
+    {
+      "model": "overall",
+      "field": "correct",
+      "n": 6667,
+      "agreements": 6507,
+      "disagreements": 160,
+      "agreement_rate": 0.976001199940003,
+      "cohens_kappa": 0.9498121720350216,
+      "gpt_positive_rate": 0.5950202489875506,
+      "gemini_positive_rate": 0.6148192590370481
+    },
+    {
+      "model": "overall",
+      "field": "hallucination",
+      "n": 6667,
+      "agreements": 5769,
+      "disagreements": 898,
+      "agreement_rate": 0.8653067346632668,
+      "cohens_kappa": 0.7245267465020633,
+      "gpt_positive_rate": 0.4391780410979451,
+      "gemini_positive_rate": 0.40917954102294884
+    }
+  ],
+  "human_adjudication": [
+    {
+      "model": "llava",
+      "correctness_fields": 29,
+      "hallucination_fields": 293,
+      "both_fields": 8,
+      "unique_samples": 314
+    },
+    {
+      "model": "qwen",
+      "correctness_fields": 62,
+      "hallucination_fields": 313,
+      "both_fields": 17,
+      "unique_samples": 358
+    },
+    {
+      "model": "internvl",
+      "correctness_fields": 69,
+      "hallucination_fields": 292,
+      "both_fields": 20,
+      "unique_samples": 341
+    },
+    {
+      "model": "overall",
+      "correctness_fields": 160,
+      "hallucination_fields": 898,
+      "both_fields": 45,
+      "unique_samples": 1013
+    }
+  ]
+}

@@ -1,170 +1,115 @@
 # Uncertainty Quantification of MLLM
 
-本仓库实现多模态大模型（MLLM）的结构化回答生成、不确定性量化、正确性/幻觉评判和 ERA 改进方法。当前正式推理链路是 **vLLM 批量生成 + Hugging Face（HF）精确 token 回放**：vLLM 负责吞吐，HF 负责与三个模型兼容的 token 概率、隐藏状态和注意力提取。
+本仓库研究多模态大模型（MLLM）的回答不确定性量化与低不确定性幻觉改进，覆盖结构化回答生成、UQ 计算、正确性/幻觉评判、人类对齐、指标分析和 ERA（Early Rationale Attribution）。
 
-## 实验范围
+## 实验设置
 
-| 类别 | 当前配置 |
+| 类别 | 配置 |
 | --- | --- |
 | 模型 | LLaVA-1.5-7B、Qwen2.5-VL-7B-Instruct、InternVL3.5-8B |
-| 数据集 | ViLP（900）、HallusionBench（1,129）、MM-Vet（218） |
-| 回答协议 | `<vision>...</vision><reasoning>...</reasoning><answer>...</answer>` |
-| 生成 | 1 条 greedy + 10 条随机采样；sample 最多 50 次 XML 拒绝重采样 |
-| UQ | Perplexity、Semantic Entropy、UMPIRE |
-| 改进方法 | ERA（Early Rationale Attribution） |
+| 数据集 | ViLP、HallusionBench、MM-Vet |
+| 回答格式 | `<vision>...</vision><reasoning>...</reasoning><answer>...</answer>` |
+| UQ 方法 | Perplexity、Semantic Entropy、UMPIRE |
+| 改进方法 | ERA |
 
-三个模型分别挂载 XML 格式 LoRA。InternVL3.5-8B 使用 OpenGVLab `InternVL3_5-8B` checkpoint 与 `results/lora/internvl/adapter-original`。
-
-## 正式推理架构
+三个模型均使用 XML 格式 LoRA。正式生成采用两阶段流程：vLLM 批量生成回答并保存精确 token ID，随后由 Hugging Face 模型对相同 token 做 teacher forcing，提取答案概率、隐藏状态和 ERA 所需信息。
 
 ```text
-dataset + XML prompt + base model/LoRA
-                 │
-                 ▼
-       persistent vLLM engine
-  批量生成 greedy / K=10 samples
-                 │
-                 ├── raw JSONL
-                 └── exact generated token IDs
-                              │
-                              ▼
-                persistent HF replay model
-           对完全相同的 token 做 teacher forcing
-                              │
-                              ├── answer log probabilities
-                              ├── sample final-token hidden states
-                              └── final generation JSONL
-                                           │
-                         ┌─────────────────┼───────────────┐
-                         ▼                 ▼               ▼
-                   PPL / SE / UMPIRE      Judge            ERA
+数据集 + Prompt + 模型/LoRA
+            │
+            ▼
+       vLLM 批量生成
+            │
+            ▼
+      Hugging Face 回放
+            │
+      ┌─────┼─────────┐
+      ▼     ▼         ▼
+     UQ   双模型 Judge  ERA
+             │
+             ▼
+          人类盲裁
+             │
+             ▼
+        指标与结果分析
 ```
 
-- `scripts/generation/run_vllm_pipeline.py` 在三个数据集及 greedy/samples 两个阶段之间复用同一个 vLLM engine，不重复加载权重。
-- `scripts/generation/run_hf_replay_pipeline.py` 对全部阶段复用同一个 HF 模型，也不在 greedy 与 samples 之间重复加载。
-- 运行参数由 `src/models/runtime.py` 集中管理。Qwen2.5-VL 使用经完整数据审计的 `max_model_len=18000`，其余模型为 `4096`；32 GiB GPU 默认使用 `max_num_seqs=8`、HF replay batch size `5`，HF 遇到 OOM 时递归拆分当前 batch 后重试。
-- HallusionBench 的有图与无图记录在 HF replay 时分组批处理。InternVL3.5-8B 对无图记录不构造视觉 token、`pixel_values` 或 `image_flags`，而是直接调用其语言模型前向。
-- 解析失败的少量异常回答保留原文并标记 `sections_valid=false`；它们不会静默修复，也不会进入后续 UQ 计算。
-
-## 目录与正式产物
+## 仓库结构
 
 ```text
-LoRA/                                  XML 格式数据、训练和验证
-baseline/                              PPL、Semantic Entropy、UMPIRE 与保留复现
-docs/                                  实验规范、工程实现和分析说明
-prompts/                               版本化生成、LoRA 和 Judge prompt
-scripts/generation/                    vLLM 生成与 HF replay 入口
-scripts/uq/                            UQ 入口
-scripts/judging/                       Judge 入口
-scripts/human_alignment/               双 Judge 分歧的人类盲裁与正式标签生成
-scripts/evaluation/                    指标入口
-scripts/improvement/                   ERA 特征提取入口
-slurm/                                 集群正式作业入口
-src/                                   数据、模型、生成、Judge、UQ、ERA 公共实现
-tests/                                 回归测试
+LoRA/                  LoRA 数据处理、训练与验证
+baseline/              UQ 基线复现
+docs/                  方法、实验与工程说明
+prompts/               生成、LoRA 与 Judge Prompt
+scripts/               各阶段命令行入口与分析脚本
+slurm/                 集群作业入口
+src/                   数据、模型、生成、UQ、Judge 与 ERA 实现
+tests/                 回归测试
+report/                实验报告源码与成图脚本
 ```
 
-数据集、基础模型权重、API 凭据和 `results/` 不提交到 Git。正式结果结构如下：
+数据集、模型权重、API 凭据及大体量张量产物不提交到 Git。`results/` 版本化生成 JSONL、正式对齐标签、最终指标、实验 manifest 和复现索引，其中生成 JSONL 由 Git LFS 管理；token/hidden sidecar、图片、人工标注工作区及模型 adapter 仍只保存在集群。
 
-| 产物 | 路径 |
-| --- | --- |
-| vLLM 原始回答 | `results/generation/<model>/vllm_raw/{greedy,samples}/<dataset>.jsonl` |
-| vLLM 精确 token sidecar | 与上述 JSONL 相邻的 `<dataset>.tokens/*.pt` |
-| HF replay 后 greedy | `results/generation/<model>/greedy/<dataset>.jsonl` |
-| HF replay 后 samples | `results/generation/<model>/samples/<dataset>.jsonl` |
-| UMPIRE hidden sidecar | `results/hidden/<model>/<dataset>/*.pt` |
-| UQ | `results/uq/<model>/<dataset>.jsonl` |
-| Judge（GPT-5.6-Terra 原始结果） | `results/judging_gpt_5_6_terra/<model>/<dataset>.jsonl` |
-| Judge（Gemini 原始结果） | `results/judging_gemini_3_7_flash/<model>/<dataset>.jsonl` |
-| 人类裁决工作区 | `results/human_alignment/` |
-| 正式对齐标签 | `results/judging/<model>/<dataset>.jsonl` |
-| 指标 | `results/metrics/<model>/<dataset>.json` |
-| ERA 分量 | `results/era_components/<model>/<dataset>.jsonl` |
-| 分析 | `results/analysis/` |
+## 环境与测试
 
-正式模型与 adapter 映射由 `slurm/generation/generate.sbatch` 和 `slurm/improvement/run_era.sbatch` 统一维护：
-
-| `MODEL` | family | 基础模型 | adapter |
-| --- | --- | --- | --- |
-| `llava` | `llava_1_5` | `$MODEL_ROOT/llava-1.5-7b-hf` | `results/lora/llava/adapter` |
-| `qwen` | `qwen2_5_vl` | `$MODEL_ROOT/Qwen2.5-VL-7B-Instruct` | `results/lora/qwen/adapter` |
-| `internvl` | `internvl3_5_original` | `$MODEL_ROOT/InternVL3_5-8B` | `results/lora/internvl/adapter-original` |
-
-## 集群运行
-
-`slurm/common.sh` 提供可覆盖的公共路径。默认模型和数据根目录分别为 `/opt/$USER/models` 与 `/opt/$USER/datasets`。生成、HF replay、UQ、Judge、ERA 和 LoRA 统一使用 `$HOME/.venvs/MLLM-UQ/bin/python`；该环境同时包含 vLLM、PyTorch 与 Transformers。计算节点按离线模式运行，模型和数据需预先在登录节点准备完成。
-
-统一环境的已验证依赖快照保存在根目录 `requirements.txt`：
+建议使用 Python 虚拟环境安装根目录依赖：
 
 ```bash
-$HOME/.venvs/MLLM-UQ/bin/pip install -r requirements.txt
+git lfs install
+git lfs pull
+python -m pip install -r requirements.txt
+pytest -q
 ```
 
-单模型正式 generation：
+LoRA 与各基线的额外依赖和运行方式分别见 `LoRA/README.md` 与 `baseline/*/README.md`。
+
+## 正式运行
+
+公共集群路径和 Python 环境由 `slurm/common.sh` 管理，可通过环境变量覆盖。运行前需在计算环境中准备好模型、数据集和 LoRA adapter。
+
+单模型生成：
 
 ```bash
 sbatch --export=ALL,MODEL=llava slurm/generation/generate.sbatch
 ```
 
-三模型 generation，并在各自完成后自动提交 UQ：
+三模型生成并自动衔接 UQ：
 
 ```bash
 bash slurm/submit_full_pipeline.sh
 ```
 
-也可以只提交指定模型：
+也可指定模型或单独运行后续阶段：
 
 ```bash
 bash slurm/submit_full_pipeline.sh internvl
-```
-
-只计算某个模型的 UQ：
-
-```bash
 sbatch --export=ALL,MODEL=llava slurm/uq/compute_uq.sbatch
-```
-
-Judge 和 ERA 不在上述 DAG 中自动提交：Judge 会消耗远程 API 配额，ERA 需要额外 GPU，应在正式 generation 产物稳定后单独运行。
-
-## 断点续跑与清理边界
-
-vLLM raw、HF replay、UQ、Judge 和 ERA 均以 `sample_id` 断点续跑。每个 JSONL 首行保存完整 `run` 配置；已有文件的模型、数据、Prompt、参数或上游输入与当前运行不一致时，程序会拒绝追加，防止混合实验。
-
-恢复作业时遵循以下边界：
-
-1. 配置一致且 token/hidden sidecar 完整时，直接重提同一作业，已完成样本会跳过。
-2. 只修改 HF replay 时，保留 `vllm_raw/`，删除对应 final `greedy/`、`samples/` 与其下游 UQ/ERA 后重新 replay。
-3. 修改生成模型、adapter、Prompt 或采样参数时，重新生成受影响的 `vllm_raw/`，并清理其 downstream 产物。
-4. 不因下游失败清空可验证的上游结果；只有运行配置不兼容或 sidecar 缺失时才重做对应阶段。
-
-## UQ、Judge 与 ERA
-
-`scripts/uq/compute_uq.py` 只读取 HF replay 后的 greedy/samples：Perplexity 使用 greedy 最终答案的 HF log probability；Semantic Entropy 使用 samples 的最终答案与 mean log probability；UMPIRE 额外读取 sample 最终答案末 token 的末层 hidden sidecar。
-
-`scripts/judging/judge_responses.py` 只评价 greedy 主回答。原始结果目录由 Judge 模型名自动确定，例如 `gpt-5.6-terra` 写入 `results/judging_gpt_5_6_terra/`、`gemini-3.7-flash` 写入 `results/judging_gemini_3_7_flash/`；入口会拒绝把原始 Judge 结果写入 `results/judging/`。服务地址和密钥优先读取 `OPENAI_BASE_URL`、`OPENAI_API_KEY`，也可放在不提交 Git 的项目根目录 `.ven` 中。Prompt 哈希和实际裁判模型保存在输出的 `run` metadata 中。
-
-GPT 与 Gemini 标签不一致的样本必须经过人类盲裁后才能成为正式标签。完整步骤见 [人类对齐流程](docs/人类对齐流程.md)。现有指标、LUH 和 ERA 脚本继续读取 `results/judging/`，该目录现在只表示完成对齐的正式结果。
-
-ERA 读取 HF replay 后的 greedy JSONL 及其精确 token sidecar，并通过 HF eager attention 计算浅层归因分量。正式 Slurm 入口默认读取 `results/analysis/luh/<model>_subset_ids.txt`，只对每个模型的 400 条低不确定性子集执行 attention forward：
-
-```bash
+sbatch --export=ALL,MODEL=llava slurm/judging/judge.sbatch
 sbatch --export=ALL,MODEL=llava slurm/improvement/run_era.sbatch
 ```
 
-详细说明见：
+Judge 会消耗远程 API 配额，ERA 需要额外 GPU，建议在生成结果稳定后单独提交。GPT 与 Gemini 标签不一致的样本须经人类盲裁，才能写入正式标签目录 `results/judging/`。
+
+## 产物约定
+
+| 产物 | 路径 |
+| --- | --- |
+| vLLM 原始回答与 token sidecar | `results/generation/<model>/vllm_raw/` |
+| HF 回放后的回答 | `results/generation/<model>/{greedy,samples}/` |
+| UMPIRE hidden sidecar | `results/hidden/<model>/<dataset>/` |
+| UQ | `results/uq/<model>/<dataset>.jsonl` |
+| 原始 Judge 结果 | `results/judging_<judge>/<model>/<dataset>.jsonl` |
+| 人类对齐后的正式标签 | `results/judging/<model>/<dataset>.jsonl` |
+| 指标与分析 | `results/metrics/`、`results/analysis/` |
+| ERA 分量 | `results/era_components/<model>/<dataset>.jsonl` |
+
+生成、回放、UQ、Judge 和 ERA 均按 `sample_id` 支持断点续跑，并在输出中保存运行配置。若模型、Prompt、采样参数或上游输入发生变化，应删除对应阶段及其下游产物后重算；不要因下游失败清空仍可验证的上游结果。
+
+## 进一步说明
 
 - [工程实现](docs/工程实现.md)
 - [不确定性量化主实验](docs/不确定性量化主实验.md)
-- [LoRA 说明](LoRA/README.md)
+- [人类对齐流程](docs/人类对齐流程.md)
 - [ERA 方法](docs/ERA早期推理归因不确定性量化方法.md)
 - [统一大模型裁判](src/llm_judge/README.md)
-
-## 测试
-
-安装依赖后在仓库根目录运行：
-
-```bash
-pytest -q
-```
-
-测试覆盖数据适配、XML 解析、vLLM/HF 后端、显存批处理、HF replay（含 HallusionBench 无图记录）、断点续跑、UQ、Judge、LoRA 和 ERA。
+- [LoRA 训练](LoRA/README.md)

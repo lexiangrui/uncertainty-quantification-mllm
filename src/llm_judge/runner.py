@@ -51,23 +51,32 @@ _INVALID_FORMAT_VALUE = {
 }
 
 
-def _judge_one(judge, sample, greedy: dict) -> dict:
+def _judge_one(judge, sample, greedy: dict, *, judge_raw_response: bool = False) -> dict:
     """Judge a single sample and retain its response-local raw audit text."""
-    if greedy.get("sections_valid") is not True:
+    if not judge_raw_response and greedy.get("sections_valid") is not True:
         return dict(_INVALID_FORMAT_VALUE)
     result = None
     api_error: Exception | None = None
     for attempt in range(_API_MAX_RETRIES):
         try:
-            result = judge.judge(
-                dataset=sample.dataset,
-                question=sample.question,
-                references=list(sample.references),
-                vision=greedy["vision"],
-                reasoning=greedy["reasoning"],
-                answer=greedy["answer"],
-                image=sample.image,
-            )
+            common = {
+                "dataset": sample.dataset,
+                "question": sample.question,
+                "references": list(sample.references),
+                "image": sample.image,
+            }
+            if judge_raw_response:
+                result = judge.judge_raw(
+                    **common,
+                    raw_response=greedy.get("raw_response", ""),
+                )
+            else:
+                result = judge.judge(
+                    **common,
+                    vision=greedy["vision"],
+                    reasoning=greedy["reasoning"],
+                    answer=greedy["answer"],
+                )
             api_error = None
             break
         except ValueError as error:
@@ -114,6 +123,7 @@ def run_closed_source_judging(
     output: Path,
     limit: int | None,
     concurrency: int = 1,
+    judge_raw_response: bool = False,
 ) -> tuple[int, int]:
     greedy_run, generation_records = _load_greedy_records(greedy_input)
     run = {
@@ -125,6 +135,7 @@ def run_closed_source_judging(
         "dataset_source": str(dataset_source.resolve()),
         "greedy_input": str(greedy_input.resolve()),
         "greedy_run": greedy_run,
+        "judge_input_mode": "raw_response" if judge_raw_response else "structured_sections",
     }
     completed = completed_sample_ids(output, run, retry_statuses={"api_error"})
     written = 0
@@ -133,6 +144,16 @@ def run_closed_source_judging(
 
     def _record(sample, greedy, judge_value: dict) -> None:
         nonlocal written
+        judge_input = (
+            {"raw_response": greedy.get("raw_response", "")}
+            if judge_raw_response
+            else {
+                "vision": greedy.get("vision"),
+                "reasoning": greedy.get("reasoning"),
+                "answer": greedy.get("answer"),
+                "raw_response": greedy.get("raw_response", ""),
+            }
+        )
         write_sample_json_line(
             output,
             run,
@@ -146,10 +167,7 @@ def run_closed_source_judging(
                 "input": {
                     "question": sample.question,
                     "references": list(sample.references),
-                    "vision": greedy["vision"],
-                    "reasoning": greedy["reasoning"],
-                    "answer": greedy["answer"],
-                    "raw_response": greedy["raw_response"],
+                    **judge_input,
                 },
                 "judge": judge_value,
             },
@@ -163,11 +181,26 @@ def run_closed_source_judging(
             return
         if concurrency <= 1 or len(batch) == 1:
             for sample, greedy in batch:
-                _record(sample, greedy, _judge_one(judge, sample, greedy))
+                _record(
+                    sample,
+                    greedy,
+                    _judge_one(
+                        judge,
+                        sample,
+                        greedy,
+                        judge_raw_response=judge_raw_response,
+                    ),
+                )
         else:
             with ThreadPoolExecutor(max_workers=concurrency) as pool:
                 futures = {
-                    pool.submit(_judge_one, judge, sample, greedy): (sample, greedy)
+                    pool.submit(
+                        _judge_one,
+                        judge,
+                        sample,
+                        greedy,
+                        judge_raw_response=judge_raw_response,
+                    ): (sample, greedy)
                     for sample, greedy in batch
                 }
                 for future in as_completed(futures):

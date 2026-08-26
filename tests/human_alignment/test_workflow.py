@@ -159,6 +159,8 @@ def test_finalize_refuses_incomplete_then_writes_human_aligned_labels(tmp_path: 
     assert labels["hallucination"]["hallucination"] is False
     assert labels["both"]["hallucination_types"] == ["reasoning_hallucination"]
     assert labels["both"]["alignment"]["correct"]["kind"] == "human"
+    assert labels["correct"]["alignment"]["correct"] == {"kind": "human", "model": None}
+    assert labels["hallucination"]["alignment"]["hallucination"] == {"kind": "human", "model": None}
 
 
 def test_finalize_detects_raw_input_change(tmp_path: Path) -> None:
@@ -245,44 +247,3 @@ def test_image_export_fails_when_alignment_sample_is_missing(tmp_path: Path, mon
             {"vilp": "/unused"},
             tmp_path,
         )
-
-
-def test_finalize_can_apply_human_selected_gpt_policy(tmp_path: Path) -> None:
-    gpt, gemini, workspace = _inputs(tmp_path)
-    build_alignment_workspace(
-        gpt_dir=gpt,
-        gemini_dir=gemini,
-        workspace=workspace,
-        models=("llava",),
-        datasets=("vilp",),
-        export_images=False,
-    )
-    save_annotations(
-        workspace,
-        {
-            "llava/vilp/correct": {"correct": False},
-            "llava/vilp/hallucination": {"hallucination": False},
-            "llava/vilp/both": {"correct": True, "hallucination": True},
-        },
-    )
-    output = tmp_path / "judging"
-    finalize_aligned_results(
-        gpt_dir=gpt,
-        gemini_dir=gemini,
-        workspace=workspace,
-        output_dir=output,
-        models=("llava",),
-        datasets=("vilp",),
-        human_adjudicator="reviewer",
-        trusted_gpt_models=("llava",),
-    )
-    rows = [json.loads(line) for line in (output / "llava/vilp.jsonl").read_text().splitlines()]
-    assert rows[0]["run"]["protocol"] == "human-aligned-dual-judge-v1"
-    assert rows[0]["run"]["trusted_gpt_models"] == ["llava"]
-    labels = {row["sample"]["sample_id"]: row["judge"] for row in rows[1:]}
-    assert labels["correct"]["correct"] is True
-    assert labels["correct"]["alignment"]["correct"] == {
-        "kind": "human_policy",
-        "model": "gpt-5.6-terra",
-    }
-    assert labels["correct"]["alignment"]["annotator"] == "reviewer"

@@ -21,10 +21,19 @@ XML_SECTION_PATTERN = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
+PLAIN_SECTION_PATTERN = re.compile(
+    r"^\s*(?:\*\*)?Visual Observations?(?:\*\*)?\s*:\s*(?P<vision>.+?)\s*"
+    r"(?:\*\*)?Reasoning(?:\*\*)?\s*:\s*(?P<reasoning>.+?)\s*"
+    r"(?:\*\*)?Final Answer(?:\*\*)?\s*:\s*(?P<answer>.+?)\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
+
 
 def _pattern(response_format: str) -> re.Pattern:
     if response_format == "xml":
         return XML_SECTION_PATTERN
+    if response_format == "plain_sections":
+        return PLAIN_SECTION_PATTERN
     raise ValueError(f"unknown response format: {response_format}")
 
 

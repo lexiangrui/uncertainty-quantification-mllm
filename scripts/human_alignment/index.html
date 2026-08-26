@@ -1,61 +1,820 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>MLLM 人类对齐裁决</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hallucination Lab — Blind Review</title>
   <style>
-    :root{--ink:#172027;--muted:#66727c;--paper:#f5f2eb;--card:#fffdf8;--line:#d9d3c8;--blue:#245c7a;--green:#287052;--red:#a53e39;--gold:#c18a32;--shadow:0 16px 44px rgba(42,39,32,.10)}
-    *{box-sizing:border-box} body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}
-    header{height:64px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;background:#18252d;color:white;position:sticky;top:0;z-index:4}
-    .brand{font-family:Georgia,"Songti SC",serif;font-size:20px;letter-spacing:.03em}.blind{font-size:12px;padding:5px 10px;border:1px solid #64727a;border-radius:999px;color:#d8e0e4}
-    main{max-width:1500px;margin:auto;padding:22px}.toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px}.tabs,.status{display:flex;background:#e8e4dc;padding:4px;border-radius:10px;gap:3px}
-    button,select,input,textarea{font:inherit}button{cursor:pointer}.tab{border:0;background:transparent;padding:8px 13px;border-radius:7px;color:#56616a}.tab.active{background:white;color:var(--ink);box-shadow:0 1px 5px #0001}
-    .progress{margin-left:auto;min-width:260px}.progress-label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px}.track{height:7px;background:#ddd8cf;border-radius:9px;overflow:hidden}.bar{height:100%;background:var(--green);width:0;transition:.2s}
-    .workspace{display:grid;grid-template-columns:minmax(360px,.85fr) minmax(500px,1.15fr);gap:18px}.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
-    .media{min-height:560px;display:flex;flex-direction:column}.meta{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:13px}.tags{display:flex;gap:6px}.tag{border-radius:999px;padding:2px 8px;background:#e9eef0;color:#34515f}.tag.warn{background:#f5e7cd;color:#81591d}
-    .image-wrap{background:#edeae3;min-height:380px;display:flex;align-items:center;justify-content:center;padding:18px}.image-wrap img{max-width:100%;max-height:520px;object-fit:contain;border-radius:6px}.no-image{color:var(--muted)}
-    .question{padding:18px 20px}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:700;margin-bottom:5px}.question-text{font-size:17px}.refs{margin-top:14px;padding:12px;border-left:3px solid var(--gold);background:#fbf4e7}
-    .detail{padding:20px 22px;min-height:560px}.section{margin-bottom:20px}.section-text{white-space:pre-wrap;background:#f4f3ef;border:1px solid #e1ddd5;border-radius:9px;padding:12px;max-height:170px;overflow:auto}.answer{border-left:3px solid var(--blue)}
-    .decision{border-top:1px solid var(--line);padding-top:18px}.decision-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.task{border:1px solid var(--line);border-radius:10px;padding:13px}.task.disabled{display:none}.task-title{font-weight:700;margin-bottom:9px}.choice-row{display:flex;gap:8px}.choice{flex:1;border:1px solid var(--line);background:white;border-radius:8px;padding:9px}.choice.selected.yes{background:#e2f2e9;border-color:var(--green);color:#195a3d}.choice.selected.no{background:#f8e3e1;border-color:var(--red);color:#862d28}
-    .types{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}.chip{border:1px solid var(--line);background:#faf9f6;border-radius:999px;padding:5px 9px;font-size:12px}.chip.selected{background:#e6edf1;border-color:var(--blue);color:#174d69}
-    .form-row{display:grid;grid-template-columns:180px 1fr;gap:10px;margin-top:14px}.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}.field input,.field textarea{width:100%;border:1px solid var(--line);border-radius:8px;background:white;padding:9px}.field textarea{resize:vertical;min-height:42px}
-    footer{display:flex;align-items:center;justify-content:space-between;margin-top:14px}.nav{display:flex;gap:8px}.nav button{border:1px solid var(--line);background:white;border-radius:8px;padding:8px 14px}.save-state{font-size:12px;color:var(--muted)}.empty{text-align:center;padding:80px 20px;color:var(--muted)}
-    @media(max-width:950px){.workspace{grid-template-columns:1fr}.media,.detail{min-height:auto}.progress{width:100%;margin-left:0}.decision-grid{grid-template-columns:1fr}.form-row{grid-template-columns:1fr}}
+    :root {
+      --bg: #f6f4ef;
+      --surface: #ffffff;
+      --surface-soft: #faf8f4;
+      --ink: #1c1c1e;
+      --secondary: #746f69;
+      --muted: #aaa49d;
+      --line: #e6e1da;
+      --accent: #937452;
+      --accent-soft: #f0e8de;
+      --green: #48755a;
+      --green-soft: #e7f0e9;
+      --red: #a64d49;
+      --red-soft: #f5e7e5;
+      --blue: #4e6f7f;
+      --blue-soft: #e6eef2;
+      --shadow: 0 14px 40px rgba(67, 54, 42, .08);
+      --sans: "Avenir Next", Avenir, "Segoe UI", Helvetica, Arial, sans-serif;
+      --serif: Georgia, "Times New Roman", serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, textarea { font: inherit; }
+    button { color: inherit; }
+
+    .topbar {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 20;
+      height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      background: rgba(246, 244, 239, .94);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+    }
+    .brand {
+      font-family: var(--serif);
+      font-size: 21px;
+      letter-spacing: -.02em;
+    }
+    .brand span { color: var(--accent); font-style: italic; }
+    .blind-note {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--secondary);
+      font-size: 12px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .blind-note::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px var(--green-soft);
+    }
+
+    .toolbar {
+      position: fixed;
+      inset: 58px 0 auto 0;
+      z-index: 15;
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      padding: 9px 28px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+    }
+    .filter-button {
+      min-height: 31px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--secondary);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .filter-button:hover { color: var(--ink); }
+    .filter-button.active {
+      color: var(--ink);
+      background: var(--surface);
+      box-shadow: 0 1px 4px rgba(53, 45, 37, .1);
+    }
+    .progress {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 210px;
+    }
+    .progress-label {
+      flex: 0 0 auto;
+      color: var(--secondary);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    .progress-track {
+      flex: 1;
+      height: 4px;
+      overflow: hidden;
+      border-radius: 99px;
+      background: var(--line);
+    }
+    .progress-fill {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent);
+      transition: width .25s ease;
+    }
+
+    .workspace {
+      min-height: 100vh;
+      padding: 116px 0 72px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(420px, .92fr);
+    }
+    .visual-pane {
+      min-width: 0;
+      padding: 24px 28px 30px;
+      border-right: 1px solid var(--line);
+    }
+    .detail-pane {
+      min-width: 0;
+      padding: 24px 32px 38px;
+      background: var(--surface);
+    }
+
+    .sample-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .eyebrow {
+      color: var(--secondary);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+    .meta-separator { color: var(--muted); }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 23px;
+      padding: 0 8px;
+      border-radius: 99px;
+      color: var(--blue);
+      background: var(--blue-soft);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .tag.hallucination { color: var(--red); background: var(--red-soft); }
+
+    .image-frame {
+      min-height: 320px;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      background: #ece8e1;
+      border: 1px solid #ded8cf;
+      border-radius: 4px;
+      box-shadow: var(--shadow);
+    }
+    .image-frame img {
+      display: block;
+      width: auto;
+      height: auto;
+      max-width: 100%;
+      max-height: calc(100vh - 286px);
+    }
+    .image-placeholder {
+      padding: 24px;
+      color: var(--secondary);
+      text-align: center;
+      line-height: 1.55;
+    }
+    .prompt-card {
+      margin-top: 20px;
+      padding: 18px 20px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+    }
+    .question {
+      margin: 7px 0 16px;
+      font-family: var(--serif);
+      font-size: clamp(20px, 2vw, 28px);
+      line-height: 1.28;
+    }
+    .reference {
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      color: var(--secondary);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .reference strong {
+      margin-right: 7px;
+      color: var(--ink);
+    }
+
+    .section {
+      padding: 0 0 22px;
+      margin: 0 0 22px;
+      border-bottom: 1px solid var(--line);
+    }
+    .section:last-child { border-bottom: 0; }
+    .section-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 0 0 10px;
+    }
+    .section-heading h2 {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 18px;
+      font-weight: 500;
+    }
+    .section-index {
+      color: var(--muted);
+      font-family: var(--serif);
+      font-size: 12px;
+      font-style: italic;
+    }
+    .response-text {
+      margin: 0;
+      color: #393634;
+      font-size: 14px;
+      line-height: 1.72;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .final-answer {
+      padding: 15px 17px;
+      background: var(--surface-soft);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 3px 3px 0;
+      color: var(--ink);
+      font-family: var(--serif);
+      font-size: 17px;
+      line-height: 1.55;
+    }
+
+    .decision-block { margin-top: 17px; }
+    .decision-block:first-child { margin-top: 0; }
+    .decision-label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin: 0 0 9px;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .decision-hint {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+    .choice-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .choice {
+      min-height: 45px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface);
+      color: var(--secondary);
+      font-size: 13px;
+      font-weight: 650;
+      cursor: pointer;
+      transition: border-color .15s, background .15s, color .15s;
+    }
+    .choice:hover { border-color: #c8c0b7; color: var(--ink); }
+    .choice.selected.good {
+      color: var(--green);
+      background: var(--green-soft);
+      border-color: #bfd1c4;
+    }
+    .choice.selected.bad {
+      color: var(--red);
+      background: var(--red-soft);
+      border-color: #ddc0bd;
+    }
+    .type-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .type-chip {
+      min-height: 34px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 99px;
+      background: var(--surface);
+      color: var(--secondary);
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .type-chip.selected {
+      color: var(--blue);
+      background: var(--blue-soft);
+      border-color: #bdced7;
+    }
+    .type-chip:disabled { opacity: .42; cursor: not-allowed; }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: minmax(130px, .42fr) minmax(0, 1fr);
+      gap: 12px;
+    }
+    .field label {
+      display: block;
+      margin: 0 0 7px;
+      color: var(--secondary);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .field input, .field textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      outline: 0;
+      background: var(--surface-soft);
+      color: var(--ink);
+    }
+    .field input { height: 40px; padding: 0 12px; }
+    .field textarea {
+      min-height: 78px;
+      resize: vertical;
+      padding: 10px 12px;
+      line-height: 1.45;
+    }
+    .field input:focus, .field textarea:focus {
+      border-color: #bda78f;
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    .empty {
+      grid-column: 1 / -1;
+      min-height: calc(100vh - 188px);
+      display: grid;
+      place-items: center;
+      padding: 40px;
+      text-align: center;
+    }
+    .empty h2 {
+      margin: 0 0 9px;
+      font-family: var(--serif);
+      font-size: 28px;
+      font-weight: 500;
+    }
+    .empty p { margin: 0; color: var(--secondary); }
+
+    .bottombar {
+      position: fixed;
+      inset: auto 0 0 0;
+      z-index: 20;
+      height: 72px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 0 28px;
+      background: rgba(255, 255, 255, .96);
+      border-top: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+    }
+    .save-state {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--secondary);
+      font-size: 12px;
+    }
+    .save-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .save-state.saved .save-dot { background: var(--green); }
+    .save-state.saving .save-dot { background: var(--accent); animation: pulse 1s infinite; }
+    .save-state.error .save-dot { background: var(--red); }
+    @keyframes pulse { 50% { opacity: .35; } }
+    .position {
+      color: var(--secondary);
+      font-family: var(--serif);
+      font-size: 13px;
+      font-style: italic;
+      font-variant-numeric: tabular-nums;
+    }
+    .nav-actions { justify-self: end; display: flex; gap: 8px; }
+    .nav-button {
+      min-width: 98px;
+      height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .nav-button.primary {
+      color: #fff;
+      border-color: var(--ink);
+      background: var(--ink);
+    }
+    .nav-button:disabled { opacity: .38; cursor: not-allowed; }
+
+    @media (max-width: 980px) {
+      .toolbar { gap: 10px; flex-wrap: wrap; }
+      .progress { min-width: 170px; }
+      .workspace { grid-template-columns: 1fr; padding-top: 126px; }
+      .visual-pane { border-right: 0; border-bottom: 1px solid var(--line); }
+      .detail-pane { padding-bottom: 40px; }
+      .image-frame img { max-height: 68vh; }
+    }
+    @media (max-width: 650px) {
+      .topbar, .toolbar, .visual-pane, .detail-pane, .bottombar { padding-left: 16px; padding-right: 16px; }
+      .blind-note { display: none; }
+      .toolbar { align-content: center; }
+      .progress { width: 100%; margin: 0; }
+      .workspace { padding-top: 166px; }
+      .image-frame { min-height: 220px; padding: 10px; }
+      .image-frame img { max-height: none; }
+      .form-grid { grid-template-columns: 1fr; }
+      .bottombar { grid-template-columns: auto 1fr; }
+      .save-state { display: none; }
+      .position { justify-self: start; }
+    }
   </style>
 </head>
 <body>
-<header><div class="brand">MLLM Human Alignment</div><div class="blind">双 Judge 盲裁 · 不展示来源标签</div></header>
-<main>
-  <div class="toolbar">
-    <div class="tabs" id="taskTabs"><button class="tab active" data-filter="all">全部分歧</button><button class="tab" data-filter="correct">正确性</button><button class="tab" data-filter="hallucination">幻觉</button></div>
-    <div class="status" id="statusTabs"><button class="tab active" data-status="pending">待裁决</button><button class="tab" data-status="all">全部</button><button class="tab" data-status="done">已完成</button></div>
-    <div class="progress"><div class="progress-label"><span id="progressText">载入中</span><span id="position"></span></div><div class="track"><div class="bar" id="bar"></div></div></div>
-  </div>
-  <div id="content"></div>
-</main>
-<script>
-const state={samples:[],annotations:{},filter:'all',status:'pending',visible:[],index:0,revisions:{}};
-let saveChain=Promise.resolve();
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function requiredDone(s,a){return(!s.disagreements.correct||typeof a.correct==='boolean')&&(!s.disagreements.hallucination||typeof a.hallucination==='boolean')}
-function taskDone(s,a){if(state.filter==='correct')return !s.disagreements.correct||typeof a.correct==='boolean';if(state.filter==='hallucination')return !s.disagreements.hallucination||typeof a.hallucination==='boolean';return requiredDone(s,a)}
-function refreshVisible(keepKey){state.visible=state.samples.filter(s=>{const task=state.filter==='all'||s.disagreements[state.filter];const done=taskDone(s,state.annotations[s.key]||{});return task&&(state.status==='all'||(state.status==='done')===done)});let i=keepKey?state.visible.findIndex(s=>s.key===keepKey):-1;state.index=i>=0?i:Math.min(state.index,Math.max(0,state.visible.length-1));render()}
-function progress(){const done=state.samples.filter(s=>requiredDone(s,state.annotations[s.key]||{})).length;document.querySelector('#progressText').textContent=`已完成 ${done} / ${state.samples.length}`;document.querySelector('#bar').style.width=(state.samples.length?100*done/state.samples.length:0)+'%';document.querySelector('#position').textContent=state.visible.length?`${state.index+1} / ${state.visible.length}`:'0 / 0'}
-function render(){progress();const host=document.querySelector('#content');if(!state.visible.length){host.innerHTML='<div class="panel empty">当前筛选下没有样本</div>';return}const s=state.visible[state.index],a=state.annotations[s.key]||{};const img=s.image_status==='available'?`<img src="/api/image?key=${encodeURIComponent(s.key)}" alt="样本图像">`:s.image_status==='not_applicable'?'<div class="no-image">该数据集样本不包含图像</div>':'<div class="no-image">图像尚未准备，禁止裁决</div>';const refs=(s.references||[]).map(x=>`<div>${esc(x)}</div>`).join('');const showCorrect=s.disagreements.correct&&state.filter!=='hallucination';const showHallucination=s.disagreements.hallucination&&state.filter!=='correct';host.innerHTML=`
-<div class="workspace"><section class="panel media"><div class="meta"><span>${esc(s.model)} · ${esc(s.dataset)} · ${esc(s.sample_id)}</span><span class="tags">${s.disagreements.correct?'<b class="tag warn">正确性分歧</b>':''}${s.disagreements.hallucination?'<b class="tag warn">幻觉分歧</b>':''}</span></div><div class="image-wrap">${img}</div><div class="question"><div class="eyebrow">Question</div><div class="question-text">${esc(s.question)}</div><div class="refs"><div class="eyebrow">Reference answer</div>${refs}</div></div></section>
-<section class="panel detail"><div class="section"><div class="eyebrow">Visual observations</div><div class="section-text">${esc(s.response.vision)}</div></div><div class="section"><div class="eyebrow">Reasoning</div><div class="section-text">${esc(s.response.reasoning)}</div></div><div class="section"><div class="eyebrow">Final answer</div><div class="section-text answer">${esc(s.response.answer)}</div></div>
-<div class="decision"><div class="decision-grid"><div class="task ${showCorrect?'':'disabled'}"><div class="task-title">正确性最终标签</div><div class="choice-row"><button class="choice yes ${a.correct===true?'selected':''}" data-field="correct" data-value="true">正确</button><button class="choice no ${a.correct===false?'selected':''}" data-field="correct" data-value="false">错误</button></div></div><div class="task ${showHallucination?'':'disabled'}"><div class="task-title">幻觉最终标签</div><div class="choice-row"><button class="choice yes ${a.hallucination===true?'selected':''}" data-field="hallucination" data-value="true">有幻觉</button><button class="choice no ${a.hallucination===false?'selected':''}" data-field="hallucination" data-value="false">无幻觉</button></div><div class="types" style="display:${a.hallucination===true?'flex':'none'}"><button class="chip ${(a.hallucination_types||[]).includes('vision_hallucination')?'selected':''}" data-type="vision_hallucination">视觉幻觉</button><button class="chip ${(a.hallucination_types||[]).includes('reasoning_hallucination')?'selected':''}" data-type="reasoning_hallucination">推理幻觉</button></div></div></div>
-<div class="form-row"><div class="field"><label>裁判姓名 / ID</label><input id="annotator" value="${esc(a.annotator||'')}"></div><div class="field"><label>备注（可选）</label><textarea id="notes">${esc(a.notes||'')}</textarea></div></div></div></section></div>
-<footer><span class="save-state" id="saveState">${a.updated_at?'已保存':'尚未保存'}</span><div class="nav"><button id="prev">← 上一条</button><button id="next">下一条 →</button></div></footer>`;
-bind(s,a)}
-function markHuman(a,field){a.provenance=a.provenance||{};a.provenance[field]={kind:'human',model:null,updated_at:new Date().toISOString()}}
-function bind(s,a){document.querySelectorAll('[data-field]').forEach(b=>b.onclick=()=>{a[b.dataset.field]=b.dataset.value==='true';markHuman(a,b.dataset.field);if(b.dataset.field==='hallucination'&&!a.hallucination)a.hallucination_types=[];state.annotations[s.key]=a;save(s,a)});document.querySelectorAll('[data-type]').forEach(b=>b.onclick=()=>{const values=new Set(a.hallucination_types||[]);values.has(b.dataset.type)?values.delete(b.dataset.type):values.add(b.dataset.type);a.hallucination_types=[...values];markHuman(a,'hallucination');state.annotations[s.key]=a;save(s,a)});for(const id of ['annotator','notes'])document.querySelector('#'+id).onchange=e=>{a[id]=e.target.value;state.annotations[s.key]=a;save(s,a,false)};document.querySelector('#prev').onclick=()=>move(-1);document.querySelector('#next').onclick=()=>move(1)}
-function save(s,a,rerender=true){a.updated_at=new Date().toISOString();const revision=(state.revisions[s.key]||0)+1;state.revisions[s.key]=revision;const snapshot=JSON.parse(JSON.stringify(a));const mark=document.querySelector('#saveState');if(mark)mark.textContent='保存中…';saveChain=saveChain.catch(()=>{}).then(async()=>{const r=await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:s.key,annotation:snapshot})});const out=await r.json();if(!r.ok)throw Error(out.error);if(state.revisions[s.key]===revision){state.annotations[s.key]=out.annotation;if(rerender)refreshVisible(s.key);else{const current=document.querySelector('#saveState');if(current)current.textContent='已保存'}}}).catch(e=>{if(state.revisions[s.key]===revision){const current=document.querySelector('#saveState');if(current)current.textContent='保存失败：'+e.message}});return saveChain}
-function move(delta){state.index=Math.max(0,Math.min(state.visible.length-1,state.index+delta));render();scrollTo({top:0,behavior:'smooth'})}
-document.querySelectorAll('#taskTabs .tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('#taskTabs .tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.filter=b.dataset.filter;state.index=0;refreshVisible()});document.querySelectorAll('#statusTabs .tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('#statusTabs .tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.status=b.dataset.status;state.index=0;refreshVisible()});
-document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;if(e.key==='ArrowLeft')move(-1);if(e.key==='ArrowRight')move(1)});
-fetch('/api/state').then(r=>r.json()).then(x=>{state.samples=x.samples;state.annotations=x.annotations;refreshVisible()}).catch(e=>document.querySelector('#content').innerHTML=`<div class="panel empty">载入失败：${esc(e.message)}</div>`);
-</script>
+  <header class="topbar">
+    <div class="brand">Hallucination <span>Lab</span></div>
+    <div class="blind-note">Blind review · Judge labels hidden</div>
+  </header>
+
+  <nav class="toolbar" aria-label="Review filters">
+    <div class="filter-group" id="taskFilters">
+      <button class="filter-button active" data-filter="all">All disputes</button>
+      <button class="filter-button" data-filter="correct">Correctness</button>
+      <button class="filter-button" data-filter="hallucination">Hallucination</button>
+    </div>
+    <div class="filter-group" id="statusFilters">
+      <button class="filter-button" data-status="pending">Pending</button>
+      <button class="filter-button active" data-status="all">All</button>
+      <button class="filter-button" data-status="done">Completed</button>
+    </div>
+    <div class="progress">
+      <span class="progress-label" id="progressLabel">Completed 0 / 0</span>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+  </nav>
+
+  <main class="workspace" id="workspace">
+    <section class="empty">
+      <div>
+        <h2>Loading review queue…</h2>
+        <p>The annotation data is being prepared.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bottombar">
+    <div class="save-state" id="saveState"><span class="save-dot"></span><span>Ready</span></div>
+    <div class="position" id="position">0 of 0</div>
+    <div class="nav-actions">
+      <button class="nav-button" id="previousButton">Previous</button>
+      <button class="nav-button primary" id="nextButton">Next</button>
+    </div>
+  </footer>
+
+  <script>
+    const state = {
+      samples: [],
+      annotations: {},
+      filter: "all",
+      status: "all",
+      visible: [],
+      index: 0,
+      revisions: {}
+    };
+    let saveChain = Promise.resolve();
+
+    const workspace = document.getElementById("workspace");
+    const progressLabel = document.getElementById("progressLabel");
+    const progressFill = document.getElementById("progressFill");
+    const position = document.getElementById("position");
+    const saveState = document.getElementById("saveState");
+    const previousButton = document.getElementById("previousButton");
+    const nextButton = document.getElementById("nextButton");
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function requiredDone(sample, annotation) {
+      const correctDone = !sample.disagreements.correct || typeof annotation.correct === "boolean";
+      const hallucinationDone = !sample.disagreements.hallucination || typeof annotation.hallucination === "boolean";
+      return correctDone && hallucinationDone;
+    }
+
+    function taskDone(sample, annotation) {
+      if (state.filter === "correct") return typeof annotation.correct === "boolean";
+      if (state.filter === "hallucination") return typeof annotation.hallucination === "boolean";
+      return requiredDone(sample, annotation);
+    }
+
+    function refreshVisible(keepKey) {
+      state.visible = state.samples.filter((sample) => {
+        if (state.filter !== "all" && !sample.disagreements[state.filter]) return false;
+        const done = taskDone(sample, state.annotations[sample.key] || {});
+        if (state.status === "pending" && done) return false;
+        if (state.status === "done" && !done) return false;
+        return true;
+      });
+      const preserved = keepKey ? state.visible.findIndex((sample) => sample.key === keepKey) : -1;
+      state.index = preserved >= 0 ? preserved : Math.min(state.index, Math.max(0, state.visible.length - 1));
+    }
+
+    function updateProgress() {
+      const relevant = state.samples.filter((sample) => state.filter === "all" || sample.disagreements[state.filter]);
+      const done = relevant.filter((sample) => taskDone(sample, state.annotations[sample.key] || {})).length;
+      progressLabel.textContent = "Completed " + done + " / " + relevant.length;
+      progressFill.style.width = (relevant.length ? (done / relevant.length) * 100 : 0) + "%";
+      position.textContent = state.visible.length ? (state.index + 1) + " of " + state.visible.length : "0 of 0";
+      previousButton.disabled = !state.visible.length || state.index === 0;
+      nextButton.disabled = !state.visible.length || state.index === state.visible.length - 1;
+    }
+
+    function setSaveState(kind, label) {
+      saveState.className = "save-state " + kind;
+      saveState.querySelector("span:last-child").textContent = label;
+    }
+
+    function renderEmpty(title, message) {
+      workspace.innerHTML = '<section class="empty"><div><h2>' + escapeHtml(title) + '</h2><p>' + escapeHtml(message) + '</p></div></section>';
+      updateProgress();
+    }
+
+    function render() {
+      if (!state.visible.length) {
+        renderEmpty("No samples in this view", "Change the task or completion filter to continue.");
+        return;
+      }
+
+      const sample = state.visible[state.index];
+      const annotation = state.annotations[sample.key] || {};
+      const disputes = [];
+      if (sample.disagreements.correct) disputes.push('<span class="tag">Correctness dispute</span>');
+      if (sample.disagreements.hallucination) disputes.push('<span class="tag hallucination">Hallucination dispute</span>');
+      const imageMarkup = sample.image_status === "available"
+        ? '<img src="/api/image?key=' + encodeURIComponent(sample.key) + '" alt="Evaluation image">'
+        : sample.image_status === "not_applicable"
+          ? '<div class="image-placeholder">This sample does not include an image.</div>'
+          : '<div class="image-placeholder">The image is not ready. Do not adjudicate this sample.</div>';
+
+      workspace.innerHTML =
+        '<section class="visual-pane">' +
+          '<div class="sample-meta">' +
+            '<span class="eyebrow">' + escapeHtml(sample.model || "Unknown model") + '</span>' +
+            '<span class="meta-separator">·</span>' +
+            '<span class="eyebrow">' + escapeHtml(sample.dataset || "Unknown dataset") + '</span>' +
+            '<span class="meta-separator">·</span>' +
+            '<span class="eyebrow">Sample ' + escapeHtml(sample.sample_id || sample.key) + '</span>' +
+            disputes.join("") +
+          '</div>' +
+          '<div class="image-frame">' + imageMarkup + '</div>' +
+          '<article class="prompt-card">' +
+            '<div class="eyebrow">Question</div>' +
+            '<div class="question">' + escapeHtml(sample.question || "—") + '</div>' +
+            '<div class="reference"><strong>Reference answer</strong>' + escapeHtml((sample.references || []).join(" · ") || "—") + '</div>' +
+          '</article>' +
+        '</section>' +
+        '<aside class="detail-pane">' +
+          responseSection("Visual observation", "01", sample.response?.vision) +
+          responseSection("Reasoning", "02", sample.response?.reasoning) +
+          '<section class="section">' +
+            '<div class="section-heading"><h2>Final answer</h2><span class="section-index">03</span></div>' +
+            '<div class="final-answer">' + escapeHtml(sample.response?.answer || "—") + '</div>' +
+          '</section>' +
+          '<section class="section">' +
+            '<div class="section-heading"><h2>Human decision</h2><span class="section-index">Blind adjudication</span></div>' +
+            decisionControls(sample, annotation) +
+          '</section>' +
+          '<section class="section">' +
+            '<div class="form-grid">' +
+              '<div class="field"><label for="annotator">Annotator ID</label><input id="annotator" value="' + escapeHtml(annotation.annotator || "") + '" placeholder="Initials"></div>' +
+              '<div class="field"><label for="notes">Optional notes</label><textarea id="notes" placeholder="Add a concise rationale if needed.">' + escapeHtml(annotation.notes || "") + '</textarea></div>' +
+            '</div>' +
+          '</section>' +
+        '</aside>';
+
+      bindControls(sample);
+      updateProgress();
+    }
+
+    function responseSection(title, index, text) {
+      return '<section class="section">' +
+        '<div class="section-heading"><h2>' + title + '</h2><span class="section-index">' + index + '</span></div>' +
+        '<p class="response-text">' + escapeHtml(text || "—") + '</p>' +
+      '</section>';
+    }
+
+    function selectedClass(selected, tone) {
+      return selected ? " selected " + tone : "";
+    }
+
+    function decisionControls(sample, annotation) {
+      let html = "";
+      if (sample.disagreements.correct && state.filter !== "hallucination") {
+        html += '<div class="decision-block">' +
+          '<div class="decision-label"><span>Correctness decision</span><span class="decision-hint">Keys 1–2</span></div>' +
+          '<div class="choice-row">' +
+            '<button class="choice' + selectedClass(annotation.correct === true, "good") + '" data-field="correct" data-value="true">Correct · 1</button>' +
+            '<button class="choice' + selectedClass(annotation.correct === false, "bad") + '" data-field="correct" data-value="false">Incorrect · 2</button>' +
+          '</div>' +
+        '</div>';
+      }
+      if (sample.disagreements.hallucination && state.filter !== "correct") {
+        const disabled = annotation.hallucination !== true ? " disabled" : "";
+        const types = annotation.hallucination_types || [];
+        html += '<div class="decision-block">' +
+          '<div class="decision-label"><span>Hallucination decision</span><span class="decision-hint">Keys 3–4</span></div>' +
+          '<div class="choice-row">' +
+            '<button class="choice' + selectedClass(annotation.hallucination === true, "bad") + '" data-field="hallucination" data-value="true">Hallucinated · 3</button>' +
+            '<button class="choice' + selectedClass(annotation.hallucination === false, "good") + '" data-field="hallucination" data-value="false">Not hallucinated · 4</button>' +
+          '</div>' +
+          '<div class="decision-block">' +
+            '<div class="decision-label"><span>Hallucination type</span><span class="decision-hint">Optional · keys V / R</span></div>' +
+            '<div class="type-row">' +
+              '<button class="type-chip' + (types.includes("vision_hallucination") ? " selected" : "") + '" data-type="vision_hallucination"' + disabled + '>Vision hallucination · V</button>' +
+              '<button class="type-chip' + (types.includes("reasoning_hallucination") ? " selected" : "") + '" data-type="reasoning_hallucination"' + disabled + '>Reasoning hallucination · R</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }
+      return html;
+    }
+
+    function markHuman(annotation, field) {
+      annotation.provenance = annotation.provenance || {};
+      annotation.provenance[field] = { kind: "human", model: null, updated_at: new Date().toISOString() };
+    }
+
+    function bindControls(sample) {
+      document.querySelectorAll("[data-field]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const annotation = state.annotations[sample.key] || (state.annotations[sample.key] = {});
+          annotation[button.dataset.field] = button.dataset.value === "true";
+          if (button.dataset.field === "hallucination" && annotation.hallucination === false) annotation.hallucination_types = [];
+          markHuman(annotation, button.dataset.field);
+          render();
+          save(sample.key);
+        });
+      });
+
+      document.querySelectorAll("[data-type]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const annotation = state.annotations[sample.key] || (state.annotations[sample.key] = {});
+          const values = new Set(annotation.hallucination_types || []);
+          values.has(button.dataset.type) ? values.delete(button.dataset.type) : values.add(button.dataset.type);
+          annotation.hallucination_types = [...values];
+          markHuman(annotation, "hallucination");
+          render();
+          save(sample.key);
+        });
+      });
+
+      const annotator = document.getElementById("annotator");
+      const notes = document.getElementById("notes");
+      [annotator, notes].forEach((field) => {
+        field.addEventListener("change", () => {
+          const annotation = state.annotations[sample.key] || (state.annotations[sample.key] = {});
+          annotation.annotator = annotator.value.trim();
+          annotation.notes = notes.value.trim();
+          save(sample.key, false);
+        });
+      });
+    }
+
+    function save(key, rerender = true) {
+      const annotation = state.annotations[key] || {};
+      annotation.updated_at = new Date().toISOString();
+      const revision = (state.revisions[key] || 0) + 1;
+      state.revisions[key] = revision;
+      const snapshot = JSON.parse(JSON.stringify(annotation));
+      setSaveState("saving", "Saving…");
+      saveChain = saveChain.catch(() => {}).then(async () => {
+        const response = await fetch("/api/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key, annotation: snapshot })
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Save failed");
+        if (state.revisions[key] === revision) {
+          state.annotations[key] = payload.annotation;
+          setSaveState("saved", "Saved");
+          if (rerender && state.status !== "all") {
+            refreshVisible(key);
+            render();
+          }
+        }
+      }).catch((error) => {
+        if (state.revisions[key] === revision) setSaveState("error", "Save failed: " + error.message);
+      });
+      return saveChain;
+    }
+
+    function move(delta) {
+      const next = state.index + delta;
+      if (next < 0 || next >= state.visible.length) return;
+      state.index = next;
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    document.getElementById("taskFilters").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-filter]");
+      if (!button) return;
+      const currentKey = state.visible[state.index]?.key;
+      state.filter = button.dataset.filter;
+      document.querySelectorAll("[data-filter]").forEach((item) => item.classList.toggle("active", item === button));
+      refreshVisible(currentKey);
+      render();
+    });
+
+    document.getElementById("statusFilters").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-status]");
+      if (!button) return;
+      const currentKey = state.visible[state.index]?.key;
+      state.status = button.dataset.status;
+      document.querySelectorAll("[data-status]").forEach((item) => item.classList.toggle("active", item === button));
+      refreshVisible(currentKey);
+      render();
+    });
+
+    previousButton.addEventListener("click", () => move(-1));
+    nextButton.addEventListener("click", () => move(1));
+    document.addEventListener("keydown", (event) => {
+      if (event.target.matches("input, textarea")) return;
+      const sample = state.visible[state.index];
+      if (!sample) return;
+      const buttons = {
+        "1": '[data-field="correct"][data-value="true"]',
+        "2": '[data-field="correct"][data-value="false"]',
+        "3": '[data-field="hallucination"][data-value="true"]',
+        "4": '[data-field="hallucination"][data-value="false"]',
+        "v": '[data-type="vision_hallucination"]',
+        "r": '[data-type="reasoning_hallucination"]'
+      };
+      if (event.key === "ArrowLeft") return move(-1);
+      if (event.key === "ArrowRight") return move(1);
+      const target = document.querySelector(buttons[event.key.toLowerCase()]);
+      if (target && !target.disabled) target.click();
+    });
+
+    (async function load() {
+      try {
+        const response = await fetch("/api/state");
+        if (!response.ok) throw new Error("Unable to load review queue");
+        const payload = await response.json();
+        state.samples = payload.samples || [];
+        state.annotations = payload.annotations || {};
+        refreshVisible();
+        render();
+      } catch (error) {
+        renderEmpty("Review queue unavailable", "Check the server connection and reload this page.");
+        setSaveState("error", "Connection error");
+      }
+    })();
+  </script>
 </body>
 </html>

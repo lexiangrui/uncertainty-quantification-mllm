@@ -1,0 +1,394 @@
+{
+  "uq_input": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/uq/qwen/mmvet.jsonl",
+  "judge_input": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/judging/qwen/mmvet.jsonl",
+  "dataset": "mmvet",
+  "model_family": "qwen2_5_vl",
+  "model_id": "Qwen2.5-VL-7B-Instruct",
+  "uq_methods": [
+    "perplexity",
+    "semantic_entropy",
+    "umpire"
+  ],
+  "config": {
+    "bootstrap_samples": 1000,
+    "bootstrap_seed": 0,
+    "confidence": 0.95,
+    "cluster_field": "group_id",
+    "positive_targets": {
+      "error": "1 - correct",
+      "hallucination": "hallucination"
+    }
+  },
+  "counts": {
+    "judge_records": 218,
+    "uq_records": 218,
+    "evaluated": 218,
+    "clusters": 218,
+    "excluded": {
+      "invalid_judge": 0,
+      "missing_uq_record": 0,
+      "invalid_uq_score": 0,
+      "invalid_uq_score_by_method": {
+        "perplexity": 0,
+        "semantic_entropy": 0,
+        "umpire": 0
+      },
+      "uq_without_judge_record": 0
+    }
+  },
+  "labels": {
+    "accuracy": {
+      "value": 0.5596330275229358,
+      "ci_low": 0.4954128440366973,
+      "ci_high": 0.6284403669724771,
+      "undefined_replicates": 0
+    },
+    "hallucination_rate": {
+      "value": 0.2981651376146789,
+      "ci_low": 0.23841743119266068,
+      "ci_high": 0.3577981651376147,
+      "undefined_replicates": 0
+    },
+    "joint_counts": {
+      "correct_without_hallucination": 109,
+      "correct_with_hallucination": 13,
+      "wrong_without_hallucination": 44,
+      "wrong_with_hallucination": 52
+    }
+  },
+  "targets": {
+    "error": {
+      "positives": 96,
+      "negatives": 122,
+      "positive_rate": 0.44036697247706424,
+      "methods": {
+        "perplexity": {
+          "auroc": {
+            "value": 0.7171277322404371,
+            "ci_low": 0.6497868393960192,
+            "ci_high": 0.7847814796650368,
+            "undefined_replicates": 0
+          },
+          "auprc": {
+            "value": 0.6718679474457685,
+            "ci_low": 0.5734614562218069,
+            "ci_high": 0.7690115268938804,
+            "undefined_replicates": 0
+          },
+          "prr": {
+            "value": 0.5036956701747007,
+            "ci_low": 0.35307817683517906,
+            "ci_high": 0.6415511867245138,
+            "undefined_replicates": 0
+          },
+          "n": 218,
+          "positives": 96
+        },
+        "semantic_entropy": {
+          "auroc": {
+            "value": 0.8157445355191257,
+            "ci_low": 0.759107951925805,
+            "ci_high": 0.8696442092521102,
+            "undefined_replicates": 0
+          },
+          "auprc": {
+            "value": 0.743411828187154,
+            "ci_low": 0.6473681859677192,
+            "ci_high": 0.8365341094192584,
+            "undefined_replicates": 0
+          },
+          "prr": {
+            "value": 0.7098327857365415,
+            "ci_low": 0.598377859078719,
+            "ci_high": 0.8136254314534717,
+            "undefined_replicates": 0
+          },
+          "n": 218,
+          "positives": 96
+        },
+        "umpire": {
+          "auroc": {
+            "value": 0.7690403005464481,
+            "ci_low": 0.703892422707623,
+            "ci_high": 0.83059558056646,
+            "undefined_replicates": 0
+          },
+          "auprc": {
+            "value": 0.6978437358129929,
+            "ci_low": 0.5932311914706031,
+            "ci_high": 0.798570186107914,
+            "undefined_replicates": 0
+          },
+          "prr": {
+            "value": 0.6022059331236633,
+            "ci_low": 0.44749290824372523,
+            "ci_high": 0.7374263074521641,
+            "undefined_replicates": 0
+          },
+          "n": 218,
+          "positives": 96
+        }
+      }
+    },
+    "hallucination": {
+      "positives": 65,
+      "negatives": 153,
+      "positive_rate": 0.2981651376146789,
+      "methods": {
+        "perplexity": {
+          "auroc": {
+            "value": 0.5359979889391654,
+            "ci_low": 0.45477225333598,
+            "ci_high": 0.6214429051121568,
+            "undefined_replicates": 0
+          },
+          "auprc": {
+            "value": 0.32102520074470187,
+            "ci_low": 0.2444118479742433,
+            "ci_high": 0.4207255091206513,
+            "undefined_replicates": 0
+          },
+          "prr": {
+            "value": 0.07224016677665687,
+            "ci_low": -0.17826448972290124,
+            "ci_high": 0.29646662674370783,
+            "undefined_replicates": 0
+          },
+          "n": 218,
+          "positives": 65
+        },
+        "semantic_entropy": {
+          "auroc": {
+            "value": 0.659175465057818,
+            "ci_low": 0.5667055818327731,
+            "ci_high": 0.739686157254243,
+            "undefined_replicates": 0
+          },
+          "auprc": {
+            "value": 0.4514596944403335,
+            "ci_low": 0.3419740055464699,
+            "ci_high": 0.5768683234035792,
+            "undefined_replicates": 0
+          },
+          "prr": {
+            "value": 0.3232178318934457,
+            "ci_low": 0.08885170852880765,
+            "ci_high": 0.535207322748806,
+            "undefined_replicates": 0
+          },
+          "n": 218,
+          "positives": 65
+        },
+        "umpire": {
+          "auroc": {
+            "value": 0.5763700351935646,
+            "ci_low": 0.489215817778489,
+            "ci_high": 0.6637426898088212,
+            "undefined_replicates": 0
+          },
+          "auprc": {
+            "value": 0.368604414323759,
+            "ci_low": 0.2813141200657224,
+            "ci_high": 0.4877658381600319,
+            "undefined_replicates": 0
+          },
+          "prr": {
+            "value": 0.18275567692531208,
+            "ci_low": -0.08117567725090565,
+            "ci_high": 0.4167691740689209,
+            "undefined_replicates": 0
+          },
+          "n": 218,
+          "positives": 65
+        }
+      }
+    }
+  },
+  "uq_run": {
+    "greedy_input": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/generation/qwen/greedy/mmvet.jsonl",
+    "greedy_run": {
+      "dataset": "mmvet",
+      "dataset_source": "/opt/lexiangrui/datasets/MMVet/data/test-00000-of-00001.parquet",
+      "model_family": "qwen2_5_vl",
+      "model_id": "Qwen2.5-VL-7B-Instruct",
+      "model_path": "/opt/lexiangrui/models/Qwen2.5-VL-7B-Instruct",
+      "model_runtime": {
+        "engine": "vllm",
+        "max_num_seqs": 8,
+        "gpu_memory_utilization": 0.85,
+        "max_model_len": 18000,
+        "adapter_path": "results/lora/qwen/adapter",
+        "local_files_only": true,
+        "multimodal_inputs": "offline_pil"
+      },
+      "prompt_sha256": "30e1318692f1bd66e29d2b9346ffe6e8807cb1d93d52a66a414d79b2b72974e8",
+      "greedy": {
+        "do_sample": false,
+        "temperature": 0.0,
+        "retry": false
+      },
+      "sampling": {
+        "do_sample": true,
+        "temperature": 1.0,
+        "num_samples": 0,
+        "reject_resample_k": 50
+      },
+      "generation_phase": "greedy",
+      "scheduler": {
+        "type": "vllm_role_separated_dynamic_batching",
+        "max_batch_size": 8,
+        "request_window_samples": 16,
+        "mixed_greedy_and_sampling": false,
+        "adaptive_oom_split": false
+      },
+      "max_new_tokens": 512,
+      "seed": 42,
+      "limit": null,
+      "sample_filter": null,
+      "hidden_state_execution": "not_collected",
+      "uq_execution": "separate_split_inputs",
+      "internal_state_engine": "hf_teacher_forcing",
+      "replay_model_path": "/opt/lexiangrui/models/Qwen2.5-VL-7B-Instruct",
+      "replay_batch_size": 5,
+      "replay_complete": true
+    },
+    "sample_input": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/generation/qwen/samples/mmvet.jsonl",
+    "sample_run": {
+      "dataset": "mmvet",
+      "dataset_source": "/opt/lexiangrui/datasets/MMVet/data/test-00000-of-00001.parquet",
+      "model_family": "qwen2_5_vl",
+      "model_id": "Qwen2.5-VL-7B-Instruct",
+      "model_path": "/opt/lexiangrui/models/Qwen2.5-VL-7B-Instruct",
+      "model_runtime": {
+        "engine": "vllm",
+        "max_num_seqs": 8,
+        "gpu_memory_utilization": 0.85,
+        "max_model_len": 18000,
+        "adapter_path": "results/lora/qwen/adapter",
+        "local_files_only": true,
+        "multimodal_inputs": "offline_pil"
+      },
+      "prompt_sha256": "30e1318692f1bd66e29d2b9346ffe6e8807cb1d93d52a66a414d79b2b72974e8",
+      "greedy": {
+        "do_sample": false,
+        "temperature": 0.0,
+        "retry": false
+      },
+      "sampling": {
+        "do_sample": true,
+        "temperature": 1.0,
+        "num_samples": 10,
+        "reject_resample_k": 50
+      },
+      "generation_phase": "samples",
+      "scheduler": {
+        "type": "vllm_role_separated_dynamic_batching",
+        "max_batch_size": 8,
+        "request_window_samples": 16,
+        "mixed_greedy_and_sampling": false,
+        "adaptive_oom_split": false
+      },
+      "max_new_tokens": 512,
+      "seed": 42,
+      "limit": null,
+      "sample_filter": null,
+      "hidden_state_execution": "pending_hf_replay_answer_last_token",
+      "uq_execution": "separate_split_inputs",
+      "internal_state_engine": "hf_teacher_forcing",
+      "replay_model_path": "/opt/lexiangrui/models/Qwen2.5-VL-7B-Instruct",
+      "replay_batch_size": 5,
+      "replay_complete": true
+    },
+    "uq_methods": [
+      {
+        "name": "perplexity",
+        "response": "greedy_final_answer",
+        "probability": "transient_raw_generation_logits",
+        "normalization": "token_mean_negative_log_likelihood"
+      },
+      {
+        "name": "semantic_entropy",
+        "entailment_model": "DeBERTa-v3-large-mnli-fever-anli-ling-wanli",
+        "equivalence": "exact_text_or_strict_bidirectional_entailment",
+        "probability": "answer_mean_log_prob_from_transient_raw_logits"
+      },
+      {
+        "name": "umpire",
+        "paper": "arXiv:2602.24195v1",
+        "official_repository": "daohieu17ctt/UMPIRE",
+        "response_representation": "normalized_last_layer_final_response_token",
+        "probability": "final_answer_joint_probability_from_generation_scores",
+        "jitter": 1e-08,
+        "alpha": "abs(median(logdet)/median(incoherence_sum))",
+        "score": "official_logdet_plus_alpha_times_incoherence_sum"
+      }
+    ],
+    "invalid_format_policy": "skip_record_if_any_response_sections_invalid"
+  },
+  "judge_run": {
+    "protocol": "human-aligned-dual-judge-v1",
+    "judge_models": [
+      "gpt-5.6-terra",
+      "gemini-3.7-flash"
+    ],
+    "human_adjudicator": "lexiangrui",
+    "raw_judge_inputs": [
+      "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/judging_gpt_5_6_terra/qwen/mmvet.jsonl",
+      "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/judging_gemini_3_7_flash/qwen/mmvet.jsonl"
+    ],
+    "raw_judge_sha256": [
+      "64c5d6f7207b82cb6fe8632f9e15c466a732ea808254d40693f24f761b9c5d72",
+      "a504581cf2494a8c6994eb94b6509ea12f0ab2581091633653d979f684eaa52b"
+    ],
+    "annotations_sha256": "dc5607080aa6bb402631c421fe6f82c89568e3414f9e4fd7473aca74e66af58f",
+    "dataset": "mmvet",
+    "dataset_source": "/opt/lexiangrui/datasets/MMVet/data/test-00000-of-00001.parquet",
+    "greedy_input": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/judging/.inputs/qwen/mmvet.jsonl",
+    "greedy_run": {
+      "dataset": "mmvet",
+      "dataset_source": "/opt/lexiangrui/datasets/MMVet/data/test-00000-of-00001.parquet",
+      "model_family": "qwen2_5_vl",
+      "model_id": "Qwen2.5-VL-7B-Instruct",
+      "model_path": "/opt/lexiangrui/models/Qwen2.5-VL-7B-Instruct",
+      "model_runtime": {
+        "engine": "vllm",
+        "max_num_seqs": 8,
+        "gpu_memory_utilization": 0.85,
+        "max_model_len": 18000,
+        "adapter_path": "results/lora/qwen/adapter",
+        "local_files_only": true,
+        "multimodal_inputs": "offline_pil"
+      },
+      "prompt_sha256": "30e1318692f1bd66e29d2b9346ffe6e8807cb1d93d52a66a414d79b2b72974e8",
+      "greedy": {
+        "do_sample": false,
+        "temperature": 0.0,
+        "retry": false
+      },
+      "sampling": {
+        "do_sample": true,
+        "temperature": 1.0,
+        "num_samples": 0,
+        "reject_resample_k": 50
+      },
+      "generation_phase": "greedy",
+      "scheduler": {
+        "type": "vllm_role_separated_dynamic_batching",
+        "max_batch_size": 8,
+        "request_window_samples": 16,
+        "mixed_greedy_and_sampling": false,
+        "adaptive_oom_split": false
+      },
+      "max_new_tokens": 512,
+      "seed": 42,
+      "limit": null,
+      "sample_filter": null,
+      "hidden_state_execution": "not_collected",
+      "uq_execution": "separate_split_inputs",
+      "internal_state_engine": "hf_teacher_forcing",
+      "replay_model_path": "/opt/lexiangrui/models/Qwen2.5-VL-7B-Instruct",
+      "replay_batch_size": 5,
+      "replay_complete": true
+    }
+  }
+}

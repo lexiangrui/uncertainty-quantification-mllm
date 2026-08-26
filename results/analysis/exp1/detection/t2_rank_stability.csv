@@ -1,0 +1,7 @@
+target,method,n_cells,n_best_auroc,mean_rank
+error,perplexity,9,0,2.6666666666666665
+error,semantic_entropy,9,8,1.2222222222222223
+error,umpire,9,1,2.111111111111111
+hallucination,perplexity,9,1,2.7777777777777777
+hallucination,semantic_entropy,9,8,1.2222222222222223
+hallucination,umpire,9,0,2.0

@@ -11,21 +11,30 @@ _XML_PROMPT = load_prompt(
     _PROJECT_ROOT / "prompts" / "LoRA" / "xml_lora_instruction.md"
 )
 XML_LORA_PROMPT_SHA256 = _XML_PROMPT.sha256
+_NATIVE_THREE_PART_PROMPT = load_prompt(
+    _PROJECT_ROOT / "prompts" / "generation" / "native_three_part_zero_shot.md"
+)
+NATIVE_THREE_PART_PROMPT_SHA256 = _NATIVE_THREE_PART_PROMPT.sha256
 
 
 @dataclass(frozen=True)
 class GenerationPrompt:
     system: str
     user: str
+    stop: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class PromptSpec:
     response_format: str
+    prompt_sha256: str
 
 
 PROMPT_SPECS = {
-    "xml_lora": PromptSpec("xml"),
+    "xml_lora": PromptSpec("xml", XML_LORA_PROMPT_SHA256),
+    "native_three_part": PromptSpec(
+        "plain_sections", NATIVE_THREE_PART_PROMPT_SHA256
+    ),
 }
 
 
@@ -41,5 +50,7 @@ def build_prompt(
 ) -> GenerationPrompt:
     get_prompt_spec(style)
     image_line = "[Image]\nThe image is attached to this message.\n\n" if has_image else ""
-    user = f"{_XML_PROMPT.text}\n\n{image_line}[Question]\n{question.strip()}"
-    return GenerationPrompt(system="", user=user)
+    prompt = _XML_PROMPT if style == "xml_lora" else _NATIVE_THREE_PART_PROMPT
+    user = f"{prompt.text}\n\n{image_line}[Question]\n{question.strip()}"
+    stop = ("</answer>",) if style == "xml_lora" else ()
+    return GenerationPrompt(system="", user=user, stop=stop)

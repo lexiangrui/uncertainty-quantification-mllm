@@ -12,7 +12,6 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -100,7 +99,6 @@ def configure_style() -> None:
             "savefig.facecolor": "white",
             "pdf.fonttype": 42,
             "ps.fonttype": 42,
-            "svg.fonttype": "none",
         }
     )
 
@@ -108,15 +106,13 @@ def configure_style() -> None:
 def save_figure(fig: mpl.figure.Figure, stem: str) -> None:
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     fig.canvas.draw()
-    for extension in ("png", "pdf", "svg"):
+    for extension in ("png", "pdf"):
         fig.savefig(
             FIG_DIR / f"{stem}.{extension}",
             dpi=600 if extension == "png" else None,
             bbox_inches="tight",
             pad_inches=0.04,
         )
-    with Image.open(FIG_DIR / f"{stem}.png") as image:
-        image.convert("L").save(FIG_DIR / f"{stem}_grayscale.png", dpi=(600, 600))
     plt.close(fig)
 
 

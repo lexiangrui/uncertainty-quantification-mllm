@@ -1,0 +1,397 @@
+{
+  "uq_input": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/uq/internvl/mmvet.jsonl",
+  "judge_input": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/judging/internvl/mmvet.jsonl",
+  "dataset": "mmvet",
+  "model_family": "internvl3_5_original",
+  "model_id": "InternVL3_5-8B",
+  "uq_methods": [
+    "perplexity",
+    "semantic_entropy",
+    "umpire"
+  ],
+  "config": {
+    "bootstrap_samples": 1000,
+    "bootstrap_seed": 0,
+    "confidence": 0.95,
+    "cluster_field": "group_id",
+    "positive_targets": {
+      "error": "1 - correct",
+      "hallucination": "hallucination"
+    }
+  },
+  "counts": {
+    "judge_records": 216,
+    "uq_records": 216,
+    "evaluated": 216,
+    "clusters": 216,
+    "excluded": {
+      "invalid_judge": 0,
+      "missing_uq_record": 0,
+      "invalid_uq_score": 0,
+      "invalid_uq_score_by_method": {
+        "perplexity": 0,
+        "semantic_entropy": 0,
+        "umpire": 0
+      },
+      "uq_without_judge_record": 0
+    }
+  },
+  "labels": {
+    "accuracy": {
+      "value": 0.5509259259259259,
+      "ci_low": 0.48148148148148145,
+      "ci_high": 0.6203703703703703,
+      "undefined_replicates": 0
+    },
+    "hallucination_rate": {
+      "value": 0.2638888888888889,
+      "ci_low": 0.2082175925925927,
+      "ci_high": 0.3287037037037037,
+      "undefined_replicates": 0
+    },
+    "joint_counts": {
+      "correct_without_hallucination": 112,
+      "correct_with_hallucination": 7,
+      "wrong_without_hallucination": 47,
+      "wrong_with_hallucination": 50
+    }
+  },
+  "targets": {
+    "error": {
+      "positives": 97,
+      "negatives": 119,
+      "positive_rate": 0.44907407407407407,
+      "methods": {
+        "perplexity": {
+          "auroc": {
+            "value": 0.7239019319067833,
+            "ci_low": 0.6543056470423513,
+            "ci_high": 0.7905016524153521,
+            "undefined_replicates": 0
+          },
+          "auprc": {
+            "value": 0.6469492743238913,
+            "ci_low": 0.5474962121423672,
+            "ci_high": 0.7477198186800204,
+            "undefined_replicates": 0
+          },
+          "prr": {
+            "value": 0.561760003883575,
+            "ci_low": 0.41931457169683845,
+            "ci_high": 0.6806224012694397,
+            "undefined_replicates": 0
+          },
+          "n": 216,
+          "positives": 97
+        },
+        "semantic_entropy": {
+          "auroc": {
+            "value": 0.8474833232261977,
+            "ci_low": 0.7895728986297649,
+            "ci_high": 0.8986401659024933,
+            "undefined_replicates": 0
+          },
+          "auprc": {
+            "value": 0.8176174281700341,
+            "ci_low": 0.733705507095634,
+            "ci_high": 0.8854412542321101,
+            "undefined_replicates": 0
+          },
+          "prr": {
+            "value": 0.7190616828352668,
+            "ci_low": 0.5890993943137847,
+            "ci_high": 0.8315405397547706,
+            "undefined_replicates": 0
+          },
+          "n": 216,
+          "positives": 97
+        },
+        "umpire": {
+          "auroc": {
+            "value": 0.8280343065061075,
+            "ci_low": 0.7650112629398843,
+            "ci_high": 0.8857940227997763,
+            "undefined_replicates": 0
+          },
+          "auprc": {
+            "value": 0.7656658261521456,
+            "ci_low": 0.6673578564789645,
+            "ci_high": 0.8540449208418103,
+            "undefined_replicates": 0
+          },
+          "prr": {
+            "value": 0.6907019980971594,
+            "ci_low": 0.5289965827657486,
+            "ci_high": 0.8208979880428854,
+            "undefined_replicates": 0
+          },
+          "n": 216,
+          "positives": 97
+        }
+      }
+    },
+    "hallucination": {
+      "positives": 57,
+      "negatives": 159,
+      "positive_rate": 0.2638888888888889,
+      "methods": {
+        "perplexity": {
+          "auroc": {
+            "value": 0.6317996248482842,
+            "ci_low": 0.5442686127130175,
+            "ci_high": 0.7097277462121212,
+            "undefined_replicates": 0
+          },
+          "auprc": {
+            "value": 0.38751117432218984,
+            "ci_low": 0.2859666419790383,
+            "ci_high": 0.5087524131267183,
+            "undefined_replicates": 0
+          },
+          "prr": {
+            "value": 0.3913627978622241,
+            "ci_low": 0.1979802457003136,
+            "ci_high": 0.5523802019961986,
+            "undefined_replicates": 0
+          },
+          "n": 216,
+          "positives": 57
+        },
+        "semantic_entropy": {
+          "auroc": {
+            "value": 0.7793776895067859,
+            "ci_low": 0.7061926135732448,
+            "ci_high": 0.8446771469689849,
+            "undefined_replicates": 0
+          },
+          "auprc": {
+            "value": 0.544345805099831,
+            "ci_low": 0.4269389460440923,
+            "ci_high": 0.6774900983905849,
+            "undefined_replicates": 0
+          },
+          "prr": {
+            "value": 0.6669967366838575,
+            "ci_low": 0.5214263450312633,
+            "ci_high": 0.7894396199326004,
+            "undefined_replicates": 0
+          },
+          "n": 216,
+          "positives": 57
+        },
+        "umpire": {
+          "auroc": {
+            "value": 0.719849939313693,
+            "ci_low": 0.6453042277359158,
+            "ci_high": 0.778602775149564,
+            "undefined_replicates": 0
+          },
+          "auprc": {
+            "value": 0.38698244964533,
+            "ci_low": 0.30428532049922674,
+            "ci_high": 0.5029360563452859,
+            "undefined_replicates": 0
+          },
+          "prr": {
+            "value": 0.6068745884240213,
+            "ci_low": 0.4718818294367558,
+            "ci_high": 0.7109441046904494,
+            "undefined_replicates": 0
+          },
+          "n": 216,
+          "positives": 57
+        }
+      }
+    }
+  },
+  "uq_run": {
+    "greedy_input": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/generation/internvl/greedy/mmvet.jsonl",
+    "greedy_run": {
+      "dataset": "mmvet",
+      "dataset_source": "/opt/lexiangrui/datasets/MMVet/data/test-00000-of-00001.parquet",
+      "model_family": "internvl3_5_original",
+      "model_id": "InternVL3_5-8B",
+      "model_path": "/opt/lexiangrui/models/InternVL3_5-8B",
+      "model_runtime": {
+        "engine": "vllm",
+        "max_num_seqs": 8,
+        "gpu_memory_utilization": 0.85,
+        "max_model_len": 4096,
+        "adapter_path": "results/lora/internvl/adapter-original",
+        "local_files_only": true,
+        "multimodal_inputs": "offline_pil"
+      },
+      "prompt_sha256": "30e1318692f1bd66e29d2b9346ffe6e8807cb1d93d52a66a414d79b2b72974e8",
+      "greedy": {
+        "do_sample": false,
+        "temperature": 0.0,
+        "retry": false
+      },
+      "sampling": {
+        "do_sample": true,
+        "temperature": 1.0,
+        "num_samples": 0,
+        "reject_resample_k": 50
+      },
+      "generation_phase": "greedy",
+      "scheduler": {
+        "type": "vllm_role_separated_dynamic_batching",
+        "max_batch_size": 8,
+        "request_window_samples": 16,
+        "mixed_greedy_and_sampling": false,
+        "adaptive_oom_split": false
+      },
+      "max_new_tokens": 512,
+      "seed": 42,
+      "limit": null,
+      "sample_filter": null,
+      "hidden_state_execution": "not_collected",
+      "uq_execution": "separate_split_inputs",
+      "internal_state_engine": "hf_teacher_forcing",
+      "replay_model_path": "/opt/lexiangrui/models/InternVL3_5-8B",
+      "replay_batch_size": 5,
+      "replay_complete": true,
+      "replay_image_preprocessing": "vllm_internvl_dynamic_tiles_v1"
+    },
+    "sample_input": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/generation/internvl/samples/mmvet.jsonl",
+    "sample_run": {
+      "dataset": "mmvet",
+      "dataset_source": "/opt/lexiangrui/datasets/MMVet/data/test-00000-of-00001.parquet",
+      "model_family": "internvl3_5_original",
+      "model_id": "InternVL3_5-8B",
+      "model_path": "/opt/lexiangrui/models/InternVL3_5-8B",
+      "model_runtime": {
+        "engine": "vllm",
+        "max_num_seqs": 8,
+        "gpu_memory_utilization": 0.85,
+        "max_model_len": 4096,
+        "adapter_path": "results/lora/internvl/adapter-original",
+        "local_files_only": true,
+        "multimodal_inputs": "offline_pil"
+      },
+      "prompt_sha256": "30e1318692f1bd66e29d2b9346ffe6e8807cb1d93d52a66a414d79b2b72974e8",
+      "greedy": {
+        "do_sample": false,
+        "temperature": 0.0,
+        "retry": false
+      },
+      "sampling": {
+        "do_sample": true,
+        "temperature": 1.0,
+        "num_samples": 10,
+        "reject_resample_k": 50
+      },
+      "generation_phase": "samples",
+      "scheduler": {
+        "type": "vllm_role_separated_dynamic_batching",
+        "max_batch_size": 8,
+        "request_window_samples": 16,
+        "mixed_greedy_and_sampling": false,
+        "adaptive_oom_split": false
+      },
+      "max_new_tokens": 512,
+      "seed": 42,
+      "limit": null,
+      "sample_filter": null,
+      "hidden_state_execution": "pending_hf_replay_answer_last_token",
+      "uq_execution": "separate_split_inputs",
+      "internal_state_engine": "hf_teacher_forcing",
+      "replay_model_path": "/opt/lexiangrui/models/InternVL3_5-8B",
+      "replay_batch_size": 5,
+      "replay_complete": true,
+      "replay_image_preprocessing": "vllm_internvl_dynamic_tiles_v1"
+    },
+    "uq_methods": [
+      {
+        "name": "perplexity",
+        "response": "greedy_final_answer",
+        "probability": "transient_raw_generation_logits",
+        "normalization": "token_mean_negative_log_likelihood"
+      },
+      {
+        "name": "semantic_entropy",
+        "entailment_model": "DeBERTa-v3-large-mnli-fever-anli-ling-wanli",
+        "equivalence": "exact_text_or_strict_bidirectional_entailment",
+        "probability": "answer_mean_log_prob_from_transient_raw_logits"
+      },
+      {
+        "name": "umpire",
+        "paper": "arXiv:2602.24195v1",
+        "official_repository": "daohieu17ctt/UMPIRE",
+        "response_representation": "normalized_last_layer_final_response_token",
+        "probability": "final_answer_joint_probability_from_generation_scores",
+        "jitter": 1e-08,
+        "alpha": "abs(median(logdet)/median(incoherence_sum))",
+        "score": "official_logdet_plus_alpha_times_incoherence_sum"
+      }
+    ],
+    "invalid_format_policy": "skip_record_if_any_response_sections_invalid"
+  },
+  "judge_run": {
+    "protocol": "human-aligned-dual-judge-v1",
+    "judge_models": [
+      "gpt-5.6-terra",
+      "gemini-3.7-flash"
+    ],
+    "human_adjudicator": "lexiangrui",
+    "raw_judge_inputs": [
+      "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/judging_gpt_5_6_terra/internvl/mmvet.jsonl",
+      "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/judging_gemini_3_7_flash/internvl/mmvet.jsonl"
+    ],
+    "raw_judge_sha256": [
+      "0bbca6226e4ebc9ccdf51f37e54e18c1d2e8e6c2d063cfd3176513cde83ccc65",
+      "cef34df654d01dfc7d8006555f995bf6dbcf58382f4addf131ab5d69100f3a88"
+    ],
+    "annotations_sha256": "dc5607080aa6bb402631c421fe6f82c89568e3414f9e4fd7473aca74e66af58f",
+    "dataset": "mmvet",
+    "dataset_source": "/opt/lexiangrui/datasets/MMVet/data/test-00000-of-00001.parquet",
+    "greedy_input": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/judging/.inputs/internvl/mmvet.jsonl",
+    "greedy_run": {
+      "dataset": "mmvet",
+      "dataset_source": "/opt/lexiangrui/datasets/MMVet/data/test-00000-of-00001.parquet",
+      "model_family": "internvl3_5_original",
+      "model_id": "InternVL3_5-8B",
+      "model_path": "/opt/lexiangrui/models/InternVL3_5-8B",
+      "model_runtime": {
+        "engine": "vllm",
+        "max_num_seqs": 8,
+        "gpu_memory_utilization": 0.85,
+        "max_model_len": 4096,
+        "adapter_path": "results/lora/internvl/adapter-original",
+        "local_files_only": true,
+        "multimodal_inputs": "offline_pil"
+      },
+      "prompt_sha256": "30e1318692f1bd66e29d2b9346ffe6e8807cb1d93d52a66a414d79b2b72974e8",
+      "greedy": {
+        "do_sample": false,
+        "temperature": 0.0,
+        "retry": false
+      },
+      "sampling": {
+        "do_sample": true,
+        "temperature": 1.0,
+        "num_samples": 0,
+        "reject_resample_k": 50
+      },
+      "generation_phase": "greedy",
+      "scheduler": {
+        "type": "vllm_role_separated_dynamic_batching",
+        "max_batch_size": 8,
+        "request_window_samples": 16,
+        "mixed_greedy_and_sampling": false,
+        "adaptive_oom_split": false
+      },
+      "max_new_tokens": 512,
+      "seed": 42,
+      "limit": null,
+      "sample_filter": null,
+      "hidden_state_execution": "not_collected",
+      "uq_execution": "separate_split_inputs",
+      "internal_state_engine": "hf_teacher_forcing",
+      "replay_model_path": "/opt/lexiangrui/models/InternVL3_5-8B",
+      "replay_batch_size": 5,
+      "replay_complete": true,
+      "replay_image_preprocessing": "vllm_internvl_dynamic_tiles_v1"
+    }
+  }
+}

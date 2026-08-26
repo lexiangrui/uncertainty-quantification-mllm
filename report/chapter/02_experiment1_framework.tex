@@ -1,43 +1,38 @@
 \section{Experiment 1: UQ Evaluation Framework Design}
 \label{sec:experiment1_framework}
 
-\subsection{Experimental Design}
-\label{subsec:experimental_design}
+\subsection{Evaluation Models and Datasets}
 
 \subsubsection{Evaluated Models and Format-Oriented LoRA Fine-Tuning}
 \label{subsubsec:models_lora}
 
-\textbf{Evaluated models and local deployment.} Experiment~1 evaluates three open-source multimodal large language models, as summarized in \Cref{tab:evaluated_models}: LLaVA-1.5-7B, Qwen2.5-VL-7B-Instruct, and InternVL3.5-8B. They represent a classical vision-language baseline, a recent native multimodal architecture, and a third open-source architecture, respectively. All models are deployed locally and offline. vLLM performs batched generation while preserving the exact generated token sequences; Hugging Face then replays those same tokens under teacher forcing to extract the probabilities and final-layer hidden states required for UQ.
+\textbf{Evaluated models and local deployment.} Experiment~1 evaluates three open-source multimodal large language models, as summarized in \Cref{tab:evaluated_models}: LLaVA-1.5-7B \citep{liu2024improved}, Qwen2.5-VL-7B-Instruct \citep{qwen2025vl}, and InternVL3.5-8B \citep{wang2025internvl35}. Together they cover a classical visual-projection design, a native dynamic-resolution architecture, and a high-resolution vision-encoder--language-model composition. All models are deployed locally and offline. vLLM performs batched generation while preserving the exact generated token sequences; Transformers then replays those same tokens under teacher forcing to extract the probabilities and final-layer hidden states required for UQ.
 
 \begin{table}[H]
 \centering
 \caption{The three evaluated multimodal large language models.}
 \label{tab:evaluated_models}
 \datatablefont
-\setlength{\tabcolsep}{3.5pt}
-\renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\linewidth}{L{3.6cm}C{0.85cm}Y Y}
+\begin{tabularx}{\linewidth}{L{5.5cm}cY}
 \toprule
 \tableheadrow
-\thead{Model} & \thead{Size} & \thead{Architectural characteristics} & \thead{Rationale for selection} \\
+\thead{Model} & \thead{Size} & \thead{Architectural characteristics} \\
 \midrule
-\textbf{LLaVA-1.5-7B}\newline {\footnotesize\color{gray!75!black}\nolinkurl{llava-hf/llava-1.5-7b-hf}} & $\sim$7B & Classical two-stage architecture comprising a CLIP vision encoder, a projection layer, and an LLM backbone & Classical open-source vision-language baseline \\
-\tablestriperow \textbf{Qwen2.5-VL-7B-Instruct}\newline {\footnotesize\color{gray!75!black}\nolinkurl{Qwen/Qwen2.5-VL-7B-Instruct}} & $\sim$7B & Recent native multimodal architecture with dynamic resolution and strong OCR and visual reasoning capabilities & Recent open-source instruction-tuned model \\
-\textbf{InternVL3.5-8B}\newline {\footnotesize\color{gray!75!black}\nolinkurl{OpenGVLab/InternVL3_5-8B}} & $\sim$8B & Multimodal architecture comprising a vision encoder, projection layer, and language model & Third model architecture, included to broaden coverage \\
+\textbf{LLaVA-1.5-7B} \citep{liu2024improved}\newline {\footnotesize\color{gray!75!black}\nolinkurl{llava-hf/llava-1.5-7b-hf}} & $\sim$7B & CLIP ViT-L/14@336, a linear projector, and a LLaMA-family language backbone \\
+\textbf{Qwen2.5-VL-7B-Instruct} \citep{qwen2025vl}\newline {\footnotesize\color{gray!75!black}\nolinkurl{Qwen/Qwen2.5-VL-7B-Instruct}} & $\sim$7B & Dynamic-resolution visual encoder with a Qwen2.5 language backbone \\
+\textbf{InternVL3.5-8B} \citep{wang2025internvl35}\newline {\footnotesize\color{gray!75!black}\nolinkurl{OpenGVLab/InternVL3_5-8B}} & $\sim$8B & InternViT@448, visual-token downsampling projector, and a Qwen3 language backbone \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\textbf{Format-oriented LoRA fine-tuning.} Preliminary experiments show that all three models may omit tags, leave tags unclosed, place tags in the wrong order, or continue generating outside the XML structure under both greedy decoding and random sampling. Because the judge and the UQ methods must reliably separate visual evidence, reasoning, and the final answer, I train a separate LoRA adapter for each model solely to control response organization. The training data consist exclusively of XML-supervised examples constructed from VQAv2 train2014. A multimodal teacher model generates three components---visual evidence, reasoning, and a final answer---for real COCO images, which are then converted into a uniform single-line \texttt{<vision>/<reasoning>/<answer>} XML format. After manual spot checks, the data are fixed at 4,000 training examples and 1,000 validation examples. None of the three evaluation datasets is used for training, thereby preventing data leakage.
-
-All three models use the same training configuration, reported in \Cref{tab:lora_config}. LoRA updates only the attention projections \texttt{q\_proj} and \texttt{v\_proj} in the language-model component, while the vision encoder and multimodal alignment component remain frozen. The format fine-tuning therefore does not alter the models' visual perception or image-text alignment capabilities, which avoids confounding format adaptation with changes in hallucination rate or answer accuracy. Appendix~A.8 describes the comparison used to examine this freezing strategy, including variants that unfreeze the vision encoder or fine-tune all parameters. The validation losses of the three adapters are 0.765 for LLaVA, 0.693 for Qwen, and 0.633 for InternVL. Further details of data construction, training, and acceptance checks are provided in Appendix~A.7.
+\textbf{Format-oriented LoRA fine-tuning.} To allow the judge and the UQ methods to separate visual evidence, reasoning, and the final answer reliably, a lightweight format adapter is trained for each model. The response is standardized into three ordered XML sections: \texttt{<vision>}, \texttt{<reasoning>}, and \texttt{<answer>}. LoRA \citep{hu2022lora} changes only a small number of low-rank parameters in the language-model attention layers; the vision encoder, multimodal projector, and all remaining base parameters stay frozen, minimizing interference with visual perception, image--text alignment, and task capability. The common configuration is summarized in \Cref{tab:lora_config}; training details are given in Appendix~\ref{subsec:appendix_lora}, and the effect on accuracy and hallucination rate is evaluated separately in Appendix~\ref{subsec:appendix_xml_ablation}.
 
 \begin{figure}[H]
 \centering
 \begin{minipage}[c]{0.6\linewidth}
 \vspace{0pt}
 \centering
-\captionof{table}{Format-oriented LoRA configuration. All three models use the same data split, target response format, and hyperparameters.}
+\captionof{table}{Common configuration for format-oriented LoRA fine-tuning.}
 \label{tab:lora_config}
 \datatablefont
 \setlength{\tabcolsep}{3pt}
@@ -46,11 +41,11 @@ All three models use the same training configuration, reported in \Cref{tab:lora
 \toprule
 \tableheadrow \thead{Configuration} & \thead{Value} \\
 \midrule
-\textbf{Training data} & Constructed from VQAv2 train2014; 4,000 training and 1,000 validation examples \\
-\tablestriperow \textbf{LoRA rank / alpha / dropout} & 8 / 16 / 0.05 \\
+\textbf{Training data} & Constructed from VQAv2 \citep{goyal2017making} train2014; 4,000 training and 1,000 validation examples \\
+\textbf{LoRA rank / alpha / dropout} & 8 / 16 / 0.05 \\
 \textbf{Target modules} & Language-model \texttt{q\_proj} and \texttt{v\_proj} \\
-\tablestriperow \textbf{Learning rate / epochs} & $2\times10^{-4}$ / 1 \\
-\textbf{Validation loss} & 0.765 (LLaVA) / 0.693 (Qwen) / 0.633 (InternVL) \\
+\textbf{Learning rate / epochs} & $2\times10^{-4}$ / 1 \\
+\textbf{Validation loss} & 0.765 (LLaVA) / 0.693 (Qwen) / 0.657 (InternVL) \\
 \bottomrule
 \end{tabularx}
 \end{minipage}\hfill
@@ -77,7 +72,7 @@ All three models use the same training configuration, reported in \Cref{tab:lora
 \subsubsection{Evaluation Datasets}
 \label{subsubsec:evaluation_datasets}
 
-For all three datasets, I use the complete evaluation data released through Hugging Face. Sample counts refer to the question instances actually passed to the models, as shown in \Cref{tab:evaluation_datasets}. The three datasets contain 2,247 question instances in total. Evaluating all three models on exactly the same question list produces 6,741 primary question-model responses.
+For all three datasets, I use the complete evaluation data released through Hugging Face\footnote{ViLP: \url{https://huggingface.co/datasets/ViLP/ViLP}; HallusionBench: \url{https://huggingface.co/datasets/lmms-lab/HallusionBench}; MM-Vet: \url{https://huggingface.co/datasets/lmms-lab/MMVet}.}. Sample counts refer to the question instances actually passed to the models, as shown in \Cref{tab:evaluation_datasets}. The three datasets contain 2,247 question instances in total. Evaluating all three models on exactly the same question list produces 6,741 primary question-model responses.
 
 \begin{table}[H]
 \centering
@@ -86,18 +81,20 @@ For all three datasets, I use the complete evaluation data released through Hugg
 \datatablefont
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{\linewidth}{L{2.7cm}C{1.7cm}Y Y}
+\begin{tabularx}{\linewidth}{L{4.2cm} c Y L{2.0cm}}
 \toprule
-\tableheadrow \thead{Dataset} & \thead{Question instances} & \thead{Data and task type} & \thead{Primary evaluation focus} \\
+\tableheadrow \thead{Dataset} & \thead{Question instances} & \thead{Data and task type} & \thead{Answer type} \\
 \midrule
-\textbf{ViLP} & 900 & 300 questions $\times$ 3 question-image-answer (QIA) groups & Conflicts between language priors and factual or counter-prior visual evidence \\
-\tablestriperow \textbf{HallusionBench} & 1,129 & 951 image-based questions and 178 non-image questions & Visual illusions, language priors, false premises, and image-text conflicts \\
-\textbf{MM-Vet} & 218 & Single-image open-ended visual question answering across six core capabilities & Visual factual errors and compound capability failures in open-ended responses \\
+\textbf{ViLP} \citep{luo2025probing} & 900 & 300 questions $\times$ 3 question-image-answer (QIA) groups & Open-ended \\
+\textbf{HallusionBench} \citep{guan2024hallusionbench} & 1,129 & 951 image-based questions and 178 non-image questions & Yes/no \\
+\textbf{MM-Vet} \citep{yu2024mmvet} & 218 & Single-image visual question answering across six core capabilities & Open-ended \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Further details of the three datasets are provided in Appendix~A.1.
+Further details of the three datasets are provided in Appendix~\ref{subsec:appendix_datasets}.
+
+\subsection{Response Generation and Labeling}
 
 \subsubsection{Response Generation Protocol}
 \label{subsubsec:generation_protocol}
@@ -115,19 +112,41 @@ The response instruction, image, and question are placed in a single user messag
     \item \textbf{$K=10$ randomly sampled responses:} \texttt{do\_sample=true, temperature=1.0}. Each sampled response is allowed at most 50 rejection-resampling attempts to obtain valid XML and is used by Semantic Entropy and UMPIRE.
 \end{itemize}
 
-Semantic Entropy and UMPIRE share exactly the same sampled responses so that sampling variation does not confound their comparison. During generation, I record the per-token log probabilities of the final answer and the final-layer hidden states used by UMPIRE. Samples with malformed XML tags are excluded during data cleaning; the resulting valid-sample counts are reported in Appendix~A.5.
+Semantic Entropy and UMPIRE share exactly the same sampled responses so that sampling variation does not confound their comparison. During generation, I record the per-token log probabilities of the final answer and the final-layer hidden states used by UMPIRE. Samples with malformed XML tags are excluded during data cleaning; the resulting valid-sample counts are reported in Appendix~\ref{subsec:appendix_exclusions}.
 
 \subsubsection{Independent Correctness and Hallucination Labeling}
 \label{subsubsec:independent_labels}
 
-Each greedy primary response is evaluated once by a multimodal LLM judge (\texttt{gpt-5.4}), which returns two independent labels in the same call:
+Each greedy primary response is independently evaluated by two multimodal LLM judges, GPT-5.6-Terra and Gemini-3.7-Flash. They receive the same image, question, reference answer, model response, and versioned judge prompt, but cannot see each other's output. In one call, each judge returns two logically separate fields:
 
 \begin{enumerate}[leftmargin=2em]
     \item \textbf{Correctness $C$:} determined solely by the semantic agreement between \texttt{<answer>} and the dataset reference answer.
     \item \textbf{Hallucination $H$:} determined solely by whether \texttt{<vision>} or \texttt{<reasoning>} contains content unsupported by the image, question, context, or verifiable facts. The judge assigns a score from 0 to 6; a response with \texttt{rating < 3} is labeled as hallucinated and is additionally assigned the type \texttt{vision\_hallucination} or \texttt{reasoning\_hallucination}, as applicable.
 \end{enumerate}
 
-The judge instructions and output format are provided in Appendix~A.6. Because the two labels apply to different parts of a response and are assigned independently, they permit all four combinations. Subsequent UQ evaluation can therefore address error detection and hallucination detection as distinct targets.
+The two outputs are compared field by field. Agreement on a field is accepted as the dual-judge consensus; only a disputed field is sent to blinded human adjudication. The human interface displays the original evaluation material and the field to be resolved, but hides both judge identities and labels to reduce anchoring. Representative adjudication views are shown in Figure~\ref{fig:human_blind_adjudication}. The final label is
+
+\begin{figure}[htbp]
+    \centering
+    \makebox[\textwidth][c]{%
+        \includegraphics[width=0.5\textwidth]{人类盲裁1.png}%
+        \includegraphics[width=0.5\textwidth]{人类盲裁2.png}%
+    }
+    \caption{Representative views of the blinded human adjudication interface. Judge identities and preliminary labels are hidden, while the image, question, reference answer, structured model response, and disputed field remain visible to the human adjudicator.}
+    \label{fig:human_blind_adjudication}
+\end{figure}
+
+\[
+\widehat y_{i,f}=
+\begin{cases}
+y^{\mathrm{GPT}}_{i,f}=y^{\mathrm{Gemini}}_{i,f}, & \text{if the two judges agree on field }f,\\
+y^{\mathrm{Human}}_{i,f}, & \text{otherwise},
+\end{cases}
+\qquad f\in\{C,H\}.
+\]
+The judge instructions and output format are provided in Appendix~\ref{subsec:appendix_prompts}. Across the 6,667 valid responses, the two judges achieve 97.60\% agreement on correctness (Cohen's $\kappa=0.950$) and 86.53\% agreement on hallucination ($\kappa=0.725$). Human adjudication resolves 160 correctness fields and 898 hallucination fields; 45 samples contain conflicts in both fields, leaving 1,013 unique adjudicated samples. Model-level reliability and workload statistics are reported in Appendix~\ref{subsec:appendix_judge_reliability}. This protocol preserves the independence of correctness and hallucination while avoiding the use of any single LLM judge as the formal label source.
+
+\subsection{Baseline Methods and Evaluation Metrics}
 
 \subsubsection{Three Baseline UQ Methods}
 \label{subsubsec:baseline_uq}

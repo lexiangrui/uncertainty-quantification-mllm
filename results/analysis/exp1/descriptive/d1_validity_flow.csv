@@ -1,0 +1,10 @@
+model,dataset,n_generated,n_sections_valid,n_aligned_judge,n_evaluated
+llava,vilp,900,886,886,886
+llava,hallusionbench,1129,1108,1108,1108
+llava,mmvet,218,216,216,216
+qwen,vilp,900,898,898,898
+qwen,hallusionbench,1129,1099,1099,1099
+qwen,mmvet,218,218,218,218
+internvl,vilp,900,900,900,900
+internvl,hallusionbench,1129,1126,1126,1126
+internvl,mmvet,218,216,216,216

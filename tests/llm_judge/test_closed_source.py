@@ -228,6 +228,64 @@ def test_runner_records_unseparated_input_without_api_call(monkeypatch, tmp_path
     assert rows[1]["judge"]["valid"] is False
 
 
+def test_runner_can_judge_raw_response_without_parsing(monkeypatch, tmp_path: Path) -> None:
+    sample = BenchmarkSample(
+        sample_id="vilp-0-case1",
+        group_id="vilp-0",
+        dataset="vilp",
+        split="test",
+        question="How many?",
+        references=("4",),
+        image=None,
+    )
+    monkeypatch.setattr("src.llm_judge.runner.iter_dataset", lambda *args: iter([sample]))
+    source = tmp_path / "source.parquet"
+    source.touch()
+    greedy_input = tmp_path / "greedy.jsonl"
+    greedy_input.write_text(
+        json.dumps({"record_type": "run", "run": {"prompt_sha256": "sample_sha256"}})
+        + "\n"
+        + json.dumps(
+            {
+                "record_type": "sample",
+                "sample": {"sample_id": sample.sample_id},
+                "greedy": {
+                    "sections_valid": False,
+                    "raw_response": "The image shows four propellers, so the answer is 4.",
+                    "vision": None,
+                    "reasoning": None,
+                    "answer": None,
+                },
+            }
+        )
+        + "\n"
+    )
+    output = tmp_path / "judgements.jsonl"
+    client = FakeClient()
+    judge = ClosedSourceJudge("judge-model", client=client)
+    assert run_closed_source_judging(
+        judge=judge,
+        dataset="vilp",
+        dataset_source=source,
+        greedy_input=greedy_input,
+        output=output,
+        limit=None,
+        judge_raw_response=True,
+    ) == (1, 0)
+    payload = client.responses.kwargs["input"][0]["content"][0]["text"].split("\n\n", 1)[0]
+    candidate = json.loads(payload)
+    raw = "The image shows four propellers, so the answer is 4."
+    assert candidate["candidate_response"] == raw
+    rows = [json.loads(line) for line in output.read_text().splitlines()]
+    assert rows[0]["run"]["judge_input_mode"] == "raw_response"
+    assert rows[1]["input"] == {
+        "question": "How many?",
+        "references": ["4"],
+        "raw_response": raw,
+    }
+    assert rows[1]["judge"]["valid"] is True
+
+
 def test_api_retry_does_not_sleep_after_final_failure(monkeypatch) -> None:
     class FailingJudge:
         def judge(self, **kwargs):

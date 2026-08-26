@@ -5,9 +5,9 @@
 \label{subsec:background}
 
 Multimodal large language models (MLLMs) generate open-ended responses from images and text, but their outputs can deviate from the input evidence or objective facts. Following related work \citep{sun2023aligning}, I adopt the following definition:
-\begin{quote}
+\begin{gapblock}
 \textit{MLLM hallucination refers to factual content generated during perception and reasoning that contradicts the input visual content, the question, or the context, cannot be reasonably derived from them, or is inconsistent with verifiable real-world knowledge.}
-\end{quote}
+\end{gapblock}
 
 \textbf{Hallucination is not equivalent to general errors.} Calculation mistakes, incorrect formula selection, flawed logical reasoning, or option mapping errors are not labeled as hallucination unless they introduce factual content satisfying the conditions above. Conversely, even when the final answer is correct, an instance is still labeled as hallucination whenever its perception or reasoning process satisfies those conditions. I accordingly define \textbf{correctness and hallucination labels}:
 \[
@@ -89,61 +89,50 @@ In summary, multimodal UQ has evolved from reusing text scores to explicitly pro
 \subsection{Common Issues in Existing Research}
 \label{subsec:gaps}
 
-Based on the above survey, I identify four interrelated issues in existing UQ research on predicting low-uncertainty hallucination, as summarized in \Cref{tab:gaps}.
+Based on the above survey, I identify four interrelated issues in existing UQ research on predicting low-uncertainty hallucination. Each issue is stated together with the prevailing practice and its consequence for LUH detection.
 
-\begin{table}[tbp]
-\centering
-\caption{Four common issues in existing UQ research on predicting low-uncertainty hallucination.}
-\label{tab:gaps}
-\datatablefont
-\setlength{\tabcolsep}{4pt}
-\renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\linewidth}{L{2.6cm}Y Y}
-\toprule
-\tableheadrow
-\thead{Gap} & \thead{Common practice in existing research} & \thead{Impact on low-uncertainty hallucination} \\
-\midrule
-\textbf{Mechanism assumption} & High generation probability or multi-sample consistency is interpreted as reliability & When the same hallucination is stably reproduced, methods such as PPL and Semantic Entropy may simultaneously give low uncertainty \\
-\tablestriperow \textbf{Evaluation target} & The correctness of the final answer is used as the hallucination or risk label & It cannot distinguish wrong answers without hallucination from correct answers that contain hallucination, and the effectiveness of UQ may be replaced by the error rate \\
-\textbf{Measurement object} & Only the final answer is scored in terms of probability or semantic dispersion & Unsupported content introduced in the visual observation or reasoning may not be reflected in the UQ score of the short final answer \\
-\tablestriperow \textbf{Perturbation validity} & Image blurring and text rewriting are treated as semantically equivalent perturbations & Perturbations may destroy task information or introduce prompt sensitivity, so that a high score reflects artificial information degradation rather than the original hallucination risk \\
-\bottomrule
-\end{tabularx}
-\end{table}
+\begin{gapblock}
+\textbf{1. Mechanism assumption}\par\smallskip
+\textbf{Common practice.} High generation probability or multi-sample consistency is interpreted as reliability.\par
+\textbf{Why it matters for LUH.} When the same hallucination is reproduced stably, methods such as PPL and Semantic Entropy may simultaneously assign low uncertainty.
+\end{gapblock}
+
+\begin{gapblock}
+\textbf{2. Evaluation target}\par\smallskip
+\textbf{Common practice.} The correctness of the final answer is used as the hallucination or risk label.\par
+\textbf{Why it matters for LUH.} This convention cannot distinguish wrong answers without hallucination from correct answers that contain hallucination, so measured UQ effectiveness may merely reproduce error-detection performance.
+\end{gapblock}
+
+\begin{gapblock}
+\textbf{3. Measurement object}\par\smallskip
+\textbf{Common practice.} Only the final answer is scored through generation probability or semantic dispersion.\par
+\textbf{Why it matters for LUH.} Unsupported content introduced in the visual observation or reasoning process may not be reflected in the UQ score of a short final answer.
+\end{gapblock}
+
+\begin{gapblock}
+\textbf{4. Perturbation validity}\par\smallskip
+\textbf{Common practice.} Image blurring and text rewriting are treated as semantically equivalent perturbations.\par
+\textbf{Why it matters for LUH.} These perturbations may destroy task information or introduce prompt sensitivity, causing a high score to reflect artificial information degradation rather than the hallucination risk of the original input.
+\end{gapblock}
 
 This judgment is also supported by a recent systematic study. \citet{agnimo2026evaluating} compared 46 UQ estimators and found that the association between uncertainty and hallucination varies significantly with the dataset, which encodes both the task and the hallucination type, and with the model, and that no single estimator is consistently best across datasets. That study further points out that existing work often substitutes broad correctness, robustness, or calibration targets for hallucination-specific targets, and therefore UQ scores should not be directly regarded as general-purpose hallucination detectors. However, that study targets text LLMs and has not systematically examined the low-uncertainty hallucination caused by visual evidence, language priors, and multimodal fusion.
 
-\subsection{Research Question}
+\subsection{Research Question and Experimental Pipeline}
 \label{subsec:research_question}
+\label{subsec:pipeline}
 
 Based on the above survey, I formulate the following core research question:
 
-\begin{quote}
-\centering
+\begin{gapblock}
 \textbf{RQ: How can uncertainty quantification methods identify and predict low-uncertainty hallucination in multimodal large language models?}
-\end{quote}
+\end{gapblock}
 
-The low-uncertainty hallucination studied in this report is not a new type of hallucination but a class of samples that existing UQ methods may miss: the response contains content unsupported by the image, the question, the context, or the facts, while its generation probability, sampling consistency, or internal semantic representation score still indicates low uncertainty. Answering this question first requires characterizing the hallucinated samples assigned low uncertainty by PPL, Semantic Entropy, and UMPIRE, and then identifying the shared failure mechanisms of the three methods. For controlled evaluation, I construct a balanced difficult subset for each model with 200 LUH positives and 200 non-hallucinated negatives explicitly matched in the percentile space of the three UQ scores. The report therefore consists of two consecutive experiments.
-
-\subsection{Research Method and Experimental Pipeline}
-\label{subsec:pipeline}
-
-To address the research question, I design a consecutive two-stage research pipeline, shown in \Cref{fig:overall_research_pipeline}.
+The low-uncertainty hallucination studied in this report is not a new hallucination type, but a class of responses that existing UQ methods may miss: the response contains content unsupported by the image, question, context, or verifiable facts, while the corresponding UQ score remains low. To answer the research question, this study follows the direction of first identifying the blind spots of existing methods and then exploring a more effective hallucination-specific uncertainty signal. The resulting two-stage experimental pipeline is shown in \Cref{fig:overall_research_pipeline}.
 
 \begin{enumerate}[leftmargin=2em]
-\item \textbf{Experiment~1: UQ evaluation framework design and LUH blind-spot discovery (Sections~\ref{sec:experiment1_framework}--\ref{sec:experiment1_results}).}
-\begin{itemize}[leftmargin=1.5em]
-    \item I use format-oriented LoRA to standardize three open-source MLLMs with distinct architectures---LLaVA-1.5, Qwen2.5-VL, and InternVL3.5---to produce a three-part XML response. A multimodal LLM judge independently labels answer correctness $C$ and hallucination $H$ in the same call.
-    \item On three benchmarks (ViLP, HallusionBench, and MM-Vet; 2,247 instances in total), I evaluate Perplexity (PPL), Semantic Entropy (SE), and UMPIRE, thereby quantifying the systematic failure of conventional methods on low-uncertainty hallucination (LUH).
-    \item For each model, I extract 200 LUH positives and match them without replacement to 200 non-hallucinated negatives in the percentile space of the three UQ scores. This produces a balanced 400-sample difficult subset on which fixed-direction baseline AUROC ranges from 0.402 to 0.502, corresponding to random performance or mild reverse ordering.
-\end{itemize}
+\item \textbf{Experiment~1: UQ evaluation and LUH blind-spot identification (Sections~\ref{sec:experiment1_framework}--\ref{sec:experiment1_results}).} A unified correctness-and-hallucination evaluation framework is used to examine the hallucination-detection capability of existing UQ methods, identify stable low-uncertainty false-negative regions, and construct the difficult subsets required by the next stage.
 
-\item \textbf{Experiment~2: ERA early-rationale-attribution method design and validation (Sections~4--5).}
-\begin{itemize}[leftmargin=1.5em]
-    \item To address the mechanism underlying baseline failure on LUH---the model can develop internal confidence while autoregressively generating a rationale, causing its final decision to depart from the actual visual and question inputs---I propose \textbf{ERA} (Early Rationale Attribution), a UQ method.
-    \item In the shallow decoder layers (Layers~0--1), ERA partitions the sequence into five contiguous semantic regions: image $I$, question $Q$, visual description $V$, rationale $R$, and final answer $A$. A single forward pass measures the relative dependence of the answer on self-generated rationale versus external evidence, yielding $U_{\mathrm{ERA}}$.
-    \item I reuse the difficult subsets and evaluation protocol from Experiment~1 without modification to test whether ERA can distinguish LUH missed by conventional methods from low-uncertainty non-hallucinated responses.
-\end{itemize}
+\item \textbf{Experiment~2: exploration and validation of a new uncertainty signal (Sections~\ref{sec:era_method}--\ref{sec:experiment2_results}).} Guided by the blind spots revealed in Experiment~1, this stage investigates whether the model's early dependence on visual evidence provides an additional uncertainty signal and evaluates its effectiveness and consistency across model architectures.
 \end{enumerate}
 
 \begin{figure}[H]

@@ -9,7 +9,11 @@ from PIL import Image
 
 from src.datasets.base import BenchmarkSample
 from src.generation.runner import _hidden_sidecar_path, run_generation
-from src.generation.prompt import XML_LORA_PROMPT_SHA256
+from src.generation.prompt import (
+    NATIVE_THREE_PART_PROMPT_SHA256,
+    XML_LORA_PROMPT_SHA256,
+    build_prompt,
+)
 from src.models.base import GeneratedResponse, GenerationBackend, GenerationRequest
 
 
@@ -219,6 +223,24 @@ def test_generation_prompt_sha_matches_file() -> None:
     path = Path(__file__).resolve().parents[2] / "prompts" / "generation" / "xml_lora_zero_shot.md"
     text = path.read_text(encoding="utf-8").strip()
     assert hashlib.sha256(text.encode("utf-8")).hexdigest() == XML_LORA_PROMPT_SHA256
+
+
+def test_native_three_part_prompt_is_independent_and_positive() -> None:
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "prompts"
+        / "generation"
+        / "native_three_part_zero_shot.md"
+    )
+    text = path.read_text(encoding="utf-8").strip()
+    assert hashlib.sha256(text.encode("utf-8")).hexdigest() == NATIVE_THREE_PART_PROMPT_SHA256
+    assert "Visual Observation:" in text
+    assert "Reasoning:" in text
+    assert "Final Answer:" in text
+    assert "do not" not in text.lower()
+    prompt = build_prompt("What is shown?", True, "native_three_part")
+    assert prompt.stop == ()
+    assert "<vision>" not in prompt.user
 
 
 def test_production_hidden_paths_follow_model_and_dataset_layout() -> None:

@@ -1,0 +1,15 @@
+{
+  "subset": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/analysis/luh/per_model_subsets.json",
+  "components_dir": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/results/era_components",
+  "layers": [
+    0,
+    1
+  ],
+  "bootstrap_samples": 1000,
+  "models": {
+    "llava": 400,
+    "qwen": 400,
+    "internvl": 400
+  },
+  "markdown_output": "/home/lexiangrui/Uncertainty-Quantification-of-MLLM/docs/实验二结果.md"
+}
