@@ -4,34 +4,36 @@
 \subsection{Dataset Details}
 \label{subsec:appendix_datasets}
 
-\textbf{ViLP} \citep{luo2025probing}. The Hugging Face release contains 300 distinct questions, each paired with three images and answers: one prior-consistent answer and two test answers that require joint use of textual and visual evidence. Expanding all three pairings yields 900 QIA instances. Each QIA is evaluated independently, while grouped statistics and bootstrap resampling cluster by the original question identifier to avoid treating the three related instances as independent. The benchmark creates direct conflicts between language priors and visual evidence, as illustrated by Case~1 in \Cref{subsec:representative_cases}.
+\textbf{ViLP} \citep{luo2025probing}. ViLP is designed to test whether a multimodal model is dominated by language priors when the image provides conflicting evidence. The Hugging Face release contains 300 distinct questions, each paired with three images and answers: one prior-consistent answer and two test answers that require joint use of textual and visual evidence. Expanding all three pairings yields 900 QIA instances. Each QIA is evaluated independently, while grouped statistics and bootstrap resampling cluster by the original question identifier to avoid treating the three related instances as independent. The official answers are typically single words; in this study, options, numbers, words, phrases, and short sentences are all accepted. The benchmark creates direct conflicts between language priors and visual evidence, as illustrated by Case~1 in \Cref{subsec:representative_cases}.
 
-\textbf{HallusionBench} \citep{guan2024hallusionbench}. HallusionBench contains 1,129 instances: 951 in the \texttt{image} split and 178 in the \texttt{non\_image} split. It covers Visual Dependent and Visual Supplement settings and includes figures, charts, maps, tables, OCR, illusions, mathematics, and video frames. Both splits are used in the full evaluation; instances with \texttt{visual\_input=0} receive no image and are excluded only when constructing the ERA difficult subsets, which require visual tokens.
+\textbf{HallusionBench} \citep{guan2024hallusionbench}. HallusionBench is a diagnostic benchmark for entangled language hallucination and visual illusion. It contains 1,129 instances: 951 in the \texttt{image} split and 178 in the \texttt{non\_image} split. The data cover Visual Dependent and Visual Supplement settings, language hallucination, visual illusion, and associated question groups, with ground truth mostly in Yes/No form and additional \texttt{gt\_answer\_details}. The benchmark includes figures, charts, maps, tables, OCR, illusions, mathematics, and video frames. Both splits are used in the full evaluation; instances with \texttt{visual\_input=0} receive no image and are excluded only when constructing the ERA difficult subsets, which require visual tokens.
 
-\textbf{MM-Vet} \citep{yu2024mmvet}. The \texttt{test} split contains 218 open-ended visual questions covering recognition, OCR, knowledge, spatial awareness, language generation, mathematics, and combinations such as OCR+math. Reference answers may be words, numbers, lists, short sentences, or descriptions. Correctness is judged semantically from the content inside \texttt{<answer>}.
+\textbf{MM-Vet} \citep{yu2024mmvet}. MM-Vet evaluates integrated capabilities in open-ended visual question answering. The \texttt{test} split contains 218 open-ended visual questions, each with one image and a reference answer. The questions cover recognition, OCR, knowledge, spatial awareness, language generation, mathematics, and combinations such as OCR+math. Reference answers can be words, numbers, lists, short sentences, or descriptive text. Correctness is judged semantically from the content inside \texttt{<answer>}.
 
 \subsection{Prompt Templates}
 \label{subsec:appendix_prompts}
 
-\subsubsection{Response Instruction (\texttt{xml-lora-zero-shot-v1})}
+\subsubsection{XML-LoRA Response Instruction (\texttt{xml\_lora})}
 
-The image, question, and response instruction are placed in one user message:
+The current generation pipeline loads this instruction from \path{prompts/LoRA/xml_lora_instruction.md}. It is placed first in the user message, followed by the image marker when an image is present and then the question:
 
+\begin{promptblock}
 \begin{lstlisting}
-[Image]
-{official_image}
-
-[Question]
-{official_question}
-
-[Response requirements]
 Answer using exactly these three XML tags once and in order, with no line breaks
 and no text outside them: <vision>relevant visible evidence</vision><reasoning>brief
 reasoning</reasoning><answer>concise final answer</answer>
+
+[Image]
+The image is attached to this message.
+
+[Question]
+{official_question}
 \end{lstlisting}
+\end{promptblock}
 
-\subsubsection{Judge System Prompt (\texttt{closed-source-correctness-hallucination-v1})}
+\subsubsection{Judge System Prompt (\texttt{closed\_source\_judge})}
 
+\begin{promptblock}
 \begin{lstlisting}
 You are an impartial judge for a multimodal response organized into visual
 observations, reasoning, and a final answer.
@@ -65,9 +67,11 @@ Task 2: Correctness
 Judge correctness only from the final answer part. Compare it with the ground
 truth provided in the user prompt.
 \end{lstlisting}
+\end{promptblock}
 
 \subsubsection{Judge User Prompt and Output Format}
 
+\begin{promptblock}
 \begin{lstlisting}
 [Image]
 {official_image}
@@ -93,6 +97,7 @@ Format example:
   "reason": "The answer matches the ground truth, and no hallucination is found."
 }
 \end{lstlisting}
+\end{promptblock}
 
 \subsection{Format-Oriented LoRA Fine-Tuning}
 \label{subsec:appendix_lora}
@@ -101,7 +106,7 @@ The format data are constructed from the official VQAv2 train2014 questions, hum
 
 Each model has a separate LoRA adapter but shares the same data split, target format, and core optimization settings. LoRA is applied only to \texttt{q\_proj} and \texttt{v\_proj} in the language-model attention layers; the vision encoder, multimodal projector, and all remaining base parameters are frozen. Loss is computed only on the response. LLaVA and Qwen use a maximum sequence length of 1,024, while InternVL uses 4,096 to accommodate its native input representation.
 
-\begin{table}[tbp]
+\begin{table}[H]
 \centering
 \caption{Format-oriented LoRA configuration and validation results.}
 \label{tab:appendix_lora_config}
@@ -131,12 +136,11 @@ This ablation begins with 500 question instances sampled without replacement fro
 
 Only instances for which the native response actually contains all three requested sections enter the content comparison. This leaves 217 paired samples for LLaVA, 473 for Qwen, and 500 for InternVL. Differences are defined as XML-LoRA minus native. Confidence intervals use 1,000 group-bootstrap replicates and $p$ values use exact McNemar tests.
 
-\begin{table}[tbp]
+\begin{table}[H]
 \centering
 \caption{Paired comparison of XML-LoRA and native-prompt responses. Parentheses report 95\% bootstrap confidence intervals for the difference.}
 \label{tab:appendix_xml_ablation}
 \datatablefont
-\setlength{\tabcolsep}{5pt}
 \textbf{(a) Accuracy}\\[3pt]
 \begin{tabular}{lrrrrr}
 \toprule
@@ -168,7 +172,7 @@ Among native responses that follow the three-part instruction, the accuracy diff
 
 \Cref{tab:appendix_layer_ablation} compares single shallow layers, shallow-layer averages, middle and final layers, and all-layer averages. Values are reported with 95\% group-bootstrap confidence intervals.
 
-\begin{table}[tbp]
+\begin{table}[H]
 \centering
 \caption{ERA performance under different decoder-layer selections. Bold marks the best result within each model and metric.}
 \label{tab:appendix_layer_ablation}
@@ -213,7 +217,7 @@ Shallow layers are consistently more discriminative than middle layers or all-la
 \subsection{Vision/Reasoning Attribution-Component Ablation}
 \label{subsec:appendix_component_ablation}
 
-\begin{table}[tbp]
+\begin{table}[H]
 \centering
 \caption{Vision/Reasoning attribution-component ablation. All variants use Layers~0--1; bold marks the best result within each model and metric.}
 \label{tab:appendix_component_ablation}
@@ -321,7 +325,6 @@ InternVL & 15.3\% & 64.5\% \\
 \caption{Composition of hallucination types. Parentheses show percentages among hallucinated responses for that model.}
 \label{tab:appendix_h_types}
 \datatablefont
-\setlength{\tabcolsep}{5pt}
 \begin{tabular}{lrrrr}
 \toprule
 \tableheadrow \thead{Model} & \thead{Visual only} & \thead{Reasoning only} & \thead{Both} & \thead{Total hallucinations} \\
@@ -470,7 +473,6 @@ All positives are hallucinated, and no negative has a hallucination rating at or
 \caption{Generation, valid-evaluation, and exclusion counts. All exclusions are due to XML parsing failure.}
 \label{tab:appendix_exclusions}
 \datatablefont
-\setlength{\tabcolsep}{5pt}
 \begin{tabular}{llrrr}
 \toprule
 \tableheadrow \thead{Model} & \thead{Dataset} & \thead{Generated} & \thead{Evaluated} & \thead{Excluded} \\
@@ -502,7 +504,6 @@ Agreement is computed from the original GPT-5.6-Terra and Gemini-3.7-Flash label
 \caption{Field-level agreement and Cohen's $\kappa$ between the two LLM judges.}
 \label{tab:appendix_judge_agreement}
 \datatablefont
-\setlength{\tabcolsep}{5pt}
 \begin{tabular}{lrrrrr}
 \toprule
 \thead{Model} & \thead{$n$} & \multicolumn{2}{c}{\thead{Correctness}} & \multicolumn{2}{c}{\thead{Hallucination}} \\
@@ -523,7 +524,6 @@ InternVL & 2,242 & 96.92\% & 0.930 & 86.98\% & 0.697 \\
 \caption{Conflicting fields sent to blinded human adjudication and the number of unique adjudicated samples.}
 \label{tab:appendix_human_adjudication}
 \datatablefont
-\setlength{\tabcolsep}{5pt}
 \begin{tabular}{lrrrr}
 \toprule
 \thead{Model} & \thead{Correctness fields} & \thead{Hallucination fields} & \thead{Both fields} & \thead{Unique samples} \\

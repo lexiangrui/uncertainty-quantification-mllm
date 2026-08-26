@@ -93,10 +93,19 @@
 \captionsetup{
   font=small,
   labelfont=bf,
-  skip=6pt,
+  skip=3pt,
   justification=justified,
   singlelinecheck=false
 }
+
+% Compact, uniform spacing between figures/tables and surrounding body text.
+\setlength{\intextsep}{6pt plus1pt minus1pt}
+\setlength{\textfloatsep}{6pt plus1pt minus1pt}
+\setlength{\floatsep}{6pt plus1pt minus1pt}
+
+% Default geometry shared by all data tables.
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.15}
 
 % Keep running headers unobtrusive while making the body pages easier to navigate.
 \pagestyle{fancy}
@@ -122,6 +131,11 @@
   keepspaces=true,
 }
 
+% Prevent a complete prompt/code example from being split across pages.
+\newenvironment{promptblock}
+  {\par\noindent\begin{minipage}{\linewidth}}
+  {\end{minipage}\par}
+
 \numberwithin{figure}{section}
 \numberwithin{table}{section}
 
@@ -134,7 +148,7 @@
 \maketitle
 
 \begin{abstract}
-Uncertainty quantification (UQ) for multimodal large language models (MLLMs) commonly assumes that high generation confidence or strong consistency across samples indicates reliable predictions. However, an MLLM may confidently and consistently generate content unsupported by visual evidence, resulting in \textbf{low-uncertainty hallucinations (LUHs)}. In this work, I systematically investigate whether existing UQ methods can detect such failures and explore a complementary uncertainty signal based on evidence attribution. I evaluate LLaVA, Qwen2.5-VL, and InternVL on ViLP, HallusionBench, and MM-Vet, independently annotating correctness and hallucination for 6,667 valid responses. The results show that correctness and hallucination are fundamentally distinct: 22.8\% of responses exhibit mismatched correctness and hallucination labels. Moreover, Perplexity, Semantic Entropy, and UMPIRE consistently perform worse at detecting hallucinations than answer errors, leaving a substantial number of confident hallucinations undetected. To target the shared blind spots of these three baselines, I further extract a challenging low-uncertainty subset and introduce \textbf{Early Rationale Attribution (ERA)}. ERA characterizes the source of model confidence by measuring, at early decoder layers, the relative attention attribution of answer generation to external evidence---the image and question---versus self-generated visual descriptions and reasoning. On the challenging subsets, ERA achieves AUROCs of \textbf{0.708, 0.618, and 0.591} across the three models, outperforming the strongest baselines by \textbf{0.232, 0.119, and 0.088}, respectively. These results demonstrate that \textbf{prediction stability does not imply evidential support}, and that tracing where model confidence originates provides an effective and complementary signal for identifying low-uncertainty hallucinations. Code is available at \url{https://github.com/lexiangrui/uncertainty-quantification-mllm}.
+A common assumption in uncertainty quantification (UQ) for multimodal large language models (MLLMs) is that high generation confidence or strong consistency across repeated samples indicates reliable predictions. However, an MLLM can confidently and consistently produce content unsupported by visual evidence, which I call \textbf{low-uncertainty hallucinations (LUHs)}. In this work, I investigate whether existing UQ methods can detect such failures and explore a complementary signal based on evidence attribution. I evaluate LLaVA, Qwen2.5-VL, and InternVL on ViLP, HallusionBench, and MM-Vet, and independently annotate correctness and hallucination for 6,667 valid responses. I find that correctness and hallucination are distinct evaluation targets: 22.8\% of the responses have mismatched correctness and hallucination labels. Perplexity, Semantic Entropy, and UMPIRE are consistently less effective at detecting hallucinations than at detecting answer errors, leaving a substantial number of confidently generated hallucinations undetected. To address the shared blind spots of these baselines, I construct a challenging low-uncertainty subset and introduce \textbf{Early Rationale Attribution (ERA)}. ERA measures where the model's confidence comes from: at early decoder layers, it compares the attention allocated by answer generation to external evidence (the image and question) with the attention allocated to self-generated visual descriptions and reasoning. On the challenging subsets, ERA achieves AUROCs of \textbf{0.708, 0.618, and 0.591} across the three models, outperforming the strongest baselines by \textbf{0.232, 0.119, and 0.088}, respectively. Overall, prediction stability does not imply evidential support, and tracing the origin of model confidence provides a complementary signal for detecting low-uncertainty hallucinations. Code is available at \url{https://github.com/lexiangrui/uncertainty-quantification-mllm}.
 \end{abstract}
 
 \setcounter{tocdepth}{2}
@@ -146,6 +160,7 @@ Uncertainty quantification (UQ) for multimodal large language models (MLLMs) com
 \input{chapter/03_experiment1_results}
 \input{chapter/04_experiment2_era_method}
 \input{chapter/05_experiment2_era_results}
+\input{chapter/06_limitations_future_work}
 
 \appendix
 \input{chapter/appendix}

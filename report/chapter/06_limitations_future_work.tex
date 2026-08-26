@@ -1,10 +1,24 @@
 \section{Limitations and Future Work}
 \label{sec:limitations}
 
-% TODO
-
 \subsection{Limitations}
-% TODO
+
+\paragraph{Model-dependent effect of XML format adaptation.}
+The format-oriented LoRA standardizes the organization of visual observations, reasoning, and final answers. The vision encoder, multimodal projector, and remaining base parameters are frozen to minimize interference with the models' original capabilities. Nevertheless, the paired ablation in Appendix~\ref{subsec:appendix_xml_ablation} shows that the changes in accuracy and hallucination rate vary across model architectures. XML adaptation therefore cannot be treated as completely neutral with respect to model capability. Moreover, the comparison is restricted to paired samples for which the native model produces all three requested response sections, so the evaluation-stability benefit of structured output remains partly entangled with the effect of fine-tuning itself.
+
+\paragraph{Limited extrapolation from the difficult subsets.}
+ERA is evaluated primarily on LUH difficult subsets in which the score distributions of PPL, SE, and UMPIRE are explicitly matched. This design isolates information that ERA contributes beyond the three conventional UQ signals, but the resulting subsets do not represent the full data distribution. The current evidence therefore supports ERA's ability to identify low-uncertainty hallucinations, rather than establishing its overall performance across all correct, incorrect, hallucinated, and non-hallucinated responses.
+
+\paragraph{Attribution source is not visual verification.}
+ERA measures the relative dependence of answer generation on external inputs and internally generated content; it does not directly verify whether the attended visual evidence has been interpreted correctly. When a model still relies on the image and question but makes an error in local recognition, OCR, fine-grained counting, or chart reading, ERA may remain low. It can reveal overreliance on self-generated descriptions and reasoning, but it cannot independently validate the content of the visual evidence.
+
+\paragraph{Residual uncertainty in judge labels.}
+The annotation pipeline uses GPT-5.6-Terra and Gemini-3.7-Flash as independent judges and sends disagreeing fields to blinded human adjudication. Agreement between the two judges, however, does not guarantee that a label is correct. Human adjudication currently concentrates on disagreements and therefore does not systematically measure shared errors among agreed cases. The resulting labels may also vary with the judge models, prompts, and operational definition of hallucination.
 
 \subsection{Future Work}
-% TODO
+
+\paragraph{Evaluation on the full detection distribution.}
+The next step is to extend ERA from the current LUH difficult subsets to the complete evaluation datasets under the same independent correctness and hallucination labels. The goal is not merely to improve LUH recall, but to retain ERA's sensitivity to low-uncertainty hallucinations without sacrificing the general error- and hallucination-detection performance expected of a base uncertainty measure.
+
+\paragraph{Complementary integration with conventional UQ.}
+Future work will study how ERA can be combined with PPL, SE, and UMPIRE. These baselines characterize generation probability, semantic disagreement across samples, and internal representation stability, whereas ERA asks whether certainty is grounded in external visual evidence. The combined methods will be evaluated on both the full datasets and the LUH subsets, with detection, ranking, and calibration metrics reported together to assess stability across models and datasets.

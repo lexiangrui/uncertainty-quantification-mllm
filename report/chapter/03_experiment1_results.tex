@@ -8,15 +8,14 @@
 
 \subsubsection{Accuracy and Hallucination Rate}
 
-The three models produced 6,741 responses in total, of which 6,667 satisfied the XML requirements and entered the formal evaluation, yielding a validity rate of 98.9\%. Cell-level exclusions are reported in Appendix~\ref{subsec:appendix_exclusions}. This high validity rate indicates that format adaptation reliably supports the subsequent correctness, hallucination, and uncertainty analyses. LLaVA has the lowest overall accuracy (0.493) and the highest hallucination rate (0.679), whereas Qwen and InternVL achieve higher accuracy with substantially lower hallucination rates of 0.358 and 0.322, respectively; InternVL has the strongest overall performance.
+The three models produced 6,741 responses in total; 6,667 satisfied the XML requirements and entered the formal evaluation, yielding a validity rate of 98.9\%. Cell-level exclusions are reported in Appendix~\ref{subsec:appendix_exclusions}. This high validity rate indicates that format adaptation reliably supports the subsequent correctness, hallucination, and uncertainty analyses. LLaVA has the lowest overall accuracy (0.493) and the highest hallucination rate (0.679), whereas Qwen and InternVL achieve higher accuracy with substantially lower hallucination rates of 0.358 and 0.322, respectively; InternVL has the strongest overall performance.
 
-\begin{table}[H]
+\begin{table}[h]
 \centering
 \caption{Accuracy and hallucination rate in each model--dataset cell.}
 \label{tab:accuracy_hallucination_rate}
 \datatablefont
 \setlength{\tabcolsep}{8pt}
-\renewcommand{\arraystretch}{1.16}
 \begin{tabular}{llrcc}
 \toprule
 \tableheadrow
@@ -46,16 +45,16 @@ HallusionBench places the strongest demands on hallucination control. For exampl
 
 \subsubsection{Joint Distribution of Correctness and Hallucination}
 
-\begin{figure}[H]
+\begin{figure}[h]
 \centering
 \includegraphics[width=0.95\linewidth]{fig_3_1_2a_label_joint}
 \caption{Joint distribution of correctness and hallucination. The left panel shows the 100\% stacked distribution for each model; the right panel shows hallucination rates conditional on answer correctness.}
 \label{fig:label_joint}
 \end{figure}
 
-As shown in \Cref{fig:label_joint}, correctness and hallucination are distinct evaluation targets. Among the 6,667 valid responses, 14.0\% are correct but hallucinated and 8.8\% are incorrect without hallucination. Replacing $H$ with the error label $E=1-C$ would therefore mismatch 1,522 samples (22.8\%). Moreover, 30.9\% of all hallucinated responses still have correct final answers, while 22.1\% of all incorrect responses contain no hallucination. Complete counts and conditional proportions are provided in Appendix~\ref{subsec:appendix_label_stats}. The absolute $\phi$ coefficients in the nine model--dataset cells range only from 0.46 to 0.65, confirming that the labels are moderately to strongly associated but remain far from equivalent.
+As shown in \Cref{fig:label_joint}, correctness and hallucination are distinct evaluation targets. Among the 6,667 valid responses, 14.0\% are correct but hallucinated and 8.8\% are incorrect without hallucination. Replacing $H$ with the error label $E=1-C$ would therefore mismatch 1,522 samples (22.8\%). Moreover, 30.9\% of all hallucinated responses still have correct final answers, while 22.1\% of all incorrect responses contain no hallucination. Complete counts and conditional proportions are provided in Appendix~\ref{subsec:appendix_label_stats}. The absolute $\phi$ coefficients in the nine model--dataset cells range from 0.46 to 0.65, indicating that the labels are moderately to strongly associated but remain far from equivalent.
 
-\begin{figure}[H]
+\begin{figure}[h]
 \centering
 \includegraphics[width=0.88\linewidth]{fig_3_1_2b_hallucination_types}
 \caption{Composition of hallucination types for the three models, shown as three parallel donut charts.}
@@ -69,35 +68,34 @@ Across all hallucinated responses, 61.9\% contain both visual and reasoning hall
 
 \subsubsection{Error Detection}
 
-\begin{figure}[H]
+As shown in \Cref{fig:error_detection}, Semantic Entropy achieves the best AUROC in eight of the nine model--dataset cells, with a nine-cell mean of 0.724. UMPIRE is best only for LLaVA/HallusionBench, while PPL is not best in any cell. The mean ranks of SE, UMPIRE, and PPL are 1.22, 2.11, and 2.67, respectively. The model-wise macro-average SE AUROC is also consistently highest (0.672, 0.729, and 0.771 for LLaVA, Qwen, and InternVL), while all three methods generally perform better on MM-Vet than on ViLP and HallusionBench. Full cell-level AUROC values and confidence intervals are reported in Appendix~\ref{subsec:appendix_error_auroc}.
+
+\begin{figure}[h]
 \centering
 \includegraphics[width=0.96\linewidth]{fig_3_2_1_error_detection}
 \caption{Error-detection AUROC of the three UQ methods across models and datasets. Error bars show 95\% bootstrap confidence intervals; the dashed line marks random performance at 0.5.}
 \label{fig:error_detection}
 \end{figure}
 
-As shown in \Cref{fig:error_detection}, Semantic Entropy achieves the best AUROC in eight of the nine model--dataset cells and has a nine-cell mean of 0.724. UMPIRE is best only for LLaVA/HallusionBench, while PPL is not best in any cell. The mean ranks of SE, UMPIRE, and PPL are 1.22, 2.11, and 2.67, respectively. The model-wise macro-average SE AUROC is also consistently highest (0.672, 0.729, and 0.771 for LLaVA, Qwen, and InternVL), while all three methods generally perform better on MM-Vet than on ViLP and HallusionBench. Full cell-level AUROC values and confidence intervals are reported in Appendix~\ref{subsec:appendix_error_auroc}.
-
 \subsubsection{Hallucination Detection}
 
-\begin{figure}[H]
+\begin{figure}[h]
 \centering
 \includegraphics[width=0.96\linewidth]{fig_3_2_2_hallucination_detection}
 \caption{Hallucination-detection AUROC of the three UQ methods across models and datasets. Error bars show 95\% bootstrap confidence intervals; the dashed line marks random performance at 0.5.}
 \label{fig:hallucination_detection}
 \end{figure}
 
-Changing the target from error to hallucination weakens all three methods (\Cref{fig:hallucination_detection}). The nine-cell mean AUROC decreases from 0.658, 0.724, and 0.685 for error detection to 0.568, 0.655, and 0.613 for PPL, SE, and UMPIRE, respectively. SE remains best in eight cells, but its absolute performance is lower than for error detection. Four PPL confidence intervals and one UMPIRE confidence interval cover random performance at 0.5, whereas none of the nine SE intervals does. The model-wise macro-average SE AUROC is 0.623, 0.636, and 0.707 for LLaVA, Qwen, and InternVL, all below the corresponding error-detection results. These results indicate that semantic dispersion across samples is more effective at capturing answer instability than factual hallucination in visual observation and reasoning. Full results are reported in Appendix~\ref{subsec:appendix_h_auroc}.
+Switching the target from error to hallucination weakens all three methods (\Cref{fig:hallucination_detection}). The nine-cell mean AUROC decreases from 0.658, 0.724, and 0.685 for error detection to 0.568, 0.655, and 0.613 for PPL, SE, and UMPIRE, respectively. SE remains best in eight cells, but its absolute performance is lower than for error detection. Four PPL confidence intervals and one UMPIRE confidence interval cover random performance at 0.5, whereas none of the nine SE intervals does. The model-wise macro-average SE AUROC is 0.623, 0.636, and 0.707 for LLaVA, Qwen, and InternVL, all below the corresponding error-detection results. These results indicate that semantic dispersion across samples is more effective at capturing answer instability than factual hallucination in visual observation and reasoning. Full results are reported in Appendix~\ref{subsec:appendix_h_auroc}.
 
 \subsubsection{Detection-Target Gap}
 
-\begin{table}[H]
+\begin{table}[h]
 \centering
 \caption{Mean $\operatorname{AUROC}(H)-\operatorname{AUROC}(E)$ across the three datasets for each model and UQ method.}
 \label{tab:target_gap}
 \datatablefont
 \setlength{\tabcolsep}{12pt}
-\renewcommand{\arraystretch}{1.16}
 \begin{tabular}{lccc}
 \toprule
 \tableheadrow
@@ -126,13 +124,12 @@ The threshold is determined only from non-hallucinated samples, and all ties at 
 
 \subsubsection{Blind-Spot Share and Missed-Hallucination Count}
 
-\begin{table}[H]
+\begin{table}[h]
 \centering
 \caption{LUH share and absolute count at the two quantile thresholds.}
 \label{tab:luh_share_count}
 \datatablefont
 \setlength{\tabcolsep}{5.2pt}
-\renewcommand{\arraystretch}{1.15}
 \begin{tabular}{lr l rr rr}
 \toprule
 \tableheadrow
@@ -156,7 +153,7 @@ The threshold is determined only from non-hallucinated samples, and all ties at 
 \end{tabular}
 \end{table}
 
-At $\alpha=0.25$, LUH shares range from 0.062 to 0.246, corresponding to 45--292 missed hallucinations. At $\alpha=0.50$, the shares increase to 0.268--0.515 and the counts to 193--680. Except for Qwen/PPL at the median threshold, the shares remain below their corresponding $\alpha$, indicating useful ranking ability but a substantial residual blind spot. Each row defines a method-specific LUH subset; subsets may overlap and must not be added across methods.
+At $\alpha=0.25$, LUH shares range from 0.062 to 0.246, corresponding to 45--292 missed hallucinations. At $\alpha=0.50$, the shares increase to 0.268--0.515 and the counts to 193--680. Except for Qwen/PPL at the median threshold, the shares remain below their corresponding $\alpha$, indicating useful ranking ability but a substantial residual blind spot. Each row defines a method-specific LUH subset; subsets may overlap and should not be summed across methods.
 
 \subsubsection{Failure Attribution}
 
@@ -175,13 +172,7 @@ Low-uncertainty hallucination is therefore not a single random failure but a sys
 
 The following cases illustrate three mechanisms: a language prior overriding visual evidence, a visual readout error, and a correct final answer accompanied by a hallucinated intermediate observation.
 
-% Uniform separation between case cards and surrounding text regardless of float placement.
-\begingroup
-\setlength{\intextsep}{12pt plus2pt minus2pt}
-\setlength{\textfloatsep}{12pt plus2pt minus2pt}
-\setlength{\floatsep}{12pt plus2pt minus2pt}
-
-\begin{table}[htbp]
+\begin{table}[h]
 \centering
 \refstepcounter{table}\label{tab:luh_case1}
 \begin{casecard}
@@ -219,7 +210,7 @@ The following cases illustrate three mechanisms: a language prior overriding vis
 \end{casecard}
 \end{table}
 
-\begin{table}[htbp]
+\begin{table}[h]
 \centering
 \phantomsection\label{tab:luh_case2}
 \begin{casecard}
@@ -257,7 +248,7 @@ The following cases illustrate three mechanisms: a language prior overriding vis
 \end{casecard}
 \end{table}
 
-\begin{table}[htbp]
+\begin{table}[h]
 \centering
 \phantomsection\label{tab:luh_case3}
 \begin{casecard}
@@ -296,16 +287,15 @@ The following cases illustrate three mechanisms: a language prior overriding vis
 \end{table}
 
 \FloatBarrier
-\endgroup
 
-Together, the cases show that checking only the final answer is insufficient for determining whether the whole response is supported by visual evidence. The attribution analysis above explains why the baselines can assign low uncertainty: high token probability for short or numeric answers lowers PPL, stable repetition of an erroneous conclusion lowers SE, and agreement between internal representations and generation probabilities prevents UMPIRE from identifying content that lacks visual support.
+Together, these cases show that checking only the final answer is insufficient for determining whether the whole response is supported by visual evidence. The attribution analysis above explains why the baselines can assign low uncertainty: high token probability for short or numeric answers lowers PPL, stable repetition of an erroneous conclusion lowers SE, and agreement between internal representations and generation probabilities prevents UMPIRE from identifying content that lacks visual support.
 
 \subsection{Low-Uncertainty Difficult Subset}
 \label{subsec:luh_subset}
 
 \subsubsection{Construction Procedure}
 
-The difficult subset constructs positive and negative samples that receive similar scores from the three UQ methods but have opposite hallucination labels:
+The difficult subset contains positive and negative samples that receive similar scores from the three UQ methods but have opposite hallucination labels:
 
 \begin{enumerate}[label=\textbf{Step \arabic*:}, leftmargin=5.2em, labelsep=0.7em]
 \item For each model, build a candidate pool containing valid judge labels, valid PPL/SE/UMPIRE scores, a non-missing hallucination label, and an image input.
@@ -319,13 +309,12 @@ Candidate-pool sizes, score alignment, matching distances, and final subset comp
 
 \subsubsection{Baseline Performance}
 
-\begin{table}[H]
+\begin{table}[h]
 \centering
 \caption{Baseline performance on the difficult subsets.}
 \label{tab:subset_baselines}
 \datatablefont
 \setlength{\tabcolsep}{6pt}
-\renewcommand{\arraystretch}{1.16}
 \begin{tabular}{lcccccc}
 \toprule
 \tableheadrow
@@ -341,6 +330,6 @@ InternVL & 0.489 & 0.498 & 0.498 & 0.500 & \best{0.502} & \best{0.502} \\
 \end{tabular}
 \end{table}
 
-Across the nine model--method combinations, AUROC ranges from 0.402 to 0.502 with a mean of 0.471, and eight of nine values are below 0.5. For LLaVA, the upper confidence bounds of PPL and UMPIRE are both below 0.5, indicating stable mild reverse ordering; the Qwen and InternVL scores are near random and most confidence intervals cover 0.5. After aligning the score distributions of all three UQ methods, PPL, SE, and UMPIRE cannot reliably distinguish LUH from non-hallucinated responses. The subset therefore provides a strict baseline for evaluating ERA in Experiment~2.
+Across the nine model--method combinations, AUROC ranges from 0.402 to 0.502 with a mean of 0.471, and eight of nine values are below 0.5. For LLaVA, the upper confidence bounds of PPL and UMPIRE are both below 0.5, indicating stable but mild reverse ordering; the Qwen and InternVL scores are near random and most confidence intervals cover 0.5. After aligning the score distributions of all three UQ methods, PPL, SE, and UMPIRE cannot reliably distinguish LUH from non-hallucinated responses. The subset therefore provides a strict baseline for evaluating ERA in Experiment~2.
 
 In summary, Experiment~1 provides a progression of evidence from label relationships to detection performance and finally to failure cases. Correctness and hallucination are correlated but not interchangeable. PPL, SE, and UMPIRE rank answer errors to some extent, yet perform consistently worse on hallucination and miss a nontrivial set of low-uncertainty hallucinations. After their score distributions are explicitly aligned in the difficult subsets, all three methods approach random AUROC, showing that generation probability, semantic consistency across samples, and internally self-consistent representations do not guarantee sufficient support from the image and question. Experiment~2 therefore shifts the focus from how certain the model is to whether that certainty is grounded in external evidence, motivating early cross-modal attribution signals.

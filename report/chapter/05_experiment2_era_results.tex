@@ -6,7 +6,7 @@
 \subsection{ERA Hallucination-Detection Performance}
 \label{subsec:era_performance}
 
-ERA is evaluated on the low-uncertainty difficult subsets constructed in \Cref{subsec:luh_subset}. Each model-specific subset contains 200 LUH positives and 200 non-hallucinated negatives matched on the distributions of the three baseline UQ scores. ERA uses the mean attribution score from decoder Layers~0--1 and is compared with PPL, SE, and UMPIRE on exactly the same samples. \Cref{tab:era_performance} reports AUROC, AUPRC, and PRR together with the improvement of ERA over the strongest baseline for each metric.
+ERA is evaluated on the low-uncertainty difficult subsets constructed in \Cref{subsec:luh_subset}. Each model-specific subset contains 200 LUH positives and 200 non-hallucinated negatives matched on the score distributions of the three baseline UQ methods. ERA uses the mean attribution score from decoder Layers~0--1 and is compared with PPL, SE, and UMPIRE on exactly the same samples. \Cref{tab:era_performance} reports AUROC, AUPRC, and PRR together with the improvement of ERA over the strongest baseline for each metric.
 
 \begin{table}[tbp]
 \centering
@@ -33,16 +33,16 @@ ERA is evaluated on the low-uncertainty difficult subsets constructed in \Cref{s
 \end{tabular}
 \end{table}
 
-ERA outperforms the strongest baseline for every model and metric. On LLaVA, AUROC increases from 0.476 to 0.708 and AUPRC from 0.464 to 0.719. The corresponding ERA results are 0.618 and 0.610 for Qwen, and 0.591 and 0.602 for InternVL. Relative to the strongest baseline, the absolute AUROC gains are 0.232, 0.119, and 0.088, while the AUPRC gains are 0.255, 0.112, and 0.100.
+ERA outperforms the strongest baseline for every model and metric. On LLaVA, AUROC increases from 0.476 to 0.708 and AUPRC from 0.464 to 0.719. ERA achieves 0.618 and 0.610 for Qwen, and 0.591 and 0.602 for InternVL. Relative to the strongest baseline, the absolute AUROC gains are 0.232, 0.119, and 0.088, while the AUPRC gains are 0.255, 0.112, and 0.100.
 
-PRR gives the same conclusion. The baseline PRR values are near zero or negative, whereas ERA reaches 0.473, 0.290, and 0.187, corresponding to absolute gains of 0.509, 0.291, and 0.184. Relative PRR gains are omitted because ratios with a near-zero or negative denominator are unstable. Thus, even after the conventional UQ distributions have been explicitly matched, early information-source structure restores useful ranking information for LUH detection.
+PRR yields the same conclusion. The baseline PRR values are near zero or negative, whereas ERA reaches 0.473, 0.290, and 0.187, corresponding to absolute gains of 0.509, 0.291, and 0.184. Relative PRR gains are omitted because ratios with a near-zero or negative denominator are unstable. Thus, even after the conventional UQ distributions have been explicitly matched, early information-source structure restores useful ranking information for LUH detection.
 
 Three supporting ablations are reported in the appendix. Appendix~\ref{subsec:appendix_layer_ablation} examines decoder-layer selection, Appendix~\ref{subsec:appendix_component_ablation} separates the Vision and Reasoning attribution components, and Appendix~\ref{subsec:appendix_correctness_ablation} evaluates ERA separately within correct and incorrect answers to control for their different class composition. The XML-format adaptation comparison is reported before them in Appendix~\ref{subsec:appendix_xml_ablation}.
 
 \subsection{Discriminative Ability of ERA Scores}
 \label{subsec:era_discrimination}
 
-\Cref{fig:era_score_distribution} compares the ERA score distributions of LUH and matched non-hallucinated samples, while \Cref{tab:era_distribution} combines distributional location and threshold-free discrimination. Because network architecture and attention scale differ across models, the primary comparison is between classes within the same model rather than through a universal cross-model threshold.
+\Cref{fig:era_score_distribution} compares the ERA score distributions of LUH and matched non-hallucinated samples, while \Cref{tab:era_distribution} combines distributional location and threshold-free discrimination. Because network architectures and attention scales differ across models, the primary comparison is between classes within the same model rather than through a universal cross-model threshold.
 
 \begin{figure}[tbp]
 \centering
@@ -70,22 +70,16 @@ InternVL & 0.6529 (0.6102--0.6855) & 0.6343 (0.6032--0.6661) & +0.0186 & 0.591 &
 
 For all three models, the LUH distribution shifts toward higher ERA scores, consistent with the definition that stronger dependence on self-generated reasoning indicates greater uncertainty. The shift is largest for LLaVA, whose median rises from 0.3324 to 0.3746. Qwen and InternVL show smaller median gaps of 0.0350 and 0.0186 and correspondingly greater overlap.
 
-The AUROC and Cliff's $\delta$ values provide threshold-free cross-model comparisons. All three effect sizes are positive and all AUROCs exceed 0.5, following the same LLaVA--Qwen--InternVL ordering as \Cref{tab:era_performance}. The common direction across three architectures shows that ERA is not driven by one model, although the degree of separation remains model dependent.
+The AUROC and Cliff's $\delta$ values provide threshold-free cross-model comparisons. All three effect sizes are positive and all AUROCs exceed 0.5, following the same LLaVA--Qwen--InternVL ordering as \Cref{tab:era_performance}. The consistent direction across three architectures shows that ERA is not driven by one model, although the degree of separation remains model dependent.
 
 This difference is consistent with the LUH-scale analysis in \Cref{subsec:luh_blind_spot}. At the stricter $\alpha=0.25$ threshold, LLaVA contains 206--292 LUH responses across the three UQ methods, whereas InternVL contains only 45--120; at $\alpha=0.50$, the corresponding ranges are 595--680 and 193--324. Qwen lies between them. The overall hallucination rates likewise decrease from 0.679 for LLaVA to 0.358 for Qwen and 0.322 for InternVL. Because lower-hallucination models expose fewer hallucination failure modes for ERA to identify, ERA produces its largest shift and gain on LLaVA and a more limited improvement on InternVL.
 
 \subsection{Representative Case Analysis}
 \label{subsec:era_cases}
 
-The following cases illustrate a baseline miss recovered by ERA, a normal low-uncertainty response, and an ERA failure. Percentiles are computed within the corresponding 400-sample model-specific difficult subset; a larger percentile means that the method regards the response as more uncertain.
+The following cases illustrate a baseline miss recovered by ERA, a normal low-uncertainty response, and an ERA failure. Percentiles are computed within each corresponding 400-sample model-specific difficult subset; a larger percentile indicates that the method regards the response as more uncertain.
 
-% Uniform separation between case cards and surrounding text regardless of float placement.
-\begingroup
-\setlength{\intextsep}{12pt plus2pt minus2pt}
-\setlength{\textfloatsep}{12pt plus2pt minus2pt}
-\setlength{\floatsep}{12pt plus2pt minus2pt}
-
-\begin{table}[htbp]
+\begin{table}[h]
 \centering
 \phantomsection\label{tab:era_case1}
 \begin{casecard}
@@ -130,7 +124,7 @@ The following cases illustrate a baseline miss recovered by ERA, a normal low-un
 \end{casecard}
 \end{table}
 
-\begin{table}[htbp]
+\begin{table}[h]
 \centering
 \phantomsection\label{tab:era_case2}
 \begin{casecard}
@@ -175,7 +169,7 @@ The following cases illustrate a baseline miss recovered by ERA, a normal low-un
 \end{casecard}
 \end{table}
 
-\begin{table}[htbp]
+\begin{table}[h]
 \centering
 \phantomsection\label{tab:era_case3}
 \begin{casecard}
@@ -221,10 +215,9 @@ The following cases illustrate a baseline miss recovered by ERA, a normal low-un
 \end{table}
 
 \FloatBarrier
-\endgroup
 
-Taken together, the cases show that ERA is most effective when an answer depends excessively on the model's internal visual description and reasoning, while normal low-uncertainty responses retain stronger attribution to external evidence. ERA can still fail when the model attends to the image but reads local visual content incorrectly. It therefore complements probability, sampling-consistency, and internal-representation baselines with information about evidence source, but does not directly verify whether the attended visual evidence has been interpreted correctly.
+Taken together, these cases show that ERA is most effective when an answer depends excessively on the model's internal visual description and reasoning, while normal low-uncertainty responses retain stronger attribution to external evidence. ERA can still fail when the model attends to the image but reads local visual content incorrectly. It therefore complements probability, sampling-consistency, and internal-representation baselines with information about evidence source, but does not directly verify whether the attended visual evidence has been interpreted correctly.
 
 \subsection{Summary}
 
-Experiment~2 demonstrates that ERA recovers useful discrimination on difficult subsets where PPL, SE, and UMPIRE have been deliberately matched to near-random performance. The score shifts in the same direction across all three model architectures, although the gain is largest for the model with the highest hallucination rate and smallest for the model with the lowest rate. The case analysis further clarifies both the advantage and the boundary of the method: early evidence-source attribution detects overreliance on self-generated reasoning, but not every local visual misreading.
+Experiment~2 demonstrates that ERA recovers useful discrimination on difficult subsets where PPL, SE, and UMPIRE have been deliberately matched to near-random performance. The score shifts in the same direction across all three model architectures, although the gain is largest for the model with the highest hallucination rate and smallest for the model with the lowest rate. The case analysis further clarifies both the strength and the boundary of the method: early evidence-source attribution detects overreliance on self-generated reasoning, but not every local visual misreading.

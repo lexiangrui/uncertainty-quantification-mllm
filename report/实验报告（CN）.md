@@ -2,11 +2,50 @@
 
 ## 摘要
 
-多模态大语言模型（MLLM）的不确定性量化通常假设，高生成置信度或跨采样一致性意味着更可靠的预测。然而，模型可能稳定且高置信地生成缺乏视觉证据支持的内容，形成**低不确定性幻觉（Low-Uncertainty Hallucination, LUH）**。本文中，我系统研究现有不确定性量化方法能否识别此类幻觉，并探索面向证据来源的新型不确定性信号。我在 LLaVA、Qwen2.5-VL 和 InternVL 三种 MLLM 以及 ViLP、HallusionBench 和 MM-Vet 三个基准上，对 6,667 条有效回答分别进行正确性与幻觉的独立标注。结果表明，正确性与幻觉并不等价，22.8% 的样本在两种标签之间发生错配；同时，Perplexity、Semantic Entropy 和 UMPIRE 对幻觉的检测性能系统性弱于对答案错误的检测，并存在大量稳定的低不确定性漏检。针对三种基线方法的共同盲区，我进一步提取了一个低不确定性困难子集，并提出 **ERA（Early Rationale Attribution）**。ERA 通过度量答案生成早期对输入图像与问题等外部证据，以及模型自生成视觉描述与推理等内部上下文的相对注意力归因，刻画模型确定性的证据来源。在三个模型的困难子集上，ERA 的 AUROC 分别达到 **0.708、0.618 和 0.591**，相较最优基线绝对提升 **0.232、0.119 和 0.088**。实验结果表明，**预测稳定性并不等价于证据充分性**；相比仅衡量模型“有多确定”，追踪其确定性“来自何处”为识别低不确定性幻觉提供了一种有效且互补的不确定性信号。项目代码开源于：https://github.com/lexiangrui/uncertainty-quantification-mllm 。
+多模态大语言模型（MLLM）的不确定性量化通常假设，高生成置信度或跨采样一致性意味着更可靠的预测。然而，模型可能稳定且高置信地生成缺乏视觉证据支持的内容，形成**低不确定性幻觉（Low-Uncertainty Hallucination, LUH）**。在本工作中，我研究现有不确定性量化方法能否识别此类幻觉，并探索一种基于证据归因的互补信号。我在 LLaVA、Qwen2.5-VL 和 InternVL 三种 MLLM 以及 ViLP、HallusionBench 和 MM-Vet 三个基准上，对 6,667 条有效回答分别进行正确性与幻觉的独立标注。我发现正确性与幻觉是不同的评估目标，22.8% 的样本在两种标签之间发生错配；同时，Perplexity、Semantic Entropy 和 UMPIRE 对幻觉的检测性能始终弱于对答案错误的检测，并留下大量自信生成的幻觉未被检测到。针对三种基线方法的共同盲区，我构建了一个低不确定性困难子集，并提出 **ERA（Early Rationale Attribution）**。ERA 衡量模型置信度的来源：在早期解码器层，它比较答案生成分配给外部证据（图像和问题）的注意力与分配给自生成的视觉描述和推理的注意力。在三个模型的困难子集上，ERA 的 AUROC 分别达到 **0.708、0.618 和 0.591**，相较最优基线绝对提升 **0.232、0.119 和 0.088**。总体而言，**预测稳定性并不意味着证据支持**；追溯模型置信度的来源为识别低不确定性幻觉提供了一种互补信号。项目代码开源于：https://github.com/lexiangrui/uncertainty-quantification-mllm 。
 
 ## Abstract
 
-Uncertainty quantification (UQ) for multimodal large language models (MLLMs) commonly assumes that high generation confidence or strong consistency across samples indicates reliable predictions. However, an MLLM may confidently and consistently generate content unsupported by visual evidence, resulting in **low-uncertainty hallucinations (LUHs)**. In this work, I systematically investigate whether existing UQ methods can detect such failures and explore a complementary uncertainty signal based on evidence attribution. I evaluate LLaVA, Qwen2.5-VL, and InternVL on ViLP, HallusionBench, and MM-Vet, independently annotating correctness and hallucination for 6,667 valid responses. The results show that correctness and hallucination are fundamentally distinct: 22.8% of responses exhibit mismatched correctness and hallucination labels. Moreover, Perplexity, Semantic Entropy, and UMPIRE consistently perform worse at detecting hallucinations than answer errors, leaving a substantial number of confident hallucinations undetected. To target the shared blind spots of these three baselines, I further extract a challenging low-uncertainty subset and introduce **Early Rationale Attribution (ERA)**. ERA characterizes the source of model confidence by measuring, at early decoder layers, the relative attention attribution of answer generation to external evidence—the image and question—versus self-generated visual descriptions and reasoning. On the challenging subsets, ERA achieves AUROCs of **0.708, 0.618, and 0.591** across the three models, outperforming the strongest baselines by **0.232, 0.119, and 0.088**, respectively. These results demonstrate that **prediction stability does not imply evidential support**, and that tracing where model confidence originates provides an effective and complementary signal for identifying low-uncertainty hallucinations. Code is available at https://github.com/lexiangrui/uncertainty-quantification-mllm.
+A common assumption in uncertainty quantification (UQ) for multimodal large language models (MLLMs) is that high generation confidence or strong consistency across repeated samples indicates reliable predictions. However, an MLLM can confidently and consistently produce content unsupported by visual evidence, which I call **low-uncertainty hallucinations (LUHs)**. In this work, I investigate whether existing UQ methods can detect such failures and explore a complementary signal based on evidence attribution. I evaluate LLaVA, Qwen2.5-VL, and InternVL on ViLP, HallusionBench, and MM-Vet, and independently annotate correctness and hallucination for 6,667 valid responses. I find that correctness and hallucination are distinct evaluation targets: 22.8% of the responses have mismatched correctness and hallucination labels. Perplexity, Semantic Entropy, and UMPIRE are consistently less effective at detecting hallucinations than at detecting answer errors, leaving a substantial number of confidently generated hallucinations undetected. To address the shared blind spots of these baselines, I construct a challenging low-uncertainty subset and introduce **Early Rationale Attribution (ERA)**. ERA measures where the model's confidence comes from: at early decoder layers, it compares the attention allocated by answer generation to external evidence (the image and question) with the attention allocated to self-generated visual descriptions and reasoning. On the challenging subsets, ERA achieves AUROCs of **0.708, 0.618, and 0.591** across the three models, outperforming the strongest baselines by **0.232, 0.119, and 0.088**, respectively. Overall, prediction stability does not imply evidential support, and tracing the origin of model confidence provides a complementary signal for detecting low-uncertainty hallucinations. Code is available at https://github.com/lexiangrui/uncertainty-quantification-mllm.
+
+
+
+## 目录
+
+- [摘要](#摘要)
+- [Abstract](#abstract)
+- [1. 研究问题提出](#1-研究问题提出)
+  - [1.1 研究背景与问题定义](#11-研究背景与问题定义)
+  - [1.2 多模态幻觉的评测研究](#12-多模态幻觉的评测研究)
+  - [1.3 从语言模型不确定性到多模态不确定性](#13-从语言模型不确定性到多模态不确定性)
+  - [1.4 现有研究的共性问题](#14-现有研究的共性问题)
+  - [1.5 研究问题与实验路线](#15-研究问题与实验路线)
+- [2. 实验一：UQ 评估框架设计](#2-实验一uq评估框架设计)
+  - [2.1 评测模型与数据集](#21-评测模型与数据集)
+  - [2.2 回答生成与标注](#22-回答生成与标注)
+  - [2.3 基线方法与评估指标](#23-基线方法与评估指标)
+- [3. 实验一：评估结果分析与低不确定性子集提取](#3-实验一评估结果分析与低不确定性子集提取)
+  - [3.1 描述性统计](#31-描述性统计)
+  - [3.2 错误与幻觉检测性能](#32-错误与幻觉检测性能)
+  - [3.3 低不确定性幻觉盲区](#33-低不确定性幻觉盲区)
+  - [3.4 典型案例分析](#34-典型案例分析)
+  - [3.5 低不确定性困难子集](#35-低不确定性困难子集)
+- [4. 实验二：ERA 早期推理归因不确定性量化方法设计](#4-实验二era-早期推理归因不确定性量化方法设计)
+  - [4.1 方法动机](#41-方法动机)
+  - [4.2 五类语义区域划分](#42-五类语义区域划分)
+  - [4.3 答案到不同证据区域的注意力归因](#43-答案到不同证据区域的注意力归因)
+  - [4.4 ERA 不确定性分数](#44-era-不确定性分数)
+  - [4.5 单次前向计算流程](#45-单次前向计算流程)
+- [5. 实验二：实验结果对比与分析](#5-实验二实验结果对比与分析)
+  - [5.1 ERA 幻觉检测性能](#51-era-幻觉检测性能)
+  - [5.2 ERA 分数的区分能力](#52-era-分数的区分能力)
+  - [5.3 典型案例分析](#53-典型案例分析)
+- [6. 局限性与下一步工作](#6-局限性与下一步工作)
+  - [6.1 局限性](#61-局限性)
+  - [6.2 下一步工作](#62-下一步工作)
+- [附录 A：补充说明与消融实验](#附录-a补充说明与消融实验)
+- [附录 B：实验详细数据](#附录-b实验详细数据)
+- [参考文献](#参考文献)
 
 ## 1. 研究问题提出
 
@@ -187,7 +226,7 @@ LUH 是幻觉检测的漏报，反映该 UQ 方法未能识别模型稳定生成
 
 #### 2.2.2 正确性与幻觉的独立标注
 
-每条 greedy 主回答分别交由 GPT-5.6-Terra 与 Gemini-3.7-Flash 两个多模态 LLM Judge 独立评判。二者接收完全相同的原图、问题、参考答案、模型回答和版本化 Judge Prompt，评判过程中互不可见对方的输出。每个 Judge 在同一次调用中分别给出两个相互独立的字段：
+每条 greedy 主回答分别交由 GPT-5.6-Terra 与 Gemini-3.7-Flash 两个多模态 LLM Judge 独立评判。二者接收完全相同的原图、问题、参考答案、模型回答和统一 Judge Prompt，评判过程中互不可见对方的输出。每个 Judge 在同一次调用中分别给出两个相互独立的字段：
 
 1. **正确性 \(C\)**：只比较 `<answer>` 与数据集参考答案的语义一致性；
 2. **幻觉 \(H\)**：只评价 `<vision>` 与 `<reasoning>` 是否包含图像、问题、上下文或可验证事实不支持的内容，按 0–6 量表打分，`rating < 3` 判为存在幻觉，并给出 `vision_hallucination` / `reasoning_hallucination` 类型。
@@ -733,34 +772,51 @@ PRR 给出了与 AUROC 和 AUPRC 一致的结果：三种基线在困难子集�
 
 综合三个案例，ERA 的优势主要体现在识别“答案过度依赖内部视觉描述与推理”的低不确定性幻觉，而正常低不确定性回答通常保持更高的外部证据归因。其失效则主要出现在模型确实关注了图像、但对局部视觉内容作出错误解释的情形。因而，ERA 补充的是传统概率、采样一致性与内部表征方法缺少的证据来源信息，但并不能替代对视觉证据内容正确性的直接验证。
 
+## 6 局限性与下一步工作
+
+### 6.1 局限性
+
+**XML 格式适配的影响具有模型差异。** 本文通过格式 LoRA 规范视觉观察、推理与最终答案的组织方式，并冻结视觉编码器、多模态投影层及其余基础参数，以尽量降低格式学习对模型原有能力的干扰。然而，附录 A.4 的配对消融表明，XML 格式适配对正确率和幻觉率的影响随模型而变化，因而不能将其视为对模型能力完全中性的处理。此外，当前比较仅覆盖原生模型能够完整生成三段式回答的配对样本，格式规范带来的评测稳定性收益与微调本身引起的能力变化仍需进一步区分。
+
+**困难子集上的结论不能直接外推至完整分布。** ERA 目前主要在经过 PPL、SE 和 UMPIRE 分数分布匹配的 LUH 困难子集上验证。该设计能够检验 ERA 是否提供传统 UQ 信号之外的增量信息，但困难子集并不等同于完整数据分布。因此，现有结果主要支持 ERA 对低不确定性幻觉的识别能力，尚不足以说明其在全部正确、错误、幻觉与非幻觉样本上的综合检测性能。
+
+**证据来源归因不能替代视觉内容核验。** ERA 衡量最终答案对外部输入与模型内部生成内容的相对依赖，但不直接判断模型是否正确理解了所关注的视觉证据。当模型仍依赖图像和问题，却在局部目标识别、OCR、细粒度计数或图表读数中出现错误时，ERA 仍可能给出较低分数。因此，ERA 能够揭示模型是否过度依赖自生成描述与推理，却不能独立完成对视觉内容正确性的验证。
+
+**裁判标签仍可能包含共同偏差。** 本文采用 GPT-5.6-Terra 与 Gemini-3.7-Flash 独立裁判，并对分歧字段进行人工盲裁，但两个 Judge 达成一致并不意味着标签必然正确。当前人工仲裁主要覆盖裁判分歧样本，对一致样本中的共同偏差缺少系统核查；裁判模型、提示词与幻觉判定标准的变化也可能影响最终标签。
+
+### 6.2 下一步工作
+
+下一步将把 ERA 从当前 LUH 困难子集扩展到三个完整检测数据集，并在统一的正确性与幻觉标签下评估全部样本。核心目标不是仅提高 LUH 的识别率，而是在保留 ERA 对低不确定性幻觉敏感性的同时，不损失基础不确定性量化方法对一般错误和一般幻觉的检测能力。
+
+为实现这一目标，后续将探索 ERA 与 PPL、SE、UMPIRE 等传统 UQ 信号的互补融合。传统方法分别刻画生成概率、跨采样语义分歧和内部表征稳定性，ERA 则补充模型确定性是否真正来源于外部视觉证据。后续评估将同时报告完整数据集与 LUH 子集上的检测、排序和校准结果，并进一步检验组合方法在不同模型与数据集之间的稳定性。
+
 ## 附录 A：补充说明与消融实验
 
 ### A.1 评测数据集介绍
 
-**ViLP。** ViLP 用于检验视觉语言模型是否会被问题文本诱导的语言先验支配。Hugging Face 数据包含 300 个不同问题，每个问题对应三张图像和三个配对答案：一个 Prior Answer 和两个要求结合文本与视觉证据才能得到的 Test Answer，共形成 900 个 QIA 问题实例（每个 QIA 为一行，图像以二进制列存储于 `ViLP.parquet`）。本实验展开全部三组配对，每个 QIA 都作为独立推理实例；在分组统计和 bootstrap 时仍以原始问题 ID 聚类，避免把同题的三组实例视为完全独立。典型的问题构造方式是在句首给出一个关于常见物体的强先验陈述（例如"袋鼠以跳跃著称"），再询问图中实际出现的另一物体（例如考拉），从而制造语言先验与视觉证据的直接冲突（见 2.4.4 案例 1）。
+**ViLP。** ViLP 用于检验视觉语言模型是否会被问题文本诱导的语言先验支配。Hugging Face 数据包含 300 个不同问题，每个问题对应三张图像和三个配对答案：一个 Prior Answer 和两个要求结合文本与视觉证据才能得到的 Test Answer，共形成 900 个 QIA 问题实例（每个 QIA 为一行，图像以二进制列存储于 `ViLP.parquet`）。本实验展开全部三组配对，每个 QIA 都作为独立推理实例；在分组统计和 bootstrap 时仍以原始问题 ID 聚类，避免把同题的三组实例视为完全独立。官方答案通常为单词；本实验允许选项、数值、词语、短语和短句。典型的问题构造方式是在句首给出一个关于常见物体的强先验陈述（例如"袋鼠以跳跃著称"），再询问图中实际出现的另一物体（例如考拉），从而制造语言先验与视觉证据的直接冲突（见 2.4.4 案例 1）。
 
-**HallusionBench。** HallusionBench 包含 1,129 个问题实例：`image` split 951 个、`non_image` split 178 个。数据覆盖 Visual Dependent（VD，视觉依赖，如错视、图表、OCR 与数学图形）与 Visual Supplement（VS，视觉补充，如图表、地图、表格与视频帧）两大类及其子类别（figure、chart、map、table、ocr、illusion、math、video），并包含语言幻觉与关联问题组；GT 主要为 Yes/No，并提供 `gt_answer_details`。本实验使用两个 split 的全集；对 `non_image` 或 `visual_input=0` 的实例不额外传入图像。由于后续改进方法需要视觉 token，这些无图样本在 LUH 子集提取时被排除（见 2.5.1）。
+**HallusionBench。** HallusionBench 是一个针对语言幻觉与视觉错觉纠缠问题的诊断基准，包含 1,129 个问题实例：`image` split 951 个、`non_image` split 178 个。数据覆盖 Visual Dependent（VD，视觉依赖，如错视、图表、OCR 与数学图形）与 Visual Supplement（VS，视觉补充，如图表、地图、表格与视频帧）两大类及其子类别（figure、chart、map、table、ocr、illusion、math、video），并包含语言幻觉与关联问题组；GT 主要为 Yes/No，并提供 `gt_answer_details`。本实验使用两个 split 的全集；对 `non_image` 或 `visual_input=0` 的实例不额外传入图像。由于后续改进方法需要视觉 token，这些无图样本在 LUH 子集提取时被排除（见 2.5.1）。
 
 **MM-Vet。** MM-Vet 的 `test` split 包含 218 个问题，每题对应一张图像和一个开放式参考答案，综合覆盖 recognition（识别）、OCR、knowledge（知识）、spatial awareness（空间感知）、language generation（语言生成）与 math（数学）六项核心能力及其组合（如 OCR+math）。参考答案可能是词语、数字、列表、短句或说明性描述；本实验允许所有上述答案形式，并统一按 `<answer>` 内容与参考答案做语义一致性判定。该数据集的图像来源多样（web 截图、手机照片等），其中包含大量需要精确读数的场景（见 2.4.4 案例 2）。
 
 ### A.2 提示词原文
 
-**A.2.1 被测模型回答指令（`xml-lora-zero-shot-v1`）。** 回答指令、图像与问题放在同一条 user message：
+**A.2.1 XML-LoRA 回答指令（prompt style：`xml_lora`）。** 当前生成流程从 `prompts/LoRA/xml_lora_instruction.md` 读取指令，并依次在同一条 user message 中放入回答指令、可选图像标记和问题：
 
 ```text
-[Image]
-{official_image}
-
-[Question]
-{official_question}
-
-[Response requirements]
 Answer using exactly these three XML tags once and in order, with no line breaks
 and no text outside them: <vision>relevant visible evidence</vision><reasoning>brief
 reasoning</reasoning><answer>concise final answer</answer>
+
+[Image]
+The image is attached to this message.
+
+[Question]
+{official_question}
 ```
 
-**A.2.2 Judge 系统提示词（`closed-source-correctness-hallucination-v1`）。** 完整原文如下，正式运行记录保存其 SHA-256：
+**A.2.2 Judge 系统提示词（`closed_source_judge`）。** 当前实现从 `prompts/judge/closed_source_judge.md` 读取以下原文，正式运行记录保存其 SHA-256：
 
 ```text
 You are an impartial judge for a multimodal response organized into visual
