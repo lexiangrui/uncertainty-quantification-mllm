@@ -4,13 +4,61 @@
 \subsection{Dataset Details}
 \label{subsec:appendix_datasets}
 
-\textbf{ViLP} \citep{luo2025probing}. ViLP is designed to test whether a multimodal model is dominated by language priors when the image provides conflicting evidence. The Hugging Face release contains 300 distinct questions, each paired with three images and answers: one prior-consistent answer and two test answers that require joint use of textual and visual evidence. Expanding all three pairings yields 900 QIA instances. Each QIA is evaluated independently, while grouped statistics and bootstrap resampling cluster by the original question identifier to avoid treating the three related instances as independent. The official answers are typically single words; in this study, options, numbers, words, phrases, and short sentences are all accepted. The benchmark creates direct conflicts between language priors and visual evidence, as illustrated by Case~1 in \Cref{subsec:representative_cases}.
+\textbf{ViLP} \citep{luo2025probing}. ViLP is designed to test whether a multimodal model is dominated by language priors when the image provides conflicting evidence. The Hugging Face release contains 300 distinct questions, each paired with three images and answers: one prior-consistent answer and two test answers that require joint use of textual and visual evidence. Expanding all three pairings yields 900 QIA instances. Each QIA is evaluated independently, while grouped statistics and bootstrap resampling cluster by the original question identifier to avoid treating the three related instances as independent. The official answers are typically single words; in this study, options, numbers, words, phrases, and short sentences are all accepted.
+
+\begin{figure}[H]
+\centering
+\begin{minipage}[c]{0.31\linewidth}
+\centering
+\includegraphics[width=0.92\linewidth]{appendix_vilp_prior_conflict}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.65\linewidth}
+\small
+\textbf{Question:} A soccer ball is typically a sphere. What is the geometric shape of the large soccer ball in the image?\par\smallskip
+\textbf{Ground truth:} Cube.\par\smallskip
+The question foregrounds the strong prior that a soccer ball is spherical, while the image depicts a cube-shaped ball. A correct response must suppress the commonsense cue and follow the visual evidence, directly illustrating ViLP's language-prior conflict design.
+\end{minipage}
+\caption{Representative ViLP sample \texttt{vilp-1-case2}.}
+\label{fig:appendix_vilp_example}
+\end{figure}
 
 \textbf{HallusionBench} \citep{guan2024hallusionbench}. HallusionBench is a diagnostic benchmark for entangled language hallucination and visual illusion. It contains 1,129 instances: 951 in the \texttt{image} split and 178 in the \texttt{non\_image} split. The data cover Visual Dependent and Visual Supplement settings, language hallucination, visual illusion, and associated question groups, with ground truth mostly in Yes/No form and additional \texttt{gt\_answer\_details}. The benchmark includes figures, charts, maps, tables, OCR, illusions, mathematics, and video frames. Both splits are used in the full evaluation; instances with \texttt{visual\_input=0} receive no image and are excluded only when constructing the ERA difficult subsets, which require visual tokens.
 
+\begin{figure}[H]
+\centering
+\begin{minipage}[c]{0.40\linewidth}
+\centering
+\includegraphics[width=\linewidth]{appendix_hallusionbench_illusion}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.56\linewidth}
+\small
+\textbf{Question:} Is the right orange circle the same size as the left orange circle?\par\smallskip
+\textbf{Ground truth:} Yes.\par\smallskip
+The orange circles are identical, but their differently sized surrounds produce a strong visual illusion. Related questions ask whether the right circle is larger or smaller, illustrating HallusionBench's grouped Yes/No design for separating true visual properties from perceptual traps.
+\end{minipage}
+\caption{Representative HallusionBench sample \texttt{hallusionbench-image-VD-illusion-0-0-0}.}
+\label{fig:appendix_hallusionbench_example}
+\end{figure}
+
 \textbf{MM-Vet} \citep{yu2024mmvet}. MM-Vet evaluates integrated capabilities in open-ended visual question answering. The \texttt{test} split contains 218 open-ended visual questions, each with one image and a reference answer. The questions cover recognition, OCR, knowledge, spatial awareness, language generation, mathematics, and combinations such as OCR+math. Reference answers can be words, numbers, lists, short sentences, or descriptive text. Correctness is judged semantically from the content inside \texttt{<answer>}.
 
-\subsection{Prompt Templates}
+\begin{figure}[H]
+\centering
+\begin{minipage}[c]{0.31\linewidth}
+\centering
+\includegraphics[width=\linewidth]{appendix_mmvet_integrated_reasoning}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.65\linewidth}
+\small
+\textbf{Question:} What will the girl on the right write on the board?\par\smallskip
+\textbf{Ground truth:} 14.\par\smallskip
+Answering requires identifying the rightmost of the two girls, locating her middle equation, reading \(7\times2\), and completing the calculation. This open-ended sample combines recognition, OCR, spatial awareness, and arithmetic, illustrating MM-Vet's emphasis on integrated rather than isolated capabilities.
+\end{minipage}
+\caption{Representative MM-Vet sample \texttt{mmvet-v1\_8}.}
+\label{fig:appendix_mmvet_example}
+\end{figure}
+
+\subsection{Prompt and NLI Configuration}
 \label{subsec:appendix_prompts}
 
 \subsubsection{XML-LoRA Response Instruction (\texttt{xml\_lora})}
@@ -98,6 +146,13 @@ Format example:
 }
 \end{lstlisting}
 \end{promptblock}
+
+\subsubsection{NLI Semantic-Equivalence Configuration}
+\label{subsubsec:appendix_nli_config}
+
+Semantic Entropy uses the local sequence-classification checkpoint \texttt{DeBERTa-v3-large}. The model and tokenizer are loaded offline through Hugging Face Transformers with local-only loading enabled. Formal runs use CUDA with a batch size of 32; inputs are dynamically padded within each batch and truncated according to the tokenizer's maximum length. The implementation identifies the unique \texttt{entailment} class from the checkpoint's \texttt{id2label} mapping and uses the logit argmax as the decision, without an additional probability threshold.
+
+Before comparison, each answer is contextualized as \texttt{Question: \{question\}} followed by \texttt{Answer: \{answer\}}. Exact text matches are merged directly. Every other answer is compared bidirectionally with the current representative of each semantic cluster and is merged only when both directions are classified as entailment; otherwise, it initializes a new cluster. This NLI model is used only for Semantic Entropy clustering and does not provide correctness or hallucination labels.
 
 \subsection{Format-Oriented LoRA Fine-Tuning}
 \label{subsec:appendix_lora}

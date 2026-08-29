@@ -186,6 +186,8 @@ p(c)=\sum_{i:y_i\in c}\tilde p_i,
 \]
 SE is low when the sampled responses concentrate in one or a small number of semantic clusters and high when the model distributes its responses across several distinct answer meanings. The entropy is computed from normalized probability mass rather than the number of samples in each cluster, reducing the direct effect of response length on finite-sample probability estimation.
 
+NLI semantic equivalence is evaluated using \texttt{DeBERTa-v3-large}; configuration details are provided in Appendix~\ref{subsubsec:appendix_nli_config}.
+
 \textbf{UMPIRE.} UMPIRE (\textit{Uncertainty using Model Probability Indicators and Response Embeddings}) combines two signals into a training-free multimodal uncertainty score: the dispersion of sampled responses in the internal semantic or multimodal representation space of the evaluated MLLM, and the model's conditional probability of each response given the image-text input. For the $K$ sampled final answers $y_i$ to an input $q$, let $\phi_i\in\mathbb{R}^d$ be the $\ell_2$-normalized response representation extracted from the final layer of the evaluated MLLM at the final-answer tokens, and let $\Phi=[\phi_1^\top;\ldots;\phi_K^\top]\in\mathbb{R}^{K\times d}$. The conditional response probability and incoherence factor are defined as
 \[
 p_i=p_M(y_i\mid q)=\prod_{j=1}^{|y_i|}p_M(w_{i,j}\mid q,w_{i,<j}),

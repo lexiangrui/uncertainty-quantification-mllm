@@ -253,7 +253,6 @@ Judge 的评分指令与输出格式见附录 A.2。两个 Judge 在 6,667 条�
 三种方法均规定"分数越高，不确定性越高"，正式检测对象统一为最终答案部分的内容。
 
 **Perplexity。** PPL 是语言模型中常用的序列概率不确定性度量，通过模型对已生成答案的条件概率衡量预测的不确定性。给定图文问题及提示组成的条件输入 \(q\)，设最终答案部分的 token 序列为 \(y=(w_1,\ldots,w_N)\)，自回归模型给出的序列概率为
-
 \[
 p_M(y\mid q)=\prod_{j=1}^{N}p_M(w_j\mid q,w_{<j}),
 \]
@@ -285,6 +284,8 @@ p(c)=\sum_{i:y_i\in c}\tilde p_i,
 \]
 
 当采样回答集中于一个或少数几个语义簇时，SE 低；当模型在多个彼此不同的答案含义之间分散时，SE 高。该熵以归一化概率质量而非簇内采样次数计算，避免回答长度对有限样本概率估计的直接影响。
+
+NLI 语义判别采用 `DeBERTa-v3-large`，详细配置见附录 A.2.4。
 
 **UMPIRE。** UMPIRE（*Uncertainty using Model Probability Indicators and Response Embeddings*）把两类信号合并为一个训练无关的多模态不确定性分数：采样回答在模型内部语义/多模态表征空间中是否分散，以及模型对每个回答在给定图文输入下的条件概率是否低。对同一输入 \(q\) 的 \(K\) 条采样最终答案 \(y_i\)，令 \(\phi_i\in\mathbb{R}^d\) 为被测 MLLM 最后一层在最终回答 token 处提取并 \(\ell_2\) 归一化后的回答表征，\(\Phi=[\phi_1^\top;\ldots;\phi_K^\top]\in\mathbb{R}^{K\times d}\)。回答的模型条件概率及其不一致度定义为
 
@@ -794,13 +795,37 @@ PRR 给出了与 AUROC 和 AUPRC 一致的结果：三种基线在困难子集�
 
 ### A.1 评测数据集介绍
 
-**ViLP。** ViLP 用于检验视觉语言模型是否会被问题文本诱导的语言先验支配。Hugging Face 数据包含 300 个不同问题，每个问题对应三张图像和三个配对答案：一个 Prior Answer 和两个要求结合文本与视觉证据才能得到的 Test Answer，共形成 900 个 QIA 问题实例（每个 QIA 为一行，图像以二进制列存储于 `ViLP.parquet`）。本实验展开全部三组配对，每个 QIA 都作为独立推理实例；在分组统计和 bootstrap 时仍以原始问题 ID 聚类，避免把同题的三组实例视为完全独立。官方答案通常为单词；本实验允许选项、数值、词语、短语和短句。典型的问题构造方式是在句首给出一个关于常见物体的强先验陈述（例如"袋鼠以跳跃著称"），再询问图中实际出现的另一物体（例如考拉），从而制造语言先验与视觉证据的直接冲突（见 2.4.4 案例 1）。
+**ViLP。** ViLP 用于检验视觉语言模型是否会被问题文本诱导的语言先验支配。Hugging Face 数据包含 300 个不同问题，每个问题对应三张图像和三个配对答案：一个 Prior Answer 和两个要求结合文本与视觉证据才能得到的 Test Answer，共形成 900 个 QIA 问题实例（每个 QIA 为一行，图像以二进制列存储于 `ViLP.parquet`）。本实验展开全部三组配对，每个 QIA 都作为独立推理实例；在分组统计和 bootstrap 时仍以原始问题 ID 聚类，避免把同题的三组实例视为完全独立。官方答案通常为单词；本实验允许选项、数值、词语、短语和短句。
+
+<img src="figures/appendix_vilp_prior_conflict.jpg" alt="ViLP 样本：问题强调足球通常为球形，但图中足球被设计成立方体。" width="36%" />
+
+> **样本：** `vilp-1-case2`<br>
+> **问题：** A soccer ball is typically a sphere. What is the geometric shape of the large soccer ball in the image?<br>
+> **参考答案：** Cube
+
+该样本先在问题中强调“足球通常为球形”这一强语言先验，再让图像呈现一个立方体足球。模型只有抑制常识诱导并依据视觉证据判断形状，才能得到正确答案，体现了 ViLP 通过图文冲突诊断语言先验依赖的核心特点。
 
 **HallusionBench。** HallusionBench 是一个针对语言幻觉与视觉错觉纠缠问题的诊断基准，包含 1,129 个问题实例：`image` split 951 个、`non_image` split 178 个。数据覆盖 Visual Dependent（VD，视觉依赖，如错视、图表、OCR 与数学图形）与 Visual Supplement（VS，视觉补充，如图表、地图、表格与视频帧）两大类及其子类别（figure、chart、map、table、ocr、illusion、math、video），并包含语言幻觉与关联问题组；GT 主要为 Yes/No，并提供 `gt_answer_details`。本实验使用两个 split 的全集；对 `non_image` 或 `visual_input=0` 的实例不额外传入图像。由于后续改进方法需要视觉 token，这些无图样本在 LUH 子集提取时被排除（见 2.5.1）。
 
-**MM-Vet。** MM-Vet 的 `test` split 包含 218 个问题，每题对应一张图像和一个开放式参考答案，综合覆盖 recognition（识别）、OCR、knowledge（知识）、spatial awareness（空间感知）、language generation（语言生成）与 math（数学）六项核心能力及其组合（如 OCR+math）。参考答案可能是词语、数字、列表、短句或说明性描述；本实验允许所有上述答案形式，并统一按 `<answer>` 内容与参考答案做语义一致性判定。该数据集的图像来源多样（web 截图、手机照片等），其中包含大量需要精确读数的场景（见 2.4.4 案例 2）。
+<img src="figures/appendix_hallusionbench_illusion.jpg" alt="HallusionBench 样本：两个实际等大的橙色圆在不同大小的环绕圆影响下看起来大小不同。" width="58%" />
 
-### A.2 提示词原文
+> **样本：** `hallusionbench-image-VD-illusion-0-0-0`<br>
+> **问题：** Is the right orange circle the same size as the left orange circle?<br>
+> **参考答案：** Yes
+
+两个橙色圆的实际尺寸相同，但不同大小的环绕圆会造成明显的视错觉；同一图像还配有“右侧更大”和“右侧更小”等关联问题。该样本体现了 HallusionBench 通过成组 Yes/No 问题区分真实视觉属性与感知错觉的诊断特点。
+
+**MM-Vet。** MM-Vet 的 `test` split 包含 218 个问题，每题对应一张图像和一个开放式参考答案，综合覆盖 recognition（识别）、OCR、knowledge（知识）、spatial awareness（空间感知）、language generation（语言生成）与 math（数学）六项核心能力及其组合（如 OCR+math）。参考答案可能是词语、数字、列表、短句或说明性描述；本实验允许所有上述答案形式，并统一按 `<answer>` 内容与参考答案做语义一致性判定。该数据集的图像来源多样，包括网页图像、截图和真实场景照片。
+
+<img src="figures/appendix_mmvet_integrated_reasoning.jpg" alt="MM-Vet 样本：三名学生在黑板不同位置补全算式。" width="58%" />
+
+> **样本：** `mmvet-v1_8`（capability：recognition + OCR + spatial awareness + math）<br>
+> **问题：** What will the girl on the right write on the board?<br>
+> **参考答案：** 14
+
+回答者需要先识别两名女孩中位于右侧的人，再定位她正在补全的中间算式 `7×2=`，最后完成乘法计算。该样本体现了 MM-Vet 以开放式回答联合考察目标识别、文字读取、空间定位与数学推理，而非仅测试单一能力的特点。
+
+### A.2 提示词与 NLI 语义判别配置
 
 **A.2.1 XML-LoRA 回答指令（prompt style：`xml_lora`）。** 当前生成流程从 `prompts/LoRA/xml_lora_instruction.md` 读取指令，并依次在同一条 user message 中放入回答指令、可选图像标记和问题：
 
@@ -879,6 +904,10 @@ Format example:
   "reason": "The answer matches the ground truth, and no hallucination is found."
 }
 ```
+
+**A.2.4 NLI 语义判别模型配置。** Semantic Entropy 使用本地 sequence-classification checkpoint `DeBERTa-v3-large`。模型与 tokenizer 均通过 Hugging Face Transformers 以 `local_files_only=true` 离线加载，正式任务使用 CUDA、batch size 32；输入按 batch 动态 padding，并依照 tokenizer 的最大长度执行 truncation。程序从 checkpoint 的 `id2label` 中自动识别唯一的 `entailment` 类，以 logits 的 argmax 作为蕴含判定，不另设概率阈值。
+
+聚类时，每个答案先被组织为 `Question: {question}\nAnswer: {answer}`，从而在相同问题上下文中比较含义。完全相同的文本直接归入同一簇；其余答案只与各语义簇代表进行双向 NLI，两个方向均判为 entailment 时才合并，否则建立新簇。该 NLI 模型只服务于 Semantic Entropy 的语义等价判断，不生成正式的正确性或幻觉标签。
 
 ### A.3 LoRA 格式微调
 
